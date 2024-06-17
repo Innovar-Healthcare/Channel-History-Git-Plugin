@@ -1,31 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2021 Kaur Palang
+  
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
-        <artifactId>git-ext</artifactId>
-        <groupId>com.kayyagari</groupId>
-        <version>${revision}</version>
+        <groupId>com.innovarhealthcare</groupId>
+        <artifactId>channelHistory</artifactId>
+        <version>1.0</version>
     </parent>
 
-    <artifactId>git-ext-shared</artifactId>
-    <name>Git Extension Shared</name>
-
     <properties>
-        <swagger-annotations.version>2.1.9</swagger-annotations.version>
+        <swagger.version>2.1.11</swagger.version>
+        <javax.version>2.1.1</javax.version>
     </properties>
 
+    <artifactId>shared</artifactId>
+
     <dependencies>
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>client-core</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>server</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
+        </dependency>
+
         <dependency>
             <groupId>com.kayyagari</groupId>
             <artifactId>objmeld</artifactId>
             <version>${objmeld.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/objmeld-3.4.0.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-annotations</artifactId>
-            <version>${swagger-annotations.version}</version>
+            <version>${swagger.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>javax.ws.rs-api</artifactId>
+            <version>${javax.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20230618</version>
         </dependency>
     </dependencies>
+
+
 </project>

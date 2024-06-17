@@ -1,41 +1,98 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2021 Kaur Palang
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
-        <artifactId>git-ext</artifactId>
-        <groupId>com.kayyagari</groupId>
-        <version>${revision}</version>
+        <groupId>com.innovarhealthcare</groupId>
+        <artifactId>channelHistory</artifactId>
+        <version>1.0</version>
     </parent>
-
-    <artifactId>git-ext-client</artifactId>
-    <name>Git Extension Client</name>
-
     <properties>
         <swingx-core.version>1.6.2-2</swingx-core.version>
         <joda-time.version>2.10.10</joda-time.version>
     </properties>
 
+    <artifactId>client</artifactId>
+
     <dependencies>
         <dependency>
-            <groupId>com.kayyagari</groupId>
-            <artifactId>git-ext-shared</artifactId>
-            <version>${revision}</version>
+            <groupId>com.mirth</groupId>
+            <artifactId>client</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-client.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>com.mirth.connect</groupId>
-            <artifactId>mirth-client</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <groupId>com.mirth</groupId>
+            <artifactId>client-core</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>org.swinglabs</groupId>
-            <artifactId>swingx-core</artifactId>
-            <!-- Use the version 1.6.2-2 cause the pom file of 1.6.2 is messed(has 
-                wrong version) up in central repo. Without this version the Maven fails to 
-                build -->
-            <version>${swingx-core.version}</version>
+            <groupId>com.mirth</groupId>
+            <artifactId>server</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.miglayout</groupId>
+            <artifactId>miglayout</artifactId>
+            <version>${miglayout.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.innovarhealthcare</groupId>
+            <artifactId>shared</artifactId>
+            <version>${project.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.innovarhealthcare</groupId>
+            <artifactId>server</artifactId>
+            <version>${project.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/server/target/${project.parent.artifactId}-server.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.30</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.13</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20231013</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/json-20231013.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>joda-time</groupId>
@@ -43,43 +100,11 @@
             <version>${joda-time.version}</version>
             <scope>provided</scope>
         </dependency>
-    </dependencies>
+        <dependency>
+            <groupId>org.swinglabs</groupId>
+            <artifactId>swingx-core</artifactId>
+            <version>${swingx-core.version}</version>
+        </dependency>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.1.2</version>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>unpack</goal>
-                        </goals>
-                        <configuration>
-                        <!-- including all the classes of ognl library so that only one client specific
-                        jar is present besides the shared jar also it makes JavaWS show the name(which
-                        otherwise doesn't appear if ognl jar is verified first due to missing Application-Name
-                        property in MANIFEST.MF) of the extension on the security dialog -->
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>ognl</groupId>
-                                    <artifactId>ognl</artifactId>
-                                    <version>${ognl.version}</version>
-                                    <includes>**/*</includes>
-                                </artifactItem>
-                            </artifactItems>
-                            <outputDirectory>${project.build.directory}/classes</outputDirectory>
-                            <excludeTransitive>true</excludeTransitive>
-                            <overWriteReleases>true</overWriteReleases>
-                            <overWriteSnapshots>true</overWriteSnapshots>
-                            <overWriteIfNewer>true</overWriteIfNewer>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
+    </dependencies>
 </project>

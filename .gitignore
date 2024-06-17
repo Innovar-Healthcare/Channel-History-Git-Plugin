@@ -1,6 +1,7 @@
-.classpath
-.project
-.settings
-target
 .idea/
+target/
 *.iml
+*.zip
+*.json
+plugin.xml
+*.jar

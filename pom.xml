@@ -1,23 +1,64 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2021 Kaur Palang
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.kayyagari</groupId>
-    <artifactId>git-ext</artifactId>
-    <version>${revision}</version>
-
-    <name>Git Extension</name>
+    <groupId>com.innovarhealthcare</groupId>
+    <artifactId>channelHistory</artifactId>
+    <version>1.0</version>
     <packaging>pom</packaging>
 
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <modules>
+        <module>server</module>
+        <module>shared</module>
+        <module>client</module>
+        <module>distribution</module>
+    </modules>
+
     <properties>
-        <revision>1.0.1-SNAPSHOT</revision>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <plugin.supported.mc.versions>${mc.version}, 3.10.1, 3.10.0, 3.9.1, 3.9.0</plugin.supported.mc.versions>
+        <mirth.version>4.5.0</mirth.version>
 
-        <mc.version>3.11.0</mc.version>
-        <jgit.version>5.12.0.202106070339-r</jgit.version>
+        <maven-processor-plugin.version>3.3.3</maven-processor-plugin.version>
+        <maven-assembly-plugin.version>3.3.0</maven-assembly-plugin.version>
+        <maven-jarsigner-plugin.version>3.0.0</maven-jarsigner-plugin.version>
+        <mirth-plugin-maven-plugin.version>2.0.4</mirth-plugin-maven-plugin.version>
+        <lombok.version>1.18.22</lombok.version>
+        <miglayout.version>3.7.4</miglayout.version>
+        <swingx-core.version>1.6.2</swingx-core.version>
+
+        <jgit.version>5.13.3.202401111512-r</jgit.version>
         <jgit.JavaEWAH.version>1.1.7</jgit.JavaEWAH.version>
-        <ognl.version>3.2.15</ognl.version>
+        <ognl.version>3.4.3</ognl.version>
         <objmeld.version>3.4.0</objmeld.version>
         <javax-servlet.version>4.0.1</javax-servlet.version>
         <javax-rs-api.version>2.0.1</javax-rs-api.version>
@@ -31,21 +72,25 @@
         <log4j.version>1.2.17</log4j.version>
         <javassist.version>3.28.0-GA</javassist.version>
 
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Where should annotation processor generate aggregation file -->
+        <processor.aggregator.path>distribution/aggregated.json</processor.aggregator.path>
 
-        <signing.keystore>${user.dir}/gitextplugin.jks</signing.keystore>
-        <signing.alias>alias</signing.alias>
-        <signing.storepass>secret</signing.storepass>
-        <signing.keypass>secret</signing.keypass>
-        <signing.tsa />
+        <!-- Plugin details -->
+        <plugin.path>innovarhealthcare-channel-history</plugin.path>
+        <plugin.name>Innovar Healthcare Channel History Plugin</plugin.name>
+        <plugin.url>https://www.innovarhealthcare.com</plugin.url>
+        <plugin.author>Jim Weng</plugin.author>
+        <plugin.version>1</plugin.version>
+        <plugin.description>Innovar Healthcare Channel History Plugin</plugin.description>
+        <plugin.mirthVersion>4.5.0</plugin.mirthVersion>
+        <plugin.archive.name>innovarhealthcare-channel-History-arch</plugin.archive.name>
     </properties>
 
-    <organization>
-        <name>Kiran Ayyagari</name>
-        <url>mailto:kayyagari@apache.org</url>
-    </organization>
-
     <repositories>
+        <repository>
+            <id>repsy</id>
+            <url>https://repo.repsy.io/mvn/kpalang/mirthconnect</url>
+        </repository>
         <repository>
             <id>mirth-libs</id>
             <url>https://nexus.kaurpalang.com/repository/maven-public/</url>
@@ -53,94 +98,127 @@
     </repositories>
 
     <dependencies>
+        <!-- Helper plugin to handle Mirth plugin specific tasks. -->
+        <dependency>
+            <groupId>com.kaurpalang</groupId>
+            <artifactId>mirth-plugin-maven-plugin</artifactId>
+            <version>${mirth-plugin-maven-plugin.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
             <version>${jgit.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/org.eclipse.jgit-5.13.3.202401111512-r.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>com.mirth.connect</groupId>
-            <artifactId>mirth-server</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit.ssh.jsch</artifactId>
+            <version>${jgit.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/org.eclipse.jgit.ssh.jsch-5.13.3.202401111512-r.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>com.mirth.connect</groupId>
-            <artifactId>donkey-server</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <groupId>com.mirth</groupId>
+            <artifactId>server</artifactId>
+            <version>${plugin.mirthVersion}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>com.mirth.connect</groupId>
-            <artifactId>mirth-client-core</artifactId>
-            <version>${mc.version}</version>
+            <groupId>com.kayyagari</groupId>
+            <artifactId>objmeld</artifactId>
+            <version>${objmeld.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/objmeld-3.4.0.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.swinglabs.swingx</groupId>
+            <artifactId>swingx-core</artifactId>
+            <version>1.6.3</version>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.connectors</groupId>
             <artifactId>vm-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/vm-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.plugins.datatypes</groupId>
             <artifactId>datatype-raw-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/datatype-raw-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.plugins.datatypes</groupId>
             <artifactId>datatype-hl7v2-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/datatype-hl7v2-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.connectors</groupId>
             <artifactId>js-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/js-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.plugins</groupId>
             <artifactId>javascriptstep-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/javascriptstep-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.connectors</groupId>
             <artifactId>tcp-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/tcp-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.plugins</groupId>
             <artifactId>mllpmode-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mllpmode-shared.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth.connect.plugins</groupId>
             <artifactId>http-shared</artifactId>
-            <version>${mc.version}</version>
-            <scope>provided</scope>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/http-shared.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
-            <version>${javax-servlet.version}</version>
-            <scope>provided</scope>
+            <groupId>com.mirth</groupId>
+            <artifactId>donkey-model</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/donkey-model.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>javax.ws.rs</groupId>
-            <artifactId>javax.ws.rs-api</artifactId>
-            <version>${javax-rs-api.version}</version>
-            <scope>provided</scope>
+            <groupId>com.mirth</groupId>
+            <artifactId>donkey-server</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/donkey-server.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>commons-beanutils</groupId>
-            <artifactId>commons-beanutils</artifactId>
-            <version>${commons-beanutils.version}</version>
-            <scope>provided</scope>
+        <groupId>commons-beanutils</groupId>
+        <artifactId>commons-beanutils</artifactId>
+        <version>${commons-beanutils.version}</version>
+        <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>ognl</groupId>
@@ -203,38 +281,57 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
 
-    <modules>
-        <module>server</module>
-        <module>shared</module>
-        <module>client</module>
-        <module>package</module>
-    </modules>
-
     <build>
+        <!-- Specify naming pattern for submodules. For example pluginname-client.jar -->
+        <finalName>${project.parent.artifactId}-${project.artifactId}</finalName>
+
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.7.0</version>
-                <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
-                </configuration>
+                <groupId>org.bsc.maven</groupId>
+                <artifactId>maven-processor-plugin</artifactId>
+                <version>${maven-processor-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>process</id>
+                        <goals>
+                            <goal>process</goal>
+                        </goals>
+                        <phase>process-sources</phase>
+
+                        <configuration>
+                            <!-- Specify annotation processor class -->
+                            <processors>
+                                <processor>com.kaurpalang.mirth.annotationsplugin.processor.MirthPluginProcessor</processor>
+                            </processors>
+
+                            <options>
+                                <aggregator.file>${processor.aggregator.path}</aggregator.file>
+                            </options>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.0.2</version>
+                <artifactId>maven-jarsigner-plugin</artifactId>
+                <version>${maven-jarsigner-plugin.version}</version>
+                <executions>
+                    <execution>
+                         <id>sign</id>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
-                    <archive>
-                        <manifestEntries>
-                            <Application-Name>Git Extension</Application-Name>
-                            <url>${project.url}</url>
-                            <authors>Kiran Ayyagari</authors>
-                        </manifestEntries>
-                    </archive>
+                    <keystore>${project.parent.basedir}/certificate/keystore.jks</keystore>
+                    <alias>selfsigned</alias>
+                    <storepass>storepass</storepass>
+                    <keypass>keypass</keypass>
                 </configuration>
             </plugin>
         </plugins>

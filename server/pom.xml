@@ -1,22 +1,151 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2021 Kaur Palang
+  
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
-        <artifactId>git-ext</artifactId>
-        <groupId>com.kayyagari</groupId>
-        <version>${revision}</version>
+        <groupId>com.innovarhealthcare</groupId>
+        <artifactId>channelHistory</artifactId>
+        <version>1.0</version>
     </parent>
 
-    <artifactId>git-ext-server</artifactId>
-    <name>Git Extension Server</name>
+    <artifactId>server</artifactId>
+
+    <properties>
+        <javax-servlet.version>4.0.1</javax-servlet.version>
+        <javax.version>2.1.1</javax.version>
+        <jgit.version>5.13.3.202401111512-r</jgit.version>
+    </properties>
 
     <dependencies>
         <dependency>
-            <groupId>com.kayyagari</groupId>
-            <artifactId>git-ext-shared</artifactId>
-            <version>${revision}</version>
+            <groupId>com.innovarhealthcare</groupId>
+            <artifactId>shared</artifactId>
+            <version>${project.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>server</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>client-core</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>donkey-model</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/donkey-model.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>donkey-server</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/donkey-server.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>hapi-base</artifactId>
+            <version>${mirth.version}</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/hapi-base-2.3.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+            <version>${javax-servlet.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>javax.ws.rs-api</artifactId>
+            <version>${javax.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.30</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20230618</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.13</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>2.19.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20231013</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/compiletime/json-20231013.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit.ssh.jsch</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20231013</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
