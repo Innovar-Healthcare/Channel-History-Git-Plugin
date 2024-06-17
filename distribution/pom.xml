@@ -36,7 +36,7 @@
             <artifactId>server</artifactId>
             <version>${project.parent.version}</version>
             <scope>system</scope>
-            <systemPath>/Users/wengmark/mirthdev/innovar-channelHistory/server/target/${project.parent.artifactId}-server.jar</systemPath>
+            <systemPath>${project.basedir}/server/target/${project.parent.artifactId}-server.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -44,7 +44,7 @@
             <artifactId>shared</artifactId>
             <version>${project.parent.version}</version>
             <scope>system</scope>
-            <systemPath>/Users/wengmark/mirthdev/innovar-channelHistory/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
+            <systemPath>${project.basedir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -52,28 +52,28 @@
             <artifactId>client</artifactId>
             <version>${project.parent.version}</version>
             <scope>system</scope>
-            <systemPath>/Users/wengmark/mirthdev/innovar-channelHistory/client/target/${project.parent.artifactId}-client.jar</systemPath>
+            <systemPath>${project.basedir}/client/target/${project.parent.artifactId}-client.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>client</artifactId>
             <version>${mirth.version}</version>
             <scope>system</scope>
-            <systemPath>/Users/wengmark/mirthdev/innovar-channelHistory/libs/compiletime/mirth-client.jar</systemPath>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-client.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>client-core</artifactId>
             <version>${mirth.version}</version>
             <scope>system</scope>
-            <systemPath>/Users/wengmark/mirthdev/innovar-channelHistory/libs/compiletime/mirth-client-core.jar</systemPath>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>server</artifactId>
             <version>${mirth.version}</version>
             <scope>system</scope>
-            <systemPath>/Users/wengmark/mirthdev/innovar-channelHistory/libs/compiletime/mirth-server.jar</systemPath>
+            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
         </dependency>
     </dependencies>
 
@@ -113,7 +113,7 @@
                             <url>${plugin.url}</url>
                             <mirthVersion>${plugin.mirthVersion}</mirthVersion>
                             <pluginVersion>${plugin.version}</pluginVersion>
-                            <outputPath>/Users/wengmark/mirthdev/innovar-channelHistory/plugin.xml</outputPath>
+                            <outputPath>${project.basedir}/plugin.xml</outputPath>
                             <description>${plugin.description}</description>
                         </configuration>
                     </execution>
