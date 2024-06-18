@@ -1,4 +1,4 @@
-# Innovar Healthcare Mirth Channel History Plugin
+# Innovar Healthcare Mirth Channel History/Git Plugin
 
 Author: Zi-Min(Jim) Weng, Daniel Svanstedt, Josh McDonald
 
