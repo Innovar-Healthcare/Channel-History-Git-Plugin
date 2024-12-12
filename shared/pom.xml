@@ -35,29 +35,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>client-core</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>server</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.kayyagari</groupId>
-            <artifactId>objmeld</artifactId>
-            <version>${objmeld.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/objmeld-3.4.0.jar</systemPath>
-        </dependency>
-        <dependency>
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-annotations</artifactId>
             <version>${swagger.version}</version>
@@ -68,11 +45,7 @@
             <artifactId>javax.ws.rs-api</artifactId>
             <version>${javax.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20230618</version>
-        </dependency>
+
     </dependencies>
 
 

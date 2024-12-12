@@ -29,22 +29,26 @@
     <artifactId>distribution</artifactId>
     <packaging>pom</packaging>
 
+    <properties>
+        <rootDir>${project.basedir}/..</rootDir>
+    </properties>
+
     <!-- These dependencies ensure this submodule runs last -->
     <dependencies>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>server</artifactId>
-            <version>${project.parent.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/server/target/${project.parent.artifactId}-server.jar</systemPath>
-        </dependency>
-
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>shared</artifactId>
             <version>${project.parent.version}</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
+            <systemPath>${rootDir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>server</artifactId>
+            <version>${project.parent.version}</version>
+            <scope>system</scope>
+            <systemPath>${rootDir}/server/target/${project.parent.artifactId}-server.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -52,28 +56,7 @@
             <artifactId>client</artifactId>
             <version>${project.parent.version}</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/client/target/${project.parent.artifactId}-client.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>client</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-client.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>client-core</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>server</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
+            <systemPath>${rootDir}/client/target/${project.parent.artifactId}-client.jar</systemPath>
         </dependency>
     </dependencies>
 
@@ -113,7 +96,7 @@
                             <url>${plugin.url}</url>
                             <mirthVersion>${plugin.mirthVersion}</mirthVersion>
                             <pluginVersion>${plugin.version}</pluginVersion>
-                            <outputPath>${project.basedir}/plugin.xml</outputPath>
+                            <outputPath>{rootDir}/plugin.xml</outputPath>
                             <description>${plugin.description}</description>
                         </configuration>
                     </execution>

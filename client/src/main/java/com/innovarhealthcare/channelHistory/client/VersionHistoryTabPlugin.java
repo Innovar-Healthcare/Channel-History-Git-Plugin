@@ -15,7 +15,7 @@ public class VersionHistoryTabPlugin extends ChannelTabPlugin {
     private VersionHistoryTabPanel tabPanel;
 
     public VersionHistoryTabPlugin(String name) {
-        super("Innovar Channel History");
+        super(VersionControlConstants.PLUGIN_POINTNAME);
     }
 
     @SneakyThrows
@@ -31,7 +31,6 @@ public class VersionHistoryTabPlugin extends ChannelTabPlugin {
 
     @Override
     public String getPluginPointName() {
-        return "Innovar Channel History";
+        return VersionControlConstants.PLUGIN_POINTNAME;
     }
-
 }

@@ -53,6 +53,10 @@ public class RevisionInfo {
         return message;
     }
 
+    public String getServerId() {
+        return message.substring(message.length() - 36);
+    }
+
     public void setMessage(String message) {
         this.message = message;
     }

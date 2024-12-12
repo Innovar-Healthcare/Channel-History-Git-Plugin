@@ -1,8 +1,3 @@
-/*
- * This Source Code Form is subject to the terms of the
- * Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed
- * with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
 package com.innovarhealthcare.channelHistory.client;
 
 import com.innovarhealthcare.channelHistory.shared.RevisionInfo;
@@ -47,7 +42,7 @@ public class RevisionInfoTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        if(columnIndex == 0) {
+        if (columnIndex == 0) {
             return RevisionInfo.class;
         }
 
@@ -57,47 +52,47 @@ public class RevisionInfoTableModel extends AbstractTableModel {
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
         Object val = null;
-        String r = revisions.get(rowIndex);
-        JSONObject rj = new JSONObject(r);
+
+        RevisionInfo ri = getRevisionAt(rowIndex);
+        if (ri == null) {
+            return "";
+        }
 
         switch (columnIndex) {
-        case 0:
-            val = rj.get("Hash");
-            break;
+            case 0:
+                val = ri.getHash();
+                break;
 
-        case 1:
-            val = rj.get("Message");
-            break;
+            case 1:
+                val = ri.getMessage();
+                break;
 
-        case 2:
-            val = rj.get("CommitterName");
-            break;
+            case 2:
+                val = ri.getCommitterName();
+                break;
 
-        case 3:
+            case 3:
+                val = formatTime(ri.getTime());
+                break;
 
-            val = formatTime((Long) rj.get("Time"));
-            break;
-        case 4:
-            String msg = (String) rj.get("Message");
-            val = "";
-            if (msg.contains("auto-committed by Innovar Healthcare Git Plugin on Server Id")) {
-                int start = msg.indexOf("auto-committed by Innovar Healthcare Git Plugin on Server Id");
-                start = (int) start + 61;
-                val = msg.substring(start);
-            }
+            case 4:
+                val = ri.getServerId();
+                break;
 
-            break;
-
-        default:
-            throw new IllegalArgumentException("unknown column number " + columnIndex);
+            default:
+                throw new IllegalArgumentException("unknown column number " + columnIndex);
         }
+
         return val;
     }
 
     public RevisionInfo getRevisionAt(int row) {
+        if (row < 0 || row >= revisions.size()) {
+            return null;
+        }
+
         RevisionInfo revisionInfo = new RevisionInfo();
         JSONObject rj = new JSONObject(revisions.get(row));
-
 
         revisionInfo.setCommitterEmail((String) rj.get("CommitterEmail"));
         revisionInfo.setCommitterName((String) rj.get("CommitterName"));
@@ -109,22 +104,34 @@ public class RevisionInfoTableModel extends AbstractTableModel {
     }
 
     private String formatTime(long t) {
-        Period period = new Period(t, System.currentTimeMillis());
-        String txt = null;
-        int hours = period.getHours();
-        if(hours > 0) {
-            txt = df.format(new Date(t));
-        }
-        else {
-            int min = period.getMinutes();
-            if(min > 0) {
-                txt = min + " minutes ago";
-            }
-            else {
-                txt = period.getSeconds() + " seconds ago";
-            }
-        }
+//        long now = System.currentTimeMillis();
 
-        return txt;
+        return df.format(new Date(t));
+
+//        if (t > now) {
+//            return df.format(new Date(t));
+//        }
+//
+//        Period period = new Period(t, now);
+//
+//        System.out.println("years: " + period.getYears() + " months: " + period.getMonths() + " days: " + period.getDays() + " hours: " + period.getHours() + " minutes: " + period.getMinutes());
+//
+//        int years = period.getYears();
+//        int months = period.getMonths();
+//        int days = period.getDays();
+//
+//        if (years > 0 || months > 0 || days > 0) {
+//            return df.format(new Date(t));
+//        }
+//
+//        if (period.getHours() > 0) {
+//            return period.getHours() + " hours ago";
+//        }
+//
+//        if (period.getMinutes() > 0) {
+//            return period.getMinutes() + " minutes ago";
+//        }
+//
+//        return period.getSeconds() + " seconds ago";
     }
 }

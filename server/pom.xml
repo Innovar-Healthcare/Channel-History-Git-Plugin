@@ -31,7 +31,7 @@
     <properties>
         <javax-servlet.version>4.0.1</javax-servlet.version>
         <javax.version>2.1.1</javax.version>
-        <jgit.version>5.13.3.202401111512-r</jgit.version>
+        <rootDir>${project.basedir}/..</rootDir>
     </properties>
 
     <dependencies>
@@ -40,43 +40,7 @@
             <artifactId>shared</artifactId>
             <version>${project.version}</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>server</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>client-core</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>donkey-model</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/donkey-model.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>donkey-server</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/donkey-server.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>hapi-base</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/hapi-base-2.3.jar</systemPath>
+            <systemPath>${rootDir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -85,6 +49,7 @@
             <version>${javax-servlet.version}</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>javax.ws.rs</groupId>
             <artifactId>javax.ws.rs-api</artifactId>
@@ -92,31 +57,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.30</version>
-        </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20230618</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>4.5.13</version>
-        </dependency>
-        <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>
             <version>2.19.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20231013</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/json-20231013.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -124,16 +67,11 @@
             <artifactId>org.eclipse.jgit</artifactId>
             <version>${jgit.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit.ssh.jsch</artifactId>
             <version>${jgit.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20231013</version>
-            <scope>compile</scope>
         </dependency>
     </dependencies>
     <build>

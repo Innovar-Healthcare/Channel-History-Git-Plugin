@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Copyright 2021 Kaur Palang
-
+  
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
   You may obtain a copy of the License at
@@ -28,31 +28,32 @@
     <properties>
         <swingx-core.version>1.6.2-2</swingx-core.version>
         <joda-time.version>2.10.10</joda-time.version>
+        <rootDir>${project.basedir}/..</rootDir>
     </properties>
 
     <artifactId>client</artifactId>
 
     <dependencies>
         <dependency>
+            <groupId>com.innovarhealthcare</groupId>
+            <artifactId>shared</artifactId>
+            <version>${project.version}</version>
+            <scope>system</scope>
+            <systemPath>${rootDir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.innovarhealthcare</groupId>
+            <artifactId>server</artifactId>
+            <version>${project.version}</version>
+            <scope>system</scope>
+            <systemPath>${rootDir}/server/target/${project.parent.artifactId}-server.jar</systemPath>
+        </dependency>
+
+        <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>client</artifactId>
             <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-client.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>client-core</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-client-core.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth</groupId>
-            <artifactId>server</artifactId>
-            <version>${mirth.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/mirth-server.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -62,21 +63,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.innovarhealthcare</groupId>
-            <artifactId>shared</artifactId>
-            <version>${project.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/shared/target/${project.parent.artifactId}-shared.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.innovarhealthcare</groupId>
-            <artifactId>server</artifactId>
-            <version>${project.version}</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/server/target/${project.parent.artifactId}-server.jar</systemPath>
-        </dependency>
-        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.30</version>
@@ -85,24 +71,22 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.13</version>
+            <version>1.11</version>
         </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20231013</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/compiletime/json-20231013.jar</systemPath>
-        </dependency>
+
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
             <version>${joda-time.version}</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.swinglabs</groupId>
             <artifactId>swingx-core</artifactId>
+            <!-- Use the version 1.6.2-2 cause the pom file of 1.6.2 is messed(has
+                wrong version) up in central repo. Without this version the Maven fails to
+                build -->
             <version>${swingx-core.version}</version>
         </dependency>
 
