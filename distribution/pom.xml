@@ -96,7 +96,7 @@
                             <url>${plugin.url}</url>
                             <mirthVersion>${plugin.mirthVersion}</mirthVersion>
                             <pluginVersion>${plugin.version}</pluginVersion>
-                            <outputPath>{rootDir}/plugin.xml</outputPath>
+                            <pluginXmlOutputPath>${rootDir}/plugin.xml</pluginXmlOutputPath>
                             <description>${plugin.description}</description>
                         </configuration>
                     </execution>

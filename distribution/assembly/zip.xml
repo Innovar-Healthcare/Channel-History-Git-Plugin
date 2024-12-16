@@ -30,7 +30,7 @@
     <files>
         <!-- Get generated plugin.xml file -->
         <file>
-            <source>${project.basedir}/plugin.xml</source>
+            <source>${project.parent.basedir}/plugin.xml</source>
             <outputDirectory>/</outputDirectory>
         </file>
 
