@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.client.model;
 
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
+import org.json.JSONObject;
 
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
@@ -36,7 +37,7 @@ public class CodeTemplateRepoTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        CodeTemplate template = stringToCodeTemplate(list.get(rowIndex));
+        CodeTemplate template = getCodeTemplateAt(rowIndex);
 
         if (template == null) {
             return "";
@@ -58,7 +59,19 @@ public class CodeTemplateRepoTableModel extends AbstractTableModel {
             return null;
         }
 
-        return stringToCodeTemplate(list.get(row));
+        JSONObject obj = new JSONObject(list.get(row));
+
+        return stringToCodeTemplate((String) obj.get("content"));
+    }
+
+    public String getLastCommitIdAt(int row) {
+        if (row >= list.size()) {
+            return null;
+        }
+
+        JSONObject obj = new JSONObject(list.get(row));
+
+        return (String) obj.get("lastCommitId");
     }
 
     private CodeTemplate stringToCodeTemplate(String xml) {

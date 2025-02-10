@@ -1,6 +1,7 @@
 package com.innovarhealthcare.channelHistory.client;
 
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
+import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.RevisionInfo;
@@ -32,6 +33,7 @@ import java.awt.event.MouseEvent;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -234,7 +236,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
 
     public void importChannelFromRepo() {
         if (VersionControlUtil.isDisableVersionControl(parent.mirthClient)) {
-            PlatformUI.MIRTH_FRAME.alertError(parent, VersionControlUtil.getAlertText());
+            showError(VersionControlUtil.getAlertText());
         } else {
             new ImportChannelDialog(parent);
         }
@@ -253,7 +255,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         RevisionInfo lastChange = model.getRevisionAt(tblRevisions.getSelectedRow());
 
         if (lastChange == null) {
-            PlatformUI.MIRTH_FRAME.alertError(parent, "No channel revision selected");
+            showError("No channel revision selected");
             return;
         }
 
@@ -275,7 +277,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+            showError("Failed to show difference in channel");
         }
     }
 
@@ -300,7 +302,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+            showError("Failed to show difference in channel");
         }
     }
 
@@ -323,16 +325,19 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                 String xml = gitServlet.getContent(channelId, rev, MODE);
                 Channel channel = parse(xml, rev);
                 if (channel == null) {
-                    PlatformUI.MIRTH_FRAME.alertError(parent, "Channel is null");
+                    showError("Channel is null");
                     return;
                 }
 
                 if (client.updateChannel(channel, true, null)) {
+                    // store channel commit id at here
+                    VersionControlUtil.setChannelCommitId(parent.mirthClient, channelId, rev);
+
                     JOptionPane.showMessageDialog(parent, "Exit channel edit screen without saving to complete reverting channel",
                             "Successfully Reverted Channel", JOptionPane.INFORMATION_MESSAGE);
                 }
             } catch (ClientException e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                showError("Failed to revert channel");
             }
         }
     }
@@ -372,8 +377,10 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                 boolean alertWarning = false;
                 RevisionInfo ri = model.getRevisionAt(0);
                 if (ri != null) {
-                    String serverId = PlatformUI.SERVER_ID;
-                    boolean warning = !Objects.equals(ri.getServerId(), serverId);
+                    String commitId = VersionControlUtil.getChannelCommitId(parent.mirthClient, cid);
+
+                    boolean warning = (commitId != null) && !Objects.equals(ri.getHash(), commitId);
+
                     if (warning) {
                         alertWarning = true;
                         PlatformUI.MIRTH_FRAME.alertWarning(parent, "Remote repository contains a more recent version of this channel, are you sure you want to edit?");
@@ -384,7 +391,12 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                     PlatformUI.MIRTH_FRAME.alertInformation(parent, "History refreshed!");
                 }
             } catch (Exception e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                RevisionInfoTableModel model = new RevisionInfoTableModel(new ArrayList<>());
+                tblRevisions.setModel(model);
+
+                if (shouldNotifyOnComplete) {
+                    showError("Failed to pull history channel from repository");
+                }
             }
         }
     }
@@ -423,8 +435,12 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                             "Channel History", JOptionPane.ERROR_MESSAGE);
                 }
             } catch (Exception e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                showError("Failed to commit and push channel to repository");
             }
         }
+    }
+
+    private void showError(String msg) {
+        PlatformUI.MIRTH_FRAME.alertError(parent, msg);
     }
 }

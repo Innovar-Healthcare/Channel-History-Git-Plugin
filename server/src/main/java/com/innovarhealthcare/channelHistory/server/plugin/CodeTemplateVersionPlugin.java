@@ -1,6 +1,7 @@
 package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
+import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthServerClass;
@@ -52,6 +53,10 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
             return;
         }
 
+        if (!GitRepositoryController.getInstance().isGitConnected()) {
+            return;
+        }
+
         if (!GitRepositoryController.getInstance().isAutoCommit()) {
             return;
         }
@@ -64,7 +69,11 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
             throw new RuntimeException(e);
         }
 
-        GitRepositoryController.getInstance().commitAndPushCodeTemplate(ct, VersionControlConstants.AUTO_COMMITTED_MSG, user);
+        try {
+            GitRepositoryController.getInstance().commitAndPushCodeTemplate(ct, VersionControlConstants.AUTO_COMMITTED_MSG, user);
+        } catch (Exception ignored) {
+            
+        }
     }
 
     @Override

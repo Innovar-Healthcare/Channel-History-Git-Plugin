@@ -33,6 +33,7 @@ import java.awt.event.MouseEvent;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -218,7 +219,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
         RevisionInfo lastChange = model.getRevisionAt(tblRevisions.getSelectedRow());
 
         if (lastChange == null) {
-            PlatformUI.MIRTH_FRAME.alertError(parent, "No code template revision selected");
+            showError("No code template revision selected");
             return;
         }
 
@@ -235,11 +236,11 @@ public class CodeTemplateHistoryDialog extends JDialog {
             String leftLabel = leftCodeTemplate.getName() + " - Current - Editing by " + currentUserName;
             String rightLabel = leftCodeTemplate.getName() + " - Time: " + df.format(new Date(lastChange.getTime())) + " - Committed by " + lastChange.getCommitterName();
 
-            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left, right, parent);
+            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left, right, this);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+            showError("Failed to show difference in code template");
         }
     }
 
@@ -264,7 +265,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+            showError("Failed to show difference in code template");
         }
     }
 
@@ -273,7 +274,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     private void revert(String codeTemplateId, String rev) {
-        int option = JOptionPane.showConfirmDialog(parent, "Would you like to revert code template to this revision?", "Select an Option", JOptionPane.YES_NO_OPTION);
+        int option = JOptionPane.showConfirmDialog(this, "Would you like to revert code template to this revision?", "Select an Option", JOptionPane.YES_NO_OPTION);
 
         if (option == JOptionPane.YES_OPTION) {
             Client client = parent.mirthClient;
@@ -282,24 +283,23 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 String xml = gitServlet.getContent(codeTemplateId, rev, MODE);
                 CodeTemplate codeTemplate = parse(xml, rev);
                 if (codeTemplate == null) {
-                    PlatformUI.MIRTH_FRAME.alertError(parent, "Code Template is null");
+                    showError("Code Template is null");
                     return;
                 }
 
                 if (client.updateCodeTemplate(codeTemplate, true)) {
-                    JOptionPane.showMessageDialog(parent, "Successfully Reverted Code Template",
-                            "Information", JOptionPane.INFORMATION_MESSAGE);
+                    showInformation("Successfully Reverted Code Template");
 
                     parent.codeTemplatePanel.doRefreshCodeTemplates();
                 }
             } catch (ClientException e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                showError("Failed to revert code template");
             }
         }
     }
 
     private void commitThenPush() {
-        Object response = DisplayUtil.showInputDialog(parent, "Enter a comment:", "Commit & Push", JOptionPane.QUESTION_MESSAGE, null, null, "");
+        Object response = DisplayUtil.showInputDialog(this, "Enter a comment:", "Commit & Push", JOptionPane.QUESTION_MESSAGE, null, null, "");
 
         if (response == null) {
             return;
@@ -330,10 +330,15 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 tblRevisions.setModel(model);
 
                 if (shouldNotifyOnComplete) {
-                    PlatformUI.MIRTH_FRAME.alertInformation(parent, "History refreshed!");
+                    showInformation("History refreshed!");
                 }
             } catch (Exception e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                RevisionInfoTableModel model = new RevisionInfoTableModel(new ArrayList<>());
+                tblRevisions.setModel(model);
+
+                if (shouldNotifyOnComplete) {
+                    showError("Failed to pull code template from repository. Error: " + e.getMessage());
+                }
             }
         }
     }
@@ -362,18 +367,24 @@ public class CodeTemplateHistoryDialog extends JDialog {
 
                 JSONObject resObj = new JSONObject(response);
                 if (resObj.get("validate").equals("success")) {
-                    JOptionPane.showMessageDialog(parent, resObj.get("body"),
-                            "Code Template History", JOptionPane.INFORMATION_MESSAGE);
+                    showInformation((String) (resObj.get("body")));
 
                     // fetch history panel again at here
                     loadHistory(false);
                 } else {
-                    JOptionPane.showMessageDialog(parent, "Error: " + resObj.get("body"),
-                            "Code Template History", JOptionPane.ERROR_MESSAGE);
+                    showError("Error: " + resObj.get("body"));
                 }
             } catch (Exception e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                showError("Failed to commit and push code template to repository");
             }
         }
+    }
+
+    private void showInformation(String msg) {
+        PlatformUI.MIRTH_FRAME.alertInformation(this, msg);
+    }
+
+    private void showError(String msg) {
+        PlatformUI.MIRTH_FRAME.alertError(this, msg);
     }
 }

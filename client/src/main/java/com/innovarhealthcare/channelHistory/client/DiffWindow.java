@@ -47,8 +47,8 @@ public class DiffWindow extends MirthDialog {
 
         setTitle(title);
         add(tabbedPane);
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setLocationRelativeTo(PlatformUI.MIRTH_FRAME);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+//        setLocationRelativeTo(parent);
     }
 
     public static DiffWindow create(String title, String leftLabel, String rightLabel, Object leftObj, Object rightObj, String leftStrContent, String rightStrContent, Window parent) {
@@ -109,6 +109,4 @@ public class DiffWindow extends MirthDialog {
 
         tabbedPane.add("Channel View", channelPane);
     }
-
-
 }

@@ -6,6 +6,7 @@ package com.innovarhealthcare.channelHistory.server.servlet;
  */
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
+import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
 
@@ -15,6 +16,7 @@ import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.core.ControllerException;
 
+import com.mirth.connect.client.core.api.MirthApiException;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
@@ -96,7 +98,7 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
         try {
             return GitRepositoryController.getInstance().loadChannelOnRepo();
         } catch (Exception e) {
-            logger.warn("Failed to load channels on repo", e);
+            logger.warn("Failed to load channels on repo. Error: ", e);
             throw new ClientException(e);
         }
     }
@@ -116,7 +118,12 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
             throw new ClientException("Channel is not found");
         }
 
-        return GitRepositoryController.getInstance().commitAndPushChannel(channel, message, user);
+        try {
+            return GitRepositoryController.getInstance().commitAndPushChannel(channel, message, user);
+        } catch (Exception e) {
+            logger.warn("Failed to commit and push channel", e);
+            throw new ClientException(e);
+        }
     }
 
     @Override
@@ -146,6 +153,10 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
             throw new ClientException("Code Template is not found");
         }
 
-        return GitRepositoryController.getInstance().commitAndPushCodeTemplate(template, message, user);
+        try {
+            return GitRepositoryController.getInstance().commitAndPushCodeTemplate(template, message, user);
+        } catch (GitRepositoryException e) {
+            throw new ClientException("Failed to commit and push code template");
+        }
     }
 }

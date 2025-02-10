@@ -39,10 +39,11 @@ public class GitRepositoryService {
 
     public Git git;
 
-    public final ObjectXMLSerializer serializer;
-    public final String serverId;
-    public final File dir;
+    public ObjectXMLSerializer serializer;
+    public String serverId;
+    public File dir;
 
+    private boolean isGitConnected;
     private boolean enable;
     private boolean autoCommit;
     private String remoteRepoUrl;
@@ -50,16 +51,31 @@ public class GitRepositoryService {
     private byte[] sshKeyBytes = new byte[0];
     private SshSessionFactory sshSessionFactory;
 
-    private final ChannelService channelService;
-    private final CodeTemplateService codeTemplateService;
+    private ChannelService channelService;
+    private CodeTemplateService codeTemplateService;
 
     public GitRepositoryService() {
+    }
+
+    public void init(Properties properties) {
+        parseProperties(properties);
+    }
+
+    public void startGit() throws Exception {
+        isGitConnected = false;
+
+        channelService = new ChannelService(this);
+        codeTemplateService = new CodeTemplateService(this);
+
         serializer = ObjectXMLSerializer.getInstance();
         serverId = Donkey.getInstance().getConfiguration().getServerId();
         dir = new File(Donkey.getInstance().getConfiguration().getAppData(), DATA_DIR);
 
-        channelService = new ChannelService(this);
-        codeTemplateService = new CodeTemplateService(this);
+        if (enable) {
+            if (validateGitConnected(remoteRepoUrl, remoteRepoBranch, sshKeyBytes) == null) {
+                initGitRepo(false);
+            }
+        }
     }
 
     public boolean isAutoCommit() {
@@ -70,44 +86,36 @@ public class GitRepositoryService {
         return enable;
     }
 
+    public boolean isGitConnected() {
+        return isGitConnected;
+    }
+
     public void applySettings(Properties properties) throws Exception {
-        enable = Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_ENABLE));
-        if (!enable) {
-            // close service
-            close();
+        parseProperties(properties);
 
-            return;
+        // close current git connected;
+        closeGit();
+
+        if (enable) {
+            if (validateGitConnected(remoteRepoUrl, remoteRepoBranch, sshKeyBytes) == null) {
+                initGitRepo(true);
+            }
         }
-
-        autoCommit = Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE));
-
-        sshKeyBytes = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY).getBytes(CHARSET_UTF_8);
-        remoteRepoUrl = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL);
-        remoteRepoBranch = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH);
-
-        // init ssh session
-        sshSessionFactory = new JschConfigSessionFactory() {
-            @Override
-            protected void configure(OpenSshConfig.Host host, Session session) {
-                session.setConfig("StrictHostKeyChecking", "no");
-            }
-
-            @Override
-            protected JSch createDefaultJSch(FS fs) throws JSchException {
-                JSch defaultJSch = super.createDefaultJSch(fs);
-                defaultJSch.addIdentity("mirthVersionHistoryKey", sshKeyBytes, (byte[]) null, (byte[]) null);
-                return defaultJSch;
-            }
-        };
-
-        // init git repo
-        initGitRepo();
     }
 
     public String validateSettings(Properties properties) throws Exception {
         byte[] ssh = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY).getBytes(CHARSET_UTF_8);
         String url = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL);
         String branch = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH);
+        String ret = validateGitConnected(url, branch, ssh);
+        if (ret == null) {
+            return "Successfully connected to the remote repository. Remember to save your changes.";
+        }
+
+        return ret;
+    }
+
+    private String validateGitConnected(String url, String branch, byte[] ssh) {
         SshSessionFactory sshSession = new JschConfigSessionFactory() {
             @Override
             protected void configure(OpenSshConfig.Host host, Session session) {
@@ -117,13 +125,18 @@ public class GitRepositoryService {
             @Override
             protected JSch createDefaultJSch(FS fs) throws JSchException {
                 JSch defaultJSch = super.createDefaultJSch(fs);
-                defaultJSch.addIdentity("mirthVersionHistoryKey", ssh, (byte[]) null, (byte[]) null);
+                defaultJSch.addIdentity("mirthVersionHistoryKey", ssh, null, null);
                 return defaultJSch;
             }
         };
 
-        String tempPath = DATA_DIR + "-temp-" + System.currentTimeMillis();
-        File tempDir = new File(Donkey.getInstance().getConfiguration().getAppData(), tempPath);
+        File tempDir;
+        try {
+            tempDir = FileUtils.createTempDir("version_history_", "", new File(Donkey.getInstance().getConfiguration().getAppData(), "temp"));
+        } catch (Exception e) {
+            logger.warn("Failed to create temp directory. Error: " + e);
+            return "Failed to create temp directory. Error: " + e;
+        }
 
         CloneCommand cloneCommand = Git.cloneRepository();
         cloneCommand.setURI(url);
@@ -138,29 +151,63 @@ public class GitRepositoryService {
         });
         cloneCommand.setNoCheckout(true);
 
-        String ret = "";
+        String ret = null;
         try {
-            cloneCommand.call();
-            ret = "Successfully connected to the remote repository. Remember to save your changes.";
+            Git git = cloneCommand.call();
+            git.close();
         } catch (Exception e) {
-            ret = "Failed to connect to the remote repository";
-        } finally {
+            ret = "Failed to connect to the remote repository. Error: " + e;
+        }
+
+        try {
             FileUtils.delete(tempDir, 13);
+        } catch (Exception e) {
+            logger.warn("Failed to remove temp directory. Error: " + e);
         }
 
         return ret;
     }
 
-    public void initGitRepo() throws Exception {
-        if (dir.exists()) {
-            //if repo folder exist on local, do a pull to get latest commit
-            pullLatestRepo();
-        } else {
-            //if repo folder does not exist, do a clone to build the repo
-            cloneRepo();
-        }
+    public void initGitRepo(boolean force) throws Exception {
+        try {
+            // init ssh session
+            sshSessionFactory = new JschConfigSessionFactory() {
+                @Override
+                protected void configure(OpenSshConfig.Host host, Session session) {
+                    session.setConfig("StrictHostKeyChecking", "no");
+                }
 
-        git = Git.init().setDirectory(dir).call();
+                @Override
+                protected JSch createDefaultJSch(FS fs) throws JSchException {
+                    JSch defaultJSch = super.createDefaultJSch(fs);
+                    defaultJSch.addIdentity("mirthVersionHistoryKey", sshKeyBytes, null, null);
+                    return defaultJSch;
+                }
+            };
+
+            // init repo directory
+            dir = new File(Donkey.getInstance().getConfiguration().getAppData(), DATA_DIR);
+
+            if (!force) {
+                try {
+                    git = Git.open(new File(dir, ".git"));
+                } catch (IOException ignored) {
+                }
+            }
+
+            if (git != null) {
+                pullRepo(git);
+            } else {
+                if (dir.exists()) {
+                    FileUtils.delete(dir, 13);
+                }
+                git = cloneRepo();
+            }
+
+            isGitConnected = true;
+        } catch (Exception e) {
+            isGitConnected = false;
+        }
     }
 
     public List<String> getHistory(String fileName, String mode) throws Exception {
@@ -226,31 +273,21 @@ public class GitRepositoryService {
         pushCommand.call();
     }
 
-    private void pullLatestRepo() throws Exception {
-        if (Files.exists(new File(dir, ".git").toPath())) {
-            Git git = Git.open(new File(dir, ".git"));
-            if (git.getRepository().getBranch().equals(remoteRepoBranch)) {
-                PullCommand pullCommand = git.pull();
-                pullCommand.setRemote("origin");
-                pullCommand.setRemoteBranchName(remoteRepoBranch);
-                pullCommand.setTransportConfigCallback(new TransportConfigCallback() {
-                    @Override
-                    public void configure(Transport transport) {
-                        SshTransport sshTransport = (SshTransport) transport;
-                        sshTransport.setSshSessionFactory(sshSessionFactory);
-                    }
-                });
-                pullCommand.call();
-            } else {
-                FileUtils.delete(dir, 13);
-                cloneRepo();
+    private void pullRepo(Git git) throws Exception {
+        PullCommand pullCommand = git.pull();
+        pullCommand.setRemote("origin");
+        pullCommand.setRemoteBranchName(remoteRepoBranch);
+        pullCommand.setTransportConfigCallback(new TransportConfigCallback() {
+            @Override
+            public void configure(Transport transport) {
+                SshTransport sshTransport = (SshTransport) transport;
+                sshTransport.setSshSessionFactory(sshSessionFactory);
             }
-        } else {
-            throw new Exception("The folder " + dir + " is not a Git repo");
-        }
+        });
+        pullCommand.call();
     }
 
-    private void cloneRepo() throws Exception {
+    private Git cloneRepo() throws Exception {
         CloneCommand cloneCommand = Git.cloneRepository();
         cloneCommand.setURI(remoteRepoUrl);
         cloneCommand.setDirectory(dir);
@@ -262,10 +299,11 @@ public class GitRepositoryService {
                 sshTransport.setSshSessionFactory(sshSessionFactory);
             }
         });
-        cloneCommand.call();
+
+        return cloneCommand.call();
     }
 
-    private void close() {
+    private void closeGit() {
         if (git != null) {
             git.close();
 
@@ -275,6 +313,8 @@ public class GitRepositoryService {
         if (sshSessionFactory != null) {
             sshSessionFactory = null;
         }
+
+        isGitConnected = false;
     }
 
     private PersonIdent getCommitter(User user) {
@@ -293,5 +333,14 @@ public class GitRepositoryService {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void parseProperties(Properties properties) {
+        enable = Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_ENABLE));
+        autoCommit = Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE));
+
+        sshKeyBytes = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY).getBytes(CHARSET_UTF_8);
+        remoteRepoUrl = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL);
+        remoteRepoBranch = properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH);
     }
 }

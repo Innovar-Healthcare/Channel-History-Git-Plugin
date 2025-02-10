@@ -1,6 +1,7 @@
 package com.innovarhealthcare.channelHistory.client;
 
 import com.innovarhealthcare.channelHistory.client.model.ChannelRepoTableModel;
+import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
 
 import com.mirth.connect.model.ChannelDependency;
@@ -32,8 +33,6 @@ import java.util.HashSet;
  * @create 2024-11-09 12:13 PM
  */
 public class ImportChannelDialog extends MirthDialog {
-    final boolean DO_ADD = true;
-
     private MirthTable channelRepoTable;
     private JScrollPane channelsScrollPane;
 
@@ -89,15 +88,12 @@ public class ImportChannelDialog extends MirthDialog {
                     ChannelRepoTableModel model = (ChannelRepoTableModel) channelRepoTable.getModel();
                     Channel channel = model.getChannelAt(row);
                     if (channel != null) {
-                        try {
-                            boolean ret = DO_ADD ? doAddChannel(channel) : doImportChannel(channel, true);
-                            if (ret) {
-                                dispose();
+                        boolean ret = doAddChannel(channel);
+                        if (ret) {
+                            // store channel commit id at here
+                            VersionControlUtil.setChannelCommitId(parent.mirthClient, channel.getId(), model.getLastCommitIdAt(row));
 
-                                parent.channelPanel.doRefreshChannels();
-                            }
-                        } catch (ClientException e) {
-                            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                            dispose();
                         }
                     } else {
                         PlatformUI.MIRTH_FRAME.alertError(parent, "Channel is null");
@@ -141,16 +137,16 @@ public class ImportChannelDialog extends MirthDialog {
 
                 // then fetch revisions
                 channelRepoTable.setModel(new ChannelRepoTableModel(gitServlet.loadChannelOnRepo()));
-            } catch (Exception e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+            } catch (ClientException e) {
+                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load channels in repository");
+
+                dispose();
             }
         }
     }
 
-    private boolean doAddChannel(Channel channel) throws ClientException {
+    private boolean doAddChannel(Channel channel) {
         try {
-            Client client = parent.mirthClient;
-
             String channelName = channel.getName();
             String channelId = channel.getId();
             Channel idChannelMatch = getChannelById(channelId);
@@ -166,93 +162,13 @@ public class ImportChannelDialog extends MirthDialog {
                 return false;
             }
 
-            return client.updateChannel(channel, true, null);
-
+            parent.channelPanel.importChannel(channel, true);
         } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+            PlatformUI.MIRTH_FRAME.alertError(parent, e.getMessage());
+            return false;
         }
 
         return true;
-    }
-
-    private boolean doImportChannel(Channel importChannel, boolean force) throws ClientException {
-        try {
-            Client client = parent.mirthClient;
-
-            String channelName = importChannel.getName();
-            String channelId = importChannel.getId();
-            String tempId = client.getGuid();
-            importChannel.setRevision(0);
-
-            Channel idChannelMatch = getChannelById(channelId);
-            Channel nameChannelMatch = getChannelByName(channelName);
-
-            // Check if channel id already exists
-            if (idChannelMatch != null) {
-                if (!force) {
-                    importChannel.setId(tempId);
-                } else {
-                    importChannel.setRevision(idChannelMatch.getRevision());
-                }
-            }
-
-            // Check if channel name already exists
-            if (nameChannelMatch != null) {
-                if (!force) {
-                    importChannel.setName(tempId);
-                } else {
-                    importChannel.setRevision(nameChannelMatch.getRevision());
-                    importChannel.setId(nameChannelMatch.getId());
-                }
-            }
-
-            importChannelDependencies(importChannel);
-
-            client.updateChannel(importChannel, true, null);
-        } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
-        }
-
-        return true;
-    }
-
-    private void importChannelDependencies(Channel importChannel) throws ClientException {
-        Client client = parent.mirthClient;
-
-        try {
-            if (CollectionUtils.isNotEmpty(importChannel.getExportData().getDependentIds()) || CollectionUtils.isNotEmpty(importChannel.getExportData().getDependencyIds())) {
-                Set<ChannelDependency> cachedChannelDependencies = client.getChannelDependencies();
-                Set<ChannelDependency> channelDependencies = new HashSet<ChannelDependency>(cachedChannelDependencies);
-
-                if (CollectionUtils.isNotEmpty(importChannel.getExportData().getDependentIds())) {
-                    for (String dependentId : importChannel.getExportData().getDependentIds()) {
-                        if (StringUtils.isNotBlank(dependentId) && !StringUtils.equals(dependentId, importChannel.getId())) {
-                            channelDependencies.add(new ChannelDependency(dependentId, importChannel.getId()));
-                        }
-                    }
-                }
-
-                if (CollectionUtils.isNotEmpty(importChannel.getExportData().getDependencyIds())) {
-                    for (String dependencyId : importChannel.getExportData().getDependencyIds()) {
-                        if (StringUtils.isNotBlank(dependencyId) && !StringUtils.equals(dependencyId, importChannel.getId())) {
-                            channelDependencies.add(new ChannelDependency(importChannel.getId(), dependencyId));
-                        }
-                    }
-                }
-
-                if (!channelDependencies.equals(cachedChannelDependencies)) {
-                    try {
-                        client.setChannelDependencies(channelDependencies);
-                    } catch (ClientException e) {
-                        PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
-                    }
-                }
-
-                importChannel.getExportData().clearAllExceptMetadata();
-            }
-        } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
-        }
     }
 
     /**
@@ -260,14 +176,11 @@ public class ImportChannelDialog extends MirthDialog {
      */
     private Channel getChannelById(String id) throws ClientException {
         Client client = parent.mirthClient;
-        try {
-            for (Channel channel : client.getAllChannels()) {
-                if (channel.getId().equalsIgnoreCase(id)) {
-                    return channel;
-                }
+
+        for (Channel channel : client.getAllChannels()) {
+            if (channel.getId().equalsIgnoreCase(id)) {
+                return channel;
             }
-        } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
         }
 
         return null;
@@ -276,14 +189,10 @@ public class ImportChannelDialog extends MirthDialog {
     private Channel getChannelByName(String name) throws ClientException {
         Client client = parent.mirthClient;
 
-        try {
-            for (Channel channel : client.getAllChannels()) {
-                if (channel.getName().equalsIgnoreCase(name)) {
-                    return channel;
-                }
+        for (Channel channel : client.getAllChannels()) {
+            if (channel.getName().equalsIgnoreCase(name)) {
+                return channel;
             }
-        } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
         }
 
         return null;

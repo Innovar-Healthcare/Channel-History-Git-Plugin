@@ -37,6 +37,31 @@ public class VersionControlUtil {
         return Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE));
     }
 
+    public static String getChannelCommitId(Client client, String channelId) {
+        Properties properties = null;
+        try {
+            properties = client.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
+        } catch (ClientException e) {
+            return null;
+        }
+
+        String key = "channel-" + channelId;
+
+        return properties.getProperty(key);
+    }
+
+    public static void setChannelCommitId(Client client, String channelId, String commitId) {
+        try {
+            String key = "channel-" + channelId;
+            Properties properties = new Properties();
+
+            properties.setProperty(key, commitId);
+
+            client.setPluginProperties(VersionControlConstants.PLUGIN_NAME, properties, true);
+        } catch (ClientException ignored) {
+        }
+    }
+
     public static boolean isAutoCommitDisable(Client client) {
         return !isAutoCommitEnable(client);
     }

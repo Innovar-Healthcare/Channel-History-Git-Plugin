@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import org.apache.commons.lang3.StringUtils;
 
+import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
@@ -91,7 +92,7 @@ public abstract class ModeService {
 
     public List<String> load() throws Exception {
         List<String> lst = new ArrayList<>();
-
+        Git git = this.gitService.git;
         Repository repo = this.gitService.git.getRepository();
         String path = getDirectory() + "/";
 
@@ -113,7 +114,14 @@ public abstract class ModeService {
                 ObjectLoader loader = repo.open(objectId);
                 String content = new String(loader.getBytes(), GitRepositoryService.CHARSET_UTF_8);
 
-                lst.add(content);
+                // convert to JSON Object
+                JSONObject obj = new JSONObject();
+                obj.put("content", content);
+
+                Iterable<RevCommit> commits = git.log().addPath(treeWalk.getPathString()).call();
+                obj.put("lastCommitId", commits.iterator().next().getName());
+
+                lst.add(obj.toString());
             }
         }
 

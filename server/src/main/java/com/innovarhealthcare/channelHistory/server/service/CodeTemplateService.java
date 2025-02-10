@@ -39,6 +39,11 @@ public class CodeTemplateService extends ModeService {
 
         JSONObject result = new JSONObject();
 
+        File newDirectory = new File(dir, getDirectory());
+        if (!newDirectory.exists()) {
+            newDirectory.mkdir();
+        }
+
         if (isNotChanged(template)) {
             result.put("validate", "fail");
             result.put("body", "Nothing has changed.");
@@ -84,6 +89,10 @@ public class CodeTemplateService extends ModeService {
         String path = getDirectory() + "/" + id;
 
         File file = new File(dir, path);
+        if (!file.exists()) {
+            return true;
+        }
+        
         int length = (int) file.length();
 
         if (length <= 0) {

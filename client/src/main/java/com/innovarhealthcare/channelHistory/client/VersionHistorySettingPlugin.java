@@ -15,7 +15,7 @@ public class VersionHistorySettingPlugin extends SettingsPanelPlugin {
     private VersionHistorySettingPanel settingPanel;
 
     public VersionHistorySettingPlugin(String name) {
-        super(name);
+        super("Version History Plugin");
         try {
             this.settingPanel = new VersionHistorySettingPanel("Version History", this);
         } catch (Exception e) {
@@ -30,7 +30,7 @@ public class VersionHistorySettingPlugin extends SettingsPanelPlugin {
 
     @Override
     public String getPluginPointName() {
-        return VersionControlConstants.SETTING_PLUGIN_POINTNAME;
+        return "Version History Plugin";
     }
 
     @Override

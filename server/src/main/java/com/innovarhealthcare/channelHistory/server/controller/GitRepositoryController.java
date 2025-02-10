@@ -1,14 +1,13 @@
 package com.innovarhealthcare.channelHistory.server.controller;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
-import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 
-import com.mirth.connect.client.core.ControllerException;
+import com.mirth.connect.server.ExtensionLoader;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
-import com.mirth.connect.server.controllers.ControllerFactory;
-import com.mirth.connect.server.controllers.ExtensionController;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.Properties;
@@ -19,25 +18,16 @@ import java.util.Properties;
  */
 
 public abstract class GitRepositoryController {
+    private static final Logger logger = LogManager.getLogger(GitRepositoryController.class);
     private static GitRepositoryController instance;
 
     public static GitRepositoryController getInstance() {
         synchronized (GitRepositoryController.class) {
             if (instance == null) {
-                instance = new DefaultGitRepositoryController();
+                instance = ExtensionLoader.getInstance().getControllerInstance(GitRepositoryController.class);
 
-                ExtensionController ec = ControllerFactory.getFactory().createExtensionController();
-                Properties properties = null;
-                try {
-                    properties = ec.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
-                } catch (ControllerException e) {
-                    throw new RuntimeException(e);
-                }
-
-                try {
-                    instance.init(properties);
-                } catch (GitRepositoryException e) {
-                    throw new RuntimeException(e);
+                if (instance == null) {
+                    instance = new DefaultGitRepositoryController();
                 }
             }
 
@@ -47,7 +37,11 @@ public abstract class GitRepositoryController {
 
     public abstract void init(Properties properties) throws GitRepositoryException;
 
+    public abstract void start() throws GitRepositoryException;
+
     public abstract boolean isEnable();
+
+    public abstract boolean isGitConnected();
 
     public abstract boolean isAutoCommit();
 
@@ -61,10 +55,10 @@ public abstract class GitRepositoryController {
 
     public abstract List<String> loadChannelOnRepo() throws GitRepositoryException;
 
-    public abstract String commitAndPushChannel(Channel channel, String message, User user);
+    public abstract String commitAndPushChannel(Channel channel, String message, User user) throws GitRepositoryException;
 
     public abstract List<String> loadCodeTemplateOnRepo() throws GitRepositoryException;
 
-    public abstract String commitAndPushCodeTemplate(CodeTemplate template, String message, User user);
+    public abstract String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws GitRepositoryException;
 
 }

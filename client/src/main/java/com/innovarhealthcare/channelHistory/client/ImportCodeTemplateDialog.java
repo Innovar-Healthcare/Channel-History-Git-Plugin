@@ -96,6 +96,11 @@ public class ImportCodeTemplateDialog extends MirthDialog {
                 if (row < 0) {
                     PlatformUI.MIRTH_FRAME.alertInformation(parent, "You should select at least one code template!");
                 } else {
+                    if (libraryComboBox.getSelectedIndex() < 0) {
+                        PlatformUI.MIRTH_FRAME.alertInformation(parent, "You should select Library!");
+                        return;
+                    }
+
                     String libraryName = (String) libraryComboBox.getSelectedItem();
                     CodeTemplateLibrary matchLibrary = null;
                     for (CodeTemplateLibrary library : codeTemplateLibraries.values()) {
@@ -107,6 +112,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
 
                     if (matchLibrary == null) {
                         PlatformUI.MIRTH_FRAME.alertError(parent, "Library is not found");
+                        return;
                     }
 
                     CodeTemplateRepoTableModel model = (CodeTemplateRepoTableModel) codeTemplateRepoTable.getModel();
@@ -168,7 +174,9 @@ public class ImportCodeTemplateDialog extends MirthDialog {
                 // then fetch revisions
                 codeTemplateRepoTable.setModel(new CodeTemplateRepoTableModel(gitServlet.loadCodeTemplateOnRepo()));
             } catch (Exception e) {
-                PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load code templates in repository");
+
+                dispose();
             }
         }
     }

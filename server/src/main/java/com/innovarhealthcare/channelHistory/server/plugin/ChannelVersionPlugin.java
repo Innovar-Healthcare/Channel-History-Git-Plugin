@@ -21,7 +21,7 @@ import org.apache.log4j.Logger;
 
 @MirthServerClass
 public class ChannelVersionPlugin implements ChannelPlugin {
-    private static Logger logger = Logger.getLogger(ChannelVersionPlugin.class);
+    private static final Logger logger = Logger.getLogger(ChannelVersionPlugin.class);
 
     @Override
     public String getPluginPointName() {
@@ -30,7 +30,7 @@ public class ChannelVersionPlugin implements ChannelPlugin {
 
     @Override
     public void start() {
-        GitRepositoryController.getInstance();
+
     }
 
     @Override
@@ -40,6 +40,10 @@ public class ChannelVersionPlugin implements ChannelPlugin {
     @Override
     public void save(Channel channel, ServerEventContext sec) {
         if (!GitRepositoryController.getInstance().isEnable()) {
+            return;
+        }
+
+        if (!GitRepositoryController.getInstance().isGitConnected()) {
             return;
         }
 
@@ -55,7 +59,10 @@ public class ChannelVersionPlugin implements ChannelPlugin {
             throw new RuntimeException(e);
         }
 
-        GitRepositoryController.getInstance().commitAndPushChannel(channel, VersionControlConstants.AUTO_COMMITTED_MSG, user);
+        try {
+            GitRepositoryController.getInstance().commitAndPushChannel(channel, VersionControlConstants.AUTO_COMMITTED_MSG, user);
+        } catch (Exception ignored) {
+        }
     }
 
     @Override

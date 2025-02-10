@@ -1,14 +1,20 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
+import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import com.mirth.connect.client.core.ControllerException;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 
+import com.mirth.connect.server.controllers.ControllerFactory;
+import com.mirth.connect.server.controllers.ExtensionController;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.*;
 
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.json.JSONObject;
 
 import java.io.*;
+import java.util.Properties;
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
@@ -35,6 +41,11 @@ public class ChannelService extends ModeService {
 
         JSONObject result = new JSONObject();
 
+        File newDirectory = new File(dir, getDirectory());
+        if (!newDirectory.exists()) {
+            newDirectory.mkdir();
+        }
+
         if (isNotChanged(channel)) {
             result.put("validate", "fail");
             result.put("body", "Nothing has changed.");
@@ -48,7 +59,7 @@ public class ChannelService extends ModeService {
         try {
             // write channel to local repo
             String path = getDirectory() + "/" + id;
-            String xml = serializer.serialize((Object) channel);
+            String xml = serializer.serialize(channel);
 
             File f = new File(dir, path);
             FileOutputStream fOut = new FileOutputStream(f);
@@ -57,10 +68,13 @@ public class ChannelService extends ModeService {
 
             // commit channel
             git.add().addFilepattern(path).call();
-            git.commit().setCommitter(committer).setMessage(commentMsg).call();
+            RevCommit rc = git.commit().setCommitter(committer).setMessage(commentMsg).call();
 
             // push channel to remove repo
             this.gitService.pushToRemoteRepo();
+
+            // store commit id at here
+            addChannelCommitIdToProperties(id, rc.getName());
 
             result.put("validate", "success");
             result.put("body", "Commit and push channel to the remote repo successfully!");
@@ -72,6 +86,20 @@ public class ChannelService extends ModeService {
         return result.toString();
     }
 
+    private void addChannelCommitIdToProperties(String channelId, String commitId) {
+        String EXTENSION_NAME = VersionControlConstants.PLUGIN_NAME;
+        ExtensionController extensionController = ControllerFactory.getFactory().createExtensionController();
+
+        Properties props = new Properties();
+        String key = "channel-" + channelId;
+        props.setProperty(key, commitId);
+
+        try {
+            extensionController.setPluginProperties(EXTENSION_NAME, props, true);
+        } catch (ControllerException ignored) {
+        }
+    }
+
     private boolean isChanged(Channel channel) {
         File dir = this.gitService.dir;
         ObjectXMLSerializer serializer = this.gitService.serializer;
@@ -80,6 +108,10 @@ public class ChannelService extends ModeService {
         String path = getDirectory() + "/" + id;
 
         File file = new File(dir, path);
+        if (!file.exists()) {
+            return true;
+        }
+
         int length = (int) file.length();
 
         if (length <= 0) {

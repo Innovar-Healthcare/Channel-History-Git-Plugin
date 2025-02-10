@@ -3,11 +3,13 @@ package com.innovarhealthcare.channelHistory.client;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
 
+import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.AbstractSettingsPanel;
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.components.*;
 
+import com.mirth.connect.model.Channel;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.*;
@@ -26,7 +28,6 @@ import java.util.Properties;
 public class VersionHistorySettingPanel extends AbstractSettingsPanel {
 
     private VersionHistorySettingPlugin plugin;
-    private channelHistoryServletInterface gitServlet;
 
     private MirthCheckBox enableGitCheckbox;
     private MirthCheckBox enableAutoCommitCheckbox;
@@ -38,6 +39,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
     private JScrollPane remoteSshKeyScrollPane;
 
     private Frame parent;
+    Properties backupChannelCommitIds;
 
     public VersionHistorySettingPanel(String tabName, VersionHistorySettingPlugin plugin) throws Exception {
         super(tabName);
@@ -181,8 +183,25 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
             enableFields(false);
         }
 
+        backupChannelCommitIdFromProperties(properties);
+
         repaint();
         this.getFrame().setSaveEnabled(false);
+    }
+
+    public void backupChannelCommitIdFromProperties(Properties properties) {
+        backupChannelCommitIds = new Properties();
+
+        try {
+            for (Channel channel : parent.mirthClient.getAllChannels()) {
+                String key = "channel-" + channel.getId();
+                if (properties.containsKey(key)) {
+                    backupChannelCommitIds.setProperty(key, properties.getProperty(key));
+                }
+            }
+        } catch (ClientException ignored) {
+
+        }
     }
 
     public Properties getProperties() {
@@ -193,6 +212,10 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY, remoteSshKey.getText());
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_ENABLE, String.valueOf(enableGitCheckbox.isSelected()));
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE, String.valueOf(enableAutoCommitCheckbox.isSelected()));
+
+        if (backupChannelCommitIds != null) {
+            properties.putAll(backupChannelCommitIds);
+        }
 
         return properties;
     }
@@ -259,8 +282,6 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
                 try {
                     if (validateProperties()) {
                         plugin.setPropertiesToServer(getProperties());
-                        gitServlet = getFrame().mirthClient.getServlet(channelHistoryServletInterface.class);
-                        gitServlet.updateSetting();
                     } else {
                         enableGitCheckbox.setSelected(false);
                         enableFields(false);

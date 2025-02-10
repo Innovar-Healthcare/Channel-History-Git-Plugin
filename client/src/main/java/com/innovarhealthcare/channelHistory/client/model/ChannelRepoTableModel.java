@@ -3,6 +3,7 @@ package com.innovarhealthcare.channelHistory.client.model;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
+import org.json.JSONObject;
 
 import javax.swing.table.AbstractTableModel;
 
@@ -38,7 +39,7 @@ public class ChannelRepoTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        Channel channel = stringToChannel(list.get(rowIndex));
+        Channel channel = getChannelAt(rowIndex);
 
         if (channel == null) {
             return "";
@@ -60,7 +61,19 @@ public class ChannelRepoTableModel extends AbstractTableModel {
             return null;
         }
 
-        return stringToChannel(list.get(row));
+        JSONObject obj = new JSONObject(list.get(row));
+
+        return stringToChannel((String) obj.get("content"));
+    }
+
+    public String getLastCommitIdAt(int row) {
+        if (row >= list.size()) {
+            return null;
+        }
+
+        JSONObject obj = new JSONObject(list.get(row));
+
+        return (String) obj.get("lastCommitId");
     }
 
     private Channel stringToChannel(String xml) {

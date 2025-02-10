@@ -18,13 +18,22 @@ import java.util.Properties;
  */
 
 public class DefaultGitRepositoryController extends GitRepositoryController {
-    private Logger logger = LogManager.getLogger(this.getClass());
-    private GitRepositoryService service = new GitRepositoryService();
+    private final Logger logger = LogManager.getLogger(this.getClass());
+    private final GitRepositoryService service = new GitRepositoryService();
 
     @Override
     public void init(Properties properties) throws GitRepositoryException {
         try {
-            applySettings(properties);
+            service.init(properties);
+        } catch (Exception e) {
+            throw new GitRepositoryException(e);
+        }
+    }
+
+    @Override
+    public void start() throws GitRepositoryException {
+        try {
+            service.startGit();
         } catch (Exception e) {
             throw new GitRepositoryException(e);
         }
@@ -32,6 +41,10 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
 
     public boolean isEnable() {
         return service.isEnable();
+    }
+
+    public boolean isGitConnected() {
+        return service.isGitConnected();
     }
 
     public boolean isAutoCommit() {
@@ -50,7 +63,7 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
     @Override
     public void update(Properties properties) throws GitRepositoryException {
         try {
-            applySettings(properties);
+            service.applySettings(properties);
         } catch (Exception e) {
             throw new GitRepositoryException(e);
         }
@@ -58,6 +71,10 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
 
     @Override
     public List<String> getHistory(String fileName, String mode) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
+
         try {
             return service.getHistory(fileName, mode);
         } catch (Exception e) {
@@ -68,6 +85,10 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
 
     @Override
     public String getContent(String fileName, String revision, String mode) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
+
         try {
             return service.getContent(fileName, revision, mode);
         } catch (Exception e) {
@@ -78,7 +99,12 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
 
     @Override
     public List<String> loadChannelOnRepo() throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
+
         try {
+
             return service.loadChannelOnRepo();
         } catch (Exception e) {
             logger.error("Failed to load channels on repo", e);
@@ -87,12 +113,20 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
     }
 
     @Override
-    public String commitAndPushChannel(Channel channel, String message, User user) {
+    public String commitAndPushChannel(Channel channel, String message, User user) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            return "Cannot connect to git repository";
+        }
+
         return service.commitAndPushChannel(channel, message, user);
     }
 
     @Override
     public List<String> loadCodeTemplateOnRepo() throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
+
         try {
             return service.loadCodeTemplateOnRepo();
         } catch (Exception e) {
@@ -102,15 +136,11 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
     }
 
     @Override
-    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) {
-        return service.commitAndPushCodeTemplate(template, message, user);
-    }
-
-    private void applySettings(Properties properties) throws GitRepositoryException {
-        try {
-            service.applySettings(properties);
-        } catch (Exception e) {
-            throw new GitRepositoryException(e);
+    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
         }
+
+        return service.commitAndPushCodeTemplate(template, message, user);
     }
 }
