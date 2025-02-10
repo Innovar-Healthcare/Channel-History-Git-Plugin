@@ -45,6 +45,9 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- skip it if you want to sign jar files for production  -->
+        <maven.jarsigner.skip>false</maven.jarsigner.skip>
+
         <mirth.version>4.5.0</mirth.version>
 
         <maven-processor-plugin.version>3.3.3</maven-processor-plugin.version>
@@ -78,13 +81,13 @@
 
         <!-- Plugin details -->
         <plugin.path>innovarhealthcare-channel-history</plugin.path>
-        <plugin.name>Innovar Healthcare Channel History Plugin</plugin.name>
+        <plugin.name>Version History Plugin</plugin.name>
         <plugin.url>https://www.innovarhealthcare.com</plugin.url>
         <plugin.author>Jim Weng</plugin.author>
         <plugin.version>2.0.0</plugin.version>
         <plugin.description>Innovar Healthcare Channel History Plugin</plugin.description>
-        <plugin.mirthVersion>4.5.0</plugin.mirthVersion>
-        <plugin.archive.name>innovarhealthcare-channel-History-arch</plugin.archive.name>
+        <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+        <plugin.archive.name>innovarhealthcare-channel-History-arch-${mirth.version}</plugin.archive.name>
     </properties>
 
     <repositories>
@@ -111,15 +114,20 @@
             <artifactId>org.eclipse.jgit</artifactId>
             <version>${jgit.version}</version>
         </dependency>
+        <!--        <dependency>-->
+        <!--            <groupId>org.eclipse.jgit</groupId>-->
+        <!--            <artifactId>org.eclipse.jgit.ssh.apache</artifactId>-->
+        <!--            <version>${jgit.version}</version>-->
+        <!--        </dependency>-->
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>server</artifactId>
-            <version>${plugin.mirthVersion}</version>
+            <version>${mirth.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>client-core</artifactId>
-            <version>${plugin.mirthVersion}</version>
+            <version>${mirth.version}</version>
         </dependency>
         <dependency>
             <groupId>com.kayyagari</groupId>
@@ -316,6 +324,7 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <skip>${maven.jarsigner.skip}</skip>
                     <keystore>${project.basedir}/../certificate/keystore.jks</keystore>
                     <alias>selfsigned</alias>
                     <storepass>storepass</storepass>
