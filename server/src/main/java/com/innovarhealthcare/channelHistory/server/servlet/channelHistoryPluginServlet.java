@@ -8,7 +8,7 @@ package com.innovarhealthcare.channelHistory.server.servlet;
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
 
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
 import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
@@ -16,13 +16,14 @@ import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.core.ControllerException;
 
-import com.mirth.connect.client.core.api.MirthApiException;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
 
 import com.mirth.connect.server.api.MirthServlet;
-import com.mirth.connect.server.controllers.*;
+import com.mirth.connect.server.controllers.UserController;
+import com.mirth.connect.server.controllers.ControllerFactory;
+import com.mirth.connect.server.controllers.CodeTemplateController;
 
 import org.apache.log4j.Logger;
 
@@ -34,14 +35,12 @@ import java.util.List;
 import java.util.Properties;
 
 @MirthApiProvider(type = ApiProviderType.SERVER_CLASS)
-public class channelHistoryPluginServlet extends MirthServlet implements channelHistoryServletInterface {
-    private static final ChannelController channelController = ControllerFactory.getFactory().createChannelController();
+public class ChannelHistoryPluginServlet extends MirthServlet implements ChannelHistoryServletInterface {
     private static final UserController userController = ControllerFactory.getFactory().createUserController();
     private static final CodeTemplateController codeTemplateController = ControllerFactory.getFactory().createCodeTemplateController();
+    private static final Logger logger = Logger.getLogger(ChannelHistoryPluginServlet.class);
 
-    private static final Logger logger = Logger.getLogger(channelHistoryPluginServlet.class);
-
-    public channelHistoryPluginServlet(@Context HttpServletRequest request, @Context SecurityContext sc) {
+    public ChannelHistoryPluginServlet(@Context HttpServletRequest request, @Context SecurityContext sc) {
         super(request, sc, VersionControlConstants.PLUGIN_POINTNAME);
     }
 
@@ -66,25 +65,6 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
     }
 
     @Override
-    public String updateSetting() {
-        try {
-            ExtensionController ec = ControllerFactory.getFactory().createExtensionController();
-            Properties properties = null;
-            try {
-                properties = ec.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
-            } catch (ControllerException e) {
-                throw new RuntimeException(e);
-            }
-
-            GitRepositoryController.getInstance().update(properties);
-
-            return "";
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
     public String validateSetting(Properties properties) throws ClientException {
         try {
             return GitRepositoryController.getInstance().validate(properties);
@@ -104,18 +84,17 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
     }
 
     @Override
-    public String commitAndPushChannel(String channelId, String message, String userId) throws ClientException {
-        User user = null;
-        Channel channel = channelController.getChannelById(channelId);
+    public String commitAndPushChannel(Channel channel, String message, String userId) throws ClientException {
+        User user;
+
+        if (channel == null) {
+            throw new ClientException("Channel is not found");
+        }
 
         try {
             user = userController.getUser(Integer.valueOf(userId), null);
         } catch (ControllerException e) {
             throw new ClientException("User is not found");
-        }
-
-        if (channel == null) {
-            throw new ClientException("Channel is not found");
         }
 
         try {
@@ -138,8 +117,8 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
 
     @Override
     public String commitAndPushCodeTemplate(String codeTemplateId, String message, String userId) throws ClientException {
-        User user = null;
-        CodeTemplate template = null;
+        User user;
+        CodeTemplate template;
 
         try {
             user = userController.getUser(Integer.valueOf(userId), null);
@@ -156,6 +135,7 @@ public class channelHistoryPluginServlet extends MirthServlet implements channel
         try {
             return GitRepositoryController.getInstance().commitAndPushCodeTemplate(template, message, user);
         } catch (GitRepositoryException e) {
+            logger.warn("Failed to commit and push code template", e);
             throw new ClientException("Failed to commit and push code template");
         }
     }

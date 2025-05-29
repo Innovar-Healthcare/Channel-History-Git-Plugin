@@ -1,17 +1,24 @@
 package com.innovarhealthcare.channelHistory.client;
 
 
+import com.innovarhealthcare.channelHistory.client.dialog.CodeTemplateHistoryDialog;
+import com.innovarhealthcare.channelHistory.client.dialog.ImportCodeTemplateDialog;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
+import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthClientClass;
 
+import com.mirth.connect.client.core.Client;
+import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.plugins.ClientPlugin;
 
 import org.jdesktop.swingx.action.ActionFactory;
 import org.jdesktop.swingx.action.BoundAction;
 
-import javax.swing.*;
+import javax.swing.ImageIcon;
 import java.util.Collections;
+import java.util.Properties;
 
 /**
  * @author Jim(Zi Min) Weng
@@ -35,8 +42,20 @@ public class CodeTemplateHistoryPlugin extends ClientPlugin {
         addImportCodeTemplateAction();
     }
 
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
+    public void reset() {
+
+    }
+
     public void doViewCodeTemplateHistory() {
-        if (VersionControlUtil.isDisableVersionControl(parent.mirthClient)) {
+        VersionHistoryProperties versionHistoryProperties = loadVersionHistoryProperties();
+
+        if (!versionHistoryProperties.isEnableVersionHistory()) {
             PlatformUI.MIRTH_FRAME.alertError(parent, VersionControlUtil.getAlertText());
         } else {
             if (!this.parent.codeTemplatePanel.changesHaveBeenMade() || this.parent.codeTemplatePanel.promptSave(true)) {
@@ -49,18 +68,10 @@ public class CodeTemplateHistoryPlugin extends ClientPlugin {
         }
     }
 
-    @Override
-    public void stop() {
-
-    }
-
-    @Override
-    public void reset() {
-
-    }
-
     public void importCodeTemplateFromRepo() {
-        if (VersionControlUtil.isDisableVersionControl(parent.mirthClient)) {
+        VersionHistoryProperties versionHistoryProperties = loadVersionHistoryProperties();
+
+        if (!versionHistoryProperties.isEnableVersionHistory()) {
             PlatformUI.MIRTH_FRAME.alertError(parent, VersionControlUtil.getAlertText());
         } else {
             new ImportCodeTemplateDialog(parent);
@@ -95,5 +106,20 @@ public class CodeTemplateHistoryPlugin extends ClientPlugin {
         action.registerCallback(this, callback);
 
         parent.codeTemplatePanel.addAction(action, Collections.singleton("onlySingleLibraries"), callback);
+    }
+
+    private VersionHistoryProperties loadVersionHistoryProperties() {
+        Properties properties;
+        try {
+            Client client = parent.mirthClient;
+            properties = client.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
+        } catch (ClientException e) {
+            properties = new Properties();
+        }
+
+        VersionHistoryProperties versionHistoryProperties = new VersionHistoryProperties();
+        versionHistoryProperties.fromProperties(properties);
+
+        return versionHistoryProperties;
     }
 }

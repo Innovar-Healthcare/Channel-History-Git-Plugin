@@ -1,187 +1,281 @@
 package com.innovarhealthcare.channelHistory.client;
 
-import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.client.dialog.GitSettingsDialog;
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.AbstractSettingsPanel;
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
-import com.mirth.connect.client.ui.components.*;
+import com.mirth.connect.client.ui.UIConstants;
+import com.mirth.connect.client.ui.components.MirthRadioButton;
+import com.mirth.connect.client.ui.components.MirthTextPane;
 
 import com.mirth.connect.model.Channel;
 import net.miginfocom.swing.MigLayout;
+import org.apache.commons.lang3.StringUtils;
 
-import javax.swing.*;
+import javax.swing.JPanel;
+import javax.swing.JLabel;
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JTextPane;
+import javax.swing.JScrollPane;
+import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.SwingWorker;
 import javax.swing.border.TitledBorder;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import java.util.Properties;
 
 /**
- * @author Jim(Zi Min) Weng
- * @create 2024-04-19 10:00 AM
+ * @author Thai Tran
+ * @create 2025-04-30 10:00 AM
  */
 public class VersionHistorySettingPanel extends AbstractSettingsPanel {
 
     private VersionHistorySettingPlugin plugin;
 
-    private MirthCheckBox enableGitCheckbox;
-    private MirthCheckBox enableAutoCommitCheckbox;
-    private MirthTextField remoteRepoUrl;
-    private MirthTextField remoteBranch;
-    private MirthTextArea remoteSshKey;
-    private MirthButton uploadSshKeyButton;
-    private MirthButton validateSettingButton;
-    private JScrollPane remoteSshKeyScrollPane;
+    private JPanel enabledPanel;
+    private JLabel enabledLabel;
+    private MirthRadioButton yesEnabledRadio;
+    private MirthRadioButton noEnabledRadio;
+    private ButtonGroup enabledButtonGroup;
 
+    private JPanel gitSettingsPanel;
+    private JLabel gitSettingLabel;
+    private JButton gitSettingsBtn;
+    private JLabel syncDeleteLabel;
+    private MirthRadioButton syncDeleteYes;
+    private MirthRadioButton syncDeleteNo;
+    private ButtonGroup syncDeleteButtonGroup;
+
+    private JPanel autoCommitPanel;
+    private JLabel autoCommitLabel;
+    private MirthRadioButton autoCommitYes;
+    private MirthRadioButton autoCommitNo;
+    private ButtonGroup autoCommitButtonGroup;
+    private JLabel promptLabel;
+    private MirthRadioButton promptYes;
+    private MirthRadioButton promptNo;
+    private ButtonGroup promptButtonGroup;
+    private JLabel defaultMessageLabel;
+    private JTextPane defaultMessageField;
+    private JScrollPane defaultMessageScrollPane;
     private Frame parent;
-    Properties backupChannelCommitIds;
 
-    public VersionHistorySettingPanel(String tabName, VersionHistorySettingPlugin plugin) throws Exception {
+    private Properties backupChannelCommitIds;
+    private VersionHistoryProperties versionHistoryProperties;
+
+    public VersionHistorySettingPanel(String tabName, VersionHistorySettingPlugin plugin) {
         super(tabName);
 
         this.plugin = plugin;
         this.parent = PlatformUI.MIRTH_FRAME;
 
+        versionHistoryProperties = new VersionHistoryProperties();
+
         initComponents();
+
+        initLayout();
     }
 
-    private void initComponents() throws Exception {
-        setBackground(Color.WHITE);
-        setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-        setLayout(new MigLayout("insets 12, novisualpadding, hidemode 3, fill, gap 6", "", "[][][][grow]"));
+    private void initComponents() {
+        setBackground(UIConstants.BACKGROUND_COLOR);
 
+        enabledPanel = new JPanel();
+        enabledPanel.setBackground(UIConstants.BACKGROUND_COLOR);
+        enabledPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)), "Enable", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Tahoma", 1, 11)));
 
-        JPanel vHistoryPanel = new JPanel();
-        vHistoryPanel.setLayout(new MigLayout("insets 12, novisualpadding, hidemode 3, fill, gap 6", "[]12[][grow]", ""));
-
-        vHistoryPanel.setBackground(Color.WHITE);
-        vHistoryPanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        BorderFactory.createMatteBorder(0, 0, 0, 0, new Color(204, 204, 204)),
-                        "Innovar Version History Plugin",
-                        TitledBorder.DEFAULT_JUSTIFICATION,
-                        1,
-                        new Font("Tahoma", 1, 11)
-                )
-        );
-
-        enableGitCheckbox = new MirthCheckBox("Enable Version Control");
-        enableGitCheckbox.setBackground(Color.WHITE);
-        enableGitCheckbox.addActionListener(new ActionListener() {
+        enabledLabel = new JLabel("Enable:");
+        yesEnabledRadio = new MirthRadioButton("Yes");
+        yesEnabledRadio.setFocusable(false);
+        yesEnabledRadio.setBackground(Color.white);
+        yesEnabledRadio.addActionListener(new ActionListener() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-                boolean enableGit = enableGitCheckbox.isSelected();
-                enableFields(enableGit);
+            public void actionPerformed(ActionEvent event) {
+                enabledActionPerformed();
             }
         });
 
-        enableAutoCommitCheckbox = new MirthCheckBox("Auto Commit To Repo");
-        enableAutoCommitCheckbox.setBackground(Color.WHITE);
-        enableAutoCommitCheckbox.addActionListener(new ActionListener() {
+        noEnabledRadio = new MirthRadioButton("No");
+        noEnabledRadio.setFocusable(false);
+        noEnabledRadio.setBackground(Color.white);
+        noEnabledRadio.setSelected(true);
+        noEnabledRadio.addActionListener(new ActionListener() {
             @Override
-            public void actionPerformed(ActionEvent e) {
+            public void actionPerformed(ActionEvent event) {
+                enabledActionPerformed();
             }
         });
 
-        JLabel remoteRepoUrlLabel = new JLabel("Git Remote Url:");
-        JLabel remoteBranchLabel = new JLabel("Git Remote Branch:");
-        JLabel remoteSshKeyLabel = new JLabel("SSH key:");
-        remoteRepoUrl = new MirthTextField();
-        remoteBranch = new MirthTextField();
-        remoteSshKey = new MirthTextArea();
-        uploadSshKeyButton = new MirthButton("Upload ssh key");
-        uploadSshKeyButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                uploadSshKeyFromFile();
-            }
+        enabledButtonGroup = new ButtonGroup();
+        enabledButtonGroup.add(yesEnabledRadio);
+        enabledButtonGroup.add(noEnabledRadio);
+
+        gitSettingsPanel = new JPanel();
+        gitSettingsPanel.setBackground(UIConstants.BACKGROUND_COLOR);
+        gitSettingsPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)), "Git", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Tahoma", 1, 11)));
+
+        gitSettingLabel = new JLabel("Settings:");
+        gitSettingsBtn = new JButton(new ImageIcon(Frame.class.getResource("images/wrench.png")));
+        gitSettingsBtn.addActionListener(e -> {
+            new GitSettingsDialog(parent, versionHistoryProperties.getGitSettings());
         });
-        remoteRepoUrl.setColumns(50);
-        remoteBranch.setColumns(20);
 
-        remoteSshKey.setSize(600, 300);
-        remoteSshKey.setWrapStyleWord(true);
-        remoteSshKey.setLineWrap(true);
+        syncDeleteLabel = new JLabel("Sync Delete:");
+        syncDeleteYes = new MirthRadioButton("Yes");
+        syncDeleteYes.setFocusable(false);
+        syncDeleteYes.setBackground(Color.white);
 
-        remoteSshKeyScrollPane = new JScrollPane(remoteSshKey, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-        remoteSshKeyScrollPane.setPreferredSize(new Dimension(600, 200));
-        remoteSshKeyScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        remoteSshKeyScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        syncDeleteNo = new MirthRadioButton("No");
+        syncDeleteNo.setFocusable(false);
+        syncDeleteNo.setBackground(Color.white);
+        syncDeleteNo.setSelected(true);
+        syncDeleteButtonGroup = new ButtonGroup();
+        syncDeleteButtonGroup.add(syncDeleteYes);
+        syncDeleteButtonGroup.add(syncDeleteNo);
 
-        validateSettingButton = new MirthButton("Validate Setting");
-        validateSettingButton.addActionListener(new ActionListener() {
+        autoCommitPanel = new JPanel();
+        autoCommitPanel.setBackground(UIConstants.BACKGROUND_COLOR);
+        autoCommitPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)), "Auto Commit", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Tahoma", 1, 11)));
+
+        autoCommitLabel = new JLabel("Enable:");
+
+        autoCommitYes = new MirthRadioButton("Yes");
+        autoCommitYes.setFocusable(false);
+        autoCommitYes.setBackground(Color.white);
+        autoCommitYes.addActionListener(new ActionListener() {
             @Override
-            public void actionPerformed(ActionEvent evt) {
-                if (validateProperties()) {
-                    try {
-                        channelHistoryServletInterface servlet = getFrame().mirthClient.getServlet(channelHistoryServletInterface.class);
-                        String ret = servlet.validateSetting(getProperties());
-
-                        JOptionPane.showMessageDialog(parent, ret,
-                                "Plugin Info", JOptionPane.INFORMATION_MESSAGE);
-                    } catch (Exception e) {
-                        getFrame().alertThrowable(getFrame(), e);
-                    }
-                }
+            public void actionPerformed(ActionEvent event) {
+                autoCommitActionPerformed();
             }
         });
 
-        vHistoryPanel.add(enableGitCheckbox, "wrap");
-        vHistoryPanel.add(enableAutoCommitCheckbox, "wrap");
+        autoCommitNo = new MirthRadioButton("No");
+        autoCommitNo.setFocusable(false);
+        autoCommitNo.setBackground(Color.white);
+        autoCommitNo.setSelected(true);
+        autoCommitNo.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                autoCommitActionPerformed();
+            }
+        });
+        autoCommitButtonGroup = new ButtonGroup();
+        autoCommitButtonGroup.add(autoCommitYes);
+        autoCommitButtonGroup.add(autoCommitNo);
 
-        vHistoryPanel.add(remoteRepoUrlLabel);
-        vHistoryPanel.add(remoteRepoUrl, "wrap");
-        vHistoryPanel.add(remoteBranchLabel);
-        vHistoryPanel.add(remoteBranch, "wrap");
-        vHistoryPanel.add(remoteSshKeyLabel);
-        vHistoryPanel.add(remoteSshKeyScrollPane, "wrap");
-        vHistoryPanel.add(uploadSshKeyButton, "wrap");
-        vHistoryPanel.add(validateSettingButton);
+        promptLabel = new JLabel("Prompt:");
 
-        add(vHistoryPanel, "growx");
+        promptYes = new MirthRadioButton("Yes");
+        promptYes.setFocusable(false);
+        promptYes.setBackground(Color.white);
+        promptYes.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                promptYesNoActionPerformed();
+            }
+        });
+
+        promptNo = new MirthRadioButton("No");
+        promptNo.setFocusable(false);
+        promptNo.setBackground(Color.white);
+        promptNo.setSelected(true);
+        promptNo.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                promptYesNoActionPerformed();
+            }
+        });
+        promptButtonGroup = new ButtonGroup();
+        promptButtonGroup.add(promptYes);
+        promptButtonGroup.add(promptNo);
+
+        defaultMessageLabel = new JLabel("Default Message:");
+        defaultMessageField = new MirthTextPane();
+        defaultMessageScrollPane = new JScrollPane(defaultMessageField, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        defaultMessageScrollPane.setPreferredSize(new Dimension(300, 100));
     }
 
-    public void enableFields(boolean isEnabled) {
-        enableAutoCommitCheckbox.setEnabled(isEnabled);
-        remoteRepoUrl.setEnabled(isEnabled);
-        remoteBranch.setEnabled(isEnabled);
-        remoteSshKey.setEnabled(isEnabled);
-        uploadSshKeyButton.setEnabled(isEnabled);
-        validateSettingButton.setEnabled(isEnabled);
+    private void initLayout() {
+        setLayout(new MigLayout("hidemode 3, novisualpadding, insets 12", "[grow]"));
+
+        // enabledPanel: Right-aligned label with 150-pixel first column
+        enabledPanel.setLayout(new MigLayout("hidemode 3, novisualpadding, insets 0", "[120,right][grow]"));
+        enabledPanel.add(enabledLabel);
+        enabledPanel.add(yesEnabledRadio, "split, gapleft 12");
+        enabledPanel.add(noEnabledRadio, "wrap");
+
+        // gitSettingsPanel: Right-aligned labels with 150-pixel first column
+        gitSettingsPanel.setLayout(new MigLayout("hidemode 3, novisualpadding, insets 0", "[120,right][grow]"));
+        gitSettingsPanel.add(gitSettingLabel);
+        gitSettingsPanel.add(gitSettingsBtn, "gapleft 12, wrap");
+        gitSettingsPanel.add(syncDeleteLabel);
+        gitSettingsPanel.add(syncDeleteYes, "split, gapleft 12");
+        gitSettingsPanel.add(syncDeleteNo, "wrap");
+
+        // autoCommitPanel: Right-aligned labels with 150-pixel first column
+        autoCommitPanel.setLayout(new MigLayout("hidemode 3, novisualpadding, insets 0", "[120,right][grow]"));
+        autoCommitPanel.add(autoCommitLabel);
+        autoCommitPanel.add(autoCommitYes, "split, gapleft 12");
+        autoCommitPanel.add(autoCommitNo, "wrap");
+        autoCommitPanel.add(promptLabel);
+        autoCommitPanel.add(promptYes, "split, gapleft 12");
+        autoCommitPanel.add(promptNo, "wrap");
+        autoCommitPanel.add(defaultMessageLabel);
+        autoCommitPanel.add(defaultMessageScrollPane, "gapleft 12, wrap");
+
+        add(enabledPanel, "grow, sx, wrap");
+        add(gitSettingsPanel, "grow, sx, wrap");
+        add(autoCommitPanel, "grow, sx");
+    }
+
+    private void enabledActionPerformed() {
+        visibleFields(yesEnabledRadio.isSelected());
+    }
+
+    public void visibleFields(boolean isVisible) {
+        gitSettingsPanel.setVisible(isVisible);
+        autoCommitPanel.setVisible(isVisible);
+    }
+
+    private void autoCommitActionPerformed() {
+        boolean selected = autoCommitYes.isSelected();
+        promptYes.setEnabled(selected);
+        promptNo.setEnabled(selected);
+        defaultMessageField.setEnabled(selected);
+    }
+
+    private void promptYesNoActionPerformed() {
+//        defaultMessageField.setVisible(promptNo.isSelected());
     }
 
     public void setProperties(Properties properties) {
-        if (properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL) != null) {
-            remoteRepoUrl.setText(properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL));
-        } else {
-            remoteRepoUrl.setText("");
-        }
+        versionHistoryProperties.fromProperties(properties);
 
-        if (properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH) != null) {
-            remoteBranch.setText(properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH));
-        } else {
-            remoteBranch.setText("");
-        }
+        yesEnabledRadio.setSelected(versionHistoryProperties.isEnableVersionHistory());
+        noEnabledRadio.setSelected(!versionHistoryProperties.isEnableVersionHistory());
 
-        if (properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY) != null) {
-            remoteSshKey.setText(properties.getProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY));
-        } else {
-            remoteSshKey.setText("");
-        }
+        autoCommitYes.setSelected(versionHistoryProperties.isEnableAutoCommit());
+        autoCommitNo.setSelected(!versionHistoryProperties.isEnableAutoCommit());
 
-        enableAutoCommitCheckbox.setSelected(Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE)));
+        promptYes.setSelected(versionHistoryProperties.isEnableAutoCommitPrompt());
+        promptNo.setSelected(!versionHistoryProperties.isEnableAutoCommitPrompt());
+        defaultMessageField.setText(versionHistoryProperties.getAutoCommitMsg());
 
-        if (Boolean.parseBoolean(properties.getProperty(VersionControlConstants.VERSION_HISTORY_ENABLE))) {
-            enableGitCheckbox.setSelected(true);
-            enableFields(true);
-        } else {
-            enableGitCheckbox.setSelected(false);
-            enableFields(false);
-        }
+        syncDeleteYes.setSelected(versionHistoryProperties.isEnableSyncDelete());
+        syncDeleteNo.setSelected(!versionHistoryProperties.isEnableSyncDelete());
+
+        enabledActionPerformed();
+
+        autoCommitActionPerformed();
 
         backupChannelCommitIdFromProperties(properties);
 
@@ -205,13 +299,13 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
     }
 
     public Properties getProperties() {
-        Properties properties = new Properties();
+        versionHistoryProperties.setEnableVersionHistory(yesEnabledRadio.isSelected());
+        versionHistoryProperties.setEnableAutoCommit(autoCommitYes.isSelected());
+        versionHistoryProperties.setEnableAutoCommitPrompt(promptYes.isSelected());
+        versionHistoryProperties.setAutoCommitMsg(defaultMessageField.getText().trim());
+        versionHistoryProperties.setEnableSyncDelete(syncDeleteYes.isSelected());
 
-        properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL, remoteRepoUrl.getText());
-        properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH, remoteBranch.getText());
-        properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY, remoteSshKey.getText());
-        properties.setProperty(VersionControlConstants.VERSION_HISTORY_ENABLE, String.valueOf(enableGitCheckbox.isSelected()));
-        properties.setProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE, String.valueOf(enableAutoCommitCheckbox.isSelected()));
+        Properties properties = versionHistoryProperties.toProperties();
 
         if (backupChannelCommitIds != null) {
             properties.putAll(backupChannelCommitIds);
@@ -220,21 +314,38 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         return properties;
     }
 
-    public boolean validateProperties() {
-        if (remoteRepoUrl.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(parent, "Git remote url can not be empty!",
-                    "Plugin Warning", JOptionPane.ERROR_MESSAGE);
-            return false;
-        } else if (remoteBranch.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(parent, "Git remote branch can not be empty!",
-                    "Plugin Warning", JOptionPane.ERROR_MESSAGE);
-            return false;
-        } else if (remoteSshKey.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(parent, "Git remote ssh key can not be empty!",
-                    "Plugin Warning", JOptionPane.ERROR_MESSAGE);
-            return false;
+    public boolean validateFields() {
+        boolean valid = true;
+        StringBuilder errorMessage = new StringBuilder();
+
+        // Reset backgrounds
+        resetInvalidSettings();
+
+        if (!yesEnabledRadio.isSelected()) {
+            return true;
         }
-        return true;
+
+        if (!versionHistoryProperties.getGitSettings().validate()) {
+            valid = false;
+            errorMessage.append("Git Settings are invalid.")
+                    .append(System.lineSeparator());
+        }
+
+        if (autoCommitYes.isSelected()) {
+            String url = defaultMessageField.getText().trim();
+            if (StringUtils.isEmpty(url)) {
+                valid = false;
+                defaultMessageField.setBackground(UIConstants.INVALID_COLOR);
+                errorMessage.append("Please provide a default message.")
+                        .append(System.lineSeparator());
+            }
+        }
+
+        if (!valid) {
+            showError(errorMessage.toString());
+        }
+
+        return valid;
     }
 
     @Override
@@ -242,6 +353,8 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         if (PlatformUI.MIRTH_FRAME.alertRefresh()) {
             return;
         }
+
+        resetInvalidSettings();
 
         final String workingId = getFrame().startWorking("Loading " + getTabName() + " properties...");
 
@@ -273,6 +386,9 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
 
     @Override
     public boolean doSave() {
+        if (!validateFields()) {
+            return false;
+        }
 
         final String workingId = getFrame().startWorking("Saving " + getTabName() + " properties...");
 
@@ -280,12 +396,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
 
             public Void doInBackground() {
                 try {
-                    if (validateProperties()) {
-                        plugin.setPropertiesToServer(getProperties());
-                    } else {
-                        enableGitCheckbox.setSelected(false);
-                        enableFields(false);
-                    }
+                    plugin.setPropertiesToServer(getProperties());
                 } catch (Exception e) {
                     getFrame().alertThrowable(getFrame(), e);
                 }
@@ -304,10 +415,11 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         return true;
     }
 
-    public void uploadSshKeyFromFile() {
-        String content = this.parent.browseForFileString(null);
-        if (content != null) {
-            remoteSshKey.setText(content);
-        }
+    public void resetInvalidSettings() {
+        defaultMessageField.setBackground(getBackground());
+    }
+
+    protected void showError(String err) {
+        PlatformUI.MIRTH_FRAME.alertError(this, err);
     }
 }

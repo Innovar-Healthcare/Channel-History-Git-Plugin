@@ -1,8 +1,11 @@
 package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
+import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
+import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthServerClass;
 
 import com.mirth.connect.client.core.ControllerException;
@@ -13,6 +16,7 @@ import com.mirth.connect.plugins.ChannelPlugin;
 import com.mirth.connect.server.controllers.ControllerFactory;
 
 import org.apache.log4j.Logger;
+import org.json.JSONObject;
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
@@ -30,7 +34,6 @@ public class ChannelVersionPlugin implements ChannelPlugin {
 
     @Override
     public void start() {
-
     }
 
     @Override
@@ -39,35 +42,47 @@ public class ChannelVersionPlugin implements ChannelPlugin {
 
     @Override
     public void save(Channel channel, ServerEventContext sec) {
-        if (!GitRepositoryController.getInstance().isEnable()) {
-            return;
-        }
-
-        if (!GitRepositoryController.getInstance().isGitConnected()) {
-            return;
-        }
-
-        if (!GitRepositoryController.getInstance().isAutoCommit()) {
-            return;
-        }
-
-        User user = null;
-
-        try {
-            user = ControllerFactory.getFactory().createUserController().getUser(sec.getUserId(), null);
-        } catch (ControllerException e) {
-            throw new RuntimeException(e);
-        }
-
-        try {
-            GitRepositoryController.getInstance().commitAndPushChannel(channel, VersionControlConstants.AUTO_COMMITTED_MSG, user);
-        } catch (Exception ignored) {
-        }
     }
 
     @Override
     public void remove(Channel channel, ServerEventContext sec) {
-        // Thai Tran: not implement yet
+        GitRepositoryController controller = GitRepositoryController.getInstance();
+        GitRepositoryService gitService = controller.getService();
+        VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
+
+        if (!controller.isEnable()) {
+            logger.debug("Git repository is disabled, skipping remove.");
+            return;
+        }
+
+        if (!controller.isGitConnected()) {
+            logger.debug("Git repository is not connected, skipping remove.");
+            return;
+        }
+
+        if (!versionHistoryProperties.isEnableSyncDelete()) {
+            logger.debug("Sync Delete is disabled.");
+            return;
+        }
+
+        User user;
+
+        try {
+            user = ControllerFactory.getFactory().createUserController().getUser(sec.getUserId(), null);
+            if (user == null) {
+                logger.error("Failed to retrieve user for ID: " + sec.getUserId());
+                return;
+            }
+        } catch (ControllerException e) {
+            logger.error("Failed to retrieve user for ID: " + sec.getUserId() + ". Error: " + e.getMessage());
+            return;
+        }
+
+        String response = gitService.removeChannel(channel, "Remove Channel", user);
+        ResponseUtil responseUtil = new ResponseUtil(response);
+        if (!responseUtil.isSuccess()) {
+            logger.error(responseUtil.getOperationDetails());
+        }
     }
 
     @Override

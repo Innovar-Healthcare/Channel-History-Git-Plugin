@@ -83,11 +83,11 @@
         <plugin.path>innovarhealthcare-channel-history</plugin.path>
         <plugin.name>Version History Plugin</plugin.name>
         <plugin.url>https://www.innovarhealthcare.com</plugin.url>
-        <plugin.author>Jim Weng</plugin.author>
-        <plugin.version>2.0.0</plugin.version>
+        <plugin.author>Jim Weng, Thai Tran</plugin.author>
+        <plugin.version>2.1.1</plugin.version>
         <plugin.description>Innovar Healthcare Channel History Plugin</plugin.description>
         <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-        <plugin.archive.name>innovarhealthcare-channel-History-arch-${mirth.version}</plugin.archive.name>
+        <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
     </properties>
 
     <repositories>
@@ -333,4 +333,64 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Version 4.5.0 (default) -->
+        <profile>
+            <id>v450</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <mirth.version>4.5.0</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.4.1 -->
+        <profile>
+            <id>v441</id>
+            <properties>
+                <mirth.version>4.4.1</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.4.2 -->
+        <profile>
+            <id>v442</id>
+            <properties>
+                <mirth.version>4.4.2</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.5.1 -->
+        <profile>
+            <id>v451</id>
+            <properties>
+                <mirth.version>4.5.1</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.5.2 -->
+        <profile>
+            <id>v452</id>
+            <properties>
+                <mirth.version>4.5.2</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.5.3 -->
+        <profile>
+            <id>v453</id>
+            <properties>
+                <mirth.version>4.5.3</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+    </profiles>
 </project>

@@ -1,15 +1,19 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.dialog;
 
+import com.innovarhealthcare.channelHistory.client.DiffWindow;
+import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
+import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-import com.innovarhealthcare.channelHistory.shared.RevisionInfo;
+
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
-import com.mirth.connect.client.ui.util.DisplayUtil;
+
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 
@@ -20,11 +24,25 @@ import org.apache.log4j.Logger;
 
 import org.json.JSONObject;
 
-import javax.swing.*;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JButton;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
+import javax.swing.BorderFactory;
+import javax.swing.SwingUtilities;
+import javax.swing.JOptionPane;
+import javax.swing.JTextArea;
+import javax.swing.JLabel;
+import javax.swing.JDialog;
+import javax.swing.WindowConstants;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
-import java.awt.*;
+import java.awt.Window;
+import java.awt.Dimension;
+import java.awt.Point;
+import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -52,10 +70,10 @@ public class CodeTemplateHistoryDialog extends JDialog {
     private JButton commitPushButton;
     private JButton pullButton;
 
-    private RevisionInfoTable tblRevisions;
+    private CommitMetaDataTable tblCommitMetaData;
     private JScrollPane historyScrollPane;
 
-    private channelHistoryServletInterface gitServlet;
+    private ChannelHistoryServletInterface gitServlet;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
 
     private final String codeTemplateId;
@@ -118,19 +136,17 @@ public class CodeTemplateHistoryDialog extends JDialog {
         historyPanel.setBackground(this.getBackground());
         historyPanel.setBorder(BorderFactory.createTitledBorder("History"));
 
-        tblRevisions = new RevisionInfoTable();
-        tblRevisions.setRowSelectionAllowed(true);
-        tblRevisions.setColumnSelectionAllowed(false);
-        tblRevisions.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        tblRevisions.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+        tblCommitMetaData = new CommitMetaDataTable();
+        tblCommitMetaData.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
                 if (!e.getValueIsAdjusting()) { // Avoid duplicate events
-                    differenceButton.setEnabled(tblRevisions.getSelectedRowCount() == 1);
+                    differenceButton.setEnabled(tblCommitMetaData.getSelectedRowCount() == 1);
                 }
             }
         });
-        tblRevisions.addMouseListener(new MouseAdapter() {
+
+        tblCommitMetaData.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
                 handlePopupEvent(e);
@@ -143,14 +159,14 @@ public class CodeTemplateHistoryDialog extends JDialog {
 
             public void handlePopupEvent(MouseEvent e) {
                 if (e.isPopupTrigger()) {
-                    revertRevision.setVisible(tblRevisions.getSelectedRowCount() == 1);
-                    mnuShowDiff.setVisible(tblRevisions.getSelectedRowCount() == 2);
+                    revertRevision.setVisible(tblCommitMetaData.getSelectedRowCount() == 1);
+                    mnuShowDiff.setVisible(tblCommitMetaData.getSelectedRowCount() == 2);
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });
-        historyScrollPane = new JScrollPane(tblRevisions);
+        historyScrollPane = new JScrollPane(tblCommitMetaData);
 
         popupMenu = new JPopupMenu();
 
@@ -158,11 +174,11 @@ public class CodeTemplateHistoryDialog extends JDialog {
         revertRevision.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                int row = tblRevisions.getSelectedRow();
+                int row = tblCommitMetaData.getSelectedRow();
 
-                RevisionInfoTableModel model = (RevisionInfoTableModel) tblRevisions.getModel();
-                RevisionInfo rev = model.getRevisionAt(row);
-                revert(codeTemplateId, rev.getHash());
+                CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+                CommitMetaData meta = model.getCommitMetaDataAt(row);
+                revert(codeTemplateId, meta.getHash());
             }
         });
         popupMenu.add(revertRevision);
@@ -215,8 +231,8 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     private void showDiffLastChangeWindow() {
-        RevisionInfoTableModel model = (RevisionInfoTableModel) tblRevisions.getModel();
-        RevisionInfo lastChange = model.getRevisionAt(tblRevisions.getSelectedRow());
+        CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+        CommitMetaData lastChange = model.getCommitMetaDataAt(tblCommitMetaData.getSelectedRow());
 
         if (lastChange == null) {
             showError("No code template revision selected");
@@ -234,7 +250,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
             CodeTemplate rightCodeTemplate = parse(right, lastChange.getShortHash());
 
             String leftLabel = leftCodeTemplate.getName() + " - Current - Editing by " + currentUserName;
-            String rightLabel = leftCodeTemplate.getName() + " - Time: " + df.format(new Date(lastChange.getTime())) + " - Committed by " + lastChange.getCommitterName();
+            String rightLabel = leftCodeTemplate.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
 
             DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left, right, this);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
@@ -246,10 +262,10 @@ public class CodeTemplateHistoryDialog extends JDialog {
 
     private void showDiffWindow() {
         popupMenu.setVisible(false);
-        int[] rows = tblRevisions.getSelectedRows();
-        RevisionInfoTableModel model = (RevisionInfoTableModel) tblRevisions.getModel();
-        RevisionInfo ri1 = model.getRevisionAt(rows[0]);
-        RevisionInfo ri2 = model.getRevisionAt(rows[1]);
+        int[] rows = tblCommitMetaData.getSelectedRows();
+        CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+        CommitMetaData ri1 = model.getCommitMetaDataAt(rows[0]);
+        CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
         try {
             String left = gitServlet.getContent(codeTemplateId, ri1.getHash(), MODE);
@@ -258,8 +274,8 @@ public class CodeTemplateHistoryDialog extends JDialog {
             CodeTemplate rightCodeTemplate = parse(right, ri2.getShortHash());
 
             String labelPrefix = leftCodeTemplate.getName();
-            String leftLabel = labelPrefix + " Time: " + df.format(new Date(ri1.getTime())) + " Committed by " + ri1.getCommitterName();
-            String rightLabel = labelPrefix + " Time: " + df.format(new Date(ri2.getTime())) + " Committed by " + ri1.getCommitterName();
+            String leftLabel = labelPrefix + " Time: " + df.format(new Date(ri1.getTimestamp())) + " Committed by " + ri1.getCommitter();
+            String rightLabel = labelPrefix + " Time: " + df.format(new Date(ri2.getTimestamp())) + " Committed by " + ri1.getCommitter();
 
             DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left, right, this);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
@@ -299,13 +315,28 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     private void commitThenPush() {
-        Object response = DisplayUtil.showInputDialog(this, "Enter a comment:", "Commit & Push", JOptionPane.QUESTION_MESSAGE, null, null, "");
+        JTextArea textArea = new JTextArea(5, 30); // 5 rows, 30 columns
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        JScrollPane scrollPane = new JScrollPane(textArea);
 
-        if (response == null) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(new JLabel("Enter a comment:"), BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(
+                parent,
+                panel,
+                "Commit & Push",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
             return;
         }
 
-        SwingUtilities.invokeLater(new CommitThenPushCodeTemplateRunnable(StringUtils.trim(response.toString())));
+        SwingUtilities.invokeLater(new CommitThenPushCodeTemplateRunnable(StringUtils.trim(textArea.getText())));
     }
 
     private class LoadGitHistoryRunnable implements Runnable {
@@ -321,20 +352,20 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(channelHistoryServletInterface.class);
+                    gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
                 }
 
                 // then fetch revisions
                 List<String> revisions = gitServlet.getHistory(codeTemplateId, MODE);
-                RevisionInfoTableModel model = new RevisionInfoTableModel(revisions);
-                tblRevisions.setModel(model);
+                CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
+                tblCommitMetaData.setModel(model);
 
                 if (shouldNotifyOnComplete) {
                     showInformation("History refreshed!");
                 }
             } catch (Exception e) {
-                RevisionInfoTableModel model = new RevisionInfoTableModel(new ArrayList<>());
-                tblRevisions.setModel(model);
+                CommitMetaDataTableModel model = new CommitMetaDataTableModel(new ArrayList<>());
+                tblCommitMetaData.setModel(model);
 
                 if (shouldNotifyOnComplete) {
                     showError("Failed to pull code template from repository. Error: " + e.getMessage());
@@ -358,7 +389,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = client.getServlet(channelHistoryServletInterface.class);
+                    gitServlet = client.getServlet(ChannelHistoryServletInterface.class);
                 }
 
                 // then fetch revisions

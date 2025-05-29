@@ -1,11 +1,9 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.dialog;
 
 import com.innovarhealthcare.channelHistory.client.model.ChannelRepoTableModel;
+import com.innovarhealthcare.channelHistory.client.table.ChannelRepoTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
-
-import com.mirth.connect.model.ChannelDependency;
-import org.apache.commons.collections4.CollectionUtils;
+import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
 
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
@@ -14,19 +12,19 @@ import com.mirth.connect.client.ui.MirthDialog;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.UIConstants;
 import com.mirth.connect.client.ui.components.MirthTable;
-
 import com.mirth.connect.model.Channel;
+
 import net.miginfocom.swing.MigLayout;
-import org.apache.commons.lang3.StringUtils;
 
-import javax.swing.*;
+import javax.swing.JScrollPane;
+import javax.swing.JButton;
+import javax.swing.SwingUtilities;
+import javax.swing.WindowConstants;
+import javax.swing.JSeparator;
 
-import java.awt.*;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-
-import java.util.Set;
-import java.util.HashSet;
 
 /**
  * @author Thai Tran
@@ -39,7 +37,7 @@ public class ImportChannelDialog extends MirthDialog {
     private JButton okButton;
     private JButton cancelButton;
 
-    private channelHistoryServletInterface gitServlet;
+    private ChannelHistoryServletInterface gitServlet;
     private final Frame parent;
 
     public ImportChannelDialog(Frame parent) {
@@ -64,14 +62,7 @@ public class ImportChannelDialog extends MirthDialog {
         setBackground(UIConstants.BACKGROUND_COLOR);
         getContentPane().setBackground(getBackground());
 
-        channelRepoTable = new MirthTable() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        channelRepoTable.setRowSelectionAllowed(true);
-        channelRepoTable.setColumnSelectionAllowed(false);
+        channelRepoTable = new ChannelRepoTable();
 
         channelsScrollPane = new JScrollPane(channelRepoTable, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         channelsScrollPane.setPreferredSize(new Dimension(600, 300));
@@ -132,7 +123,7 @@ public class ImportChannelDialog extends MirthDialog {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(channelHistoryServletInterface.class);
+                    gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
                 }
 
                 // then fetch revisions

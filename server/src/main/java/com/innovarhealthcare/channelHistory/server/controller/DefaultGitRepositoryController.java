@@ -51,6 +51,10 @@ public class DefaultGitRepositoryController extends GitRepositoryController {
         return service.isAutoCommit();
     }
 
+    public GitRepositoryService getService() {
+        return service;
+    }
+
     @Override
     public String validate(Properties properties) throws GitRepositoryException {
         try {

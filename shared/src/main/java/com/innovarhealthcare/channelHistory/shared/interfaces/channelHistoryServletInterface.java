@@ -20,13 +20,12 @@ package com.innovarhealthcare.channelHistory.shared.interfaces;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
 import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
 import com.mirth.connect.client.core.ClientException;
-import com.mirth.connect.client.core.ControllerException;
 import com.mirth.connect.client.core.Operation;
 import com.mirth.connect.client.core.Permissions;
 import com.mirth.connect.client.core.api.BaseServletInterface;
 import com.mirth.connect.client.core.api.MirthOperation;
 import com.mirth.connect.client.core.api.Param;
-import com.mirth.connect.model.User;
+import com.mirth.connect.model.Channel;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -34,11 +33,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.json.JSONObject;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 
@@ -47,7 +44,7 @@ import java.util.Properties;
 @Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
 @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
 @MirthApiProvider(type = ApiProviderType.SERVLET_INTERFACE)
-public interface channelHistoryServletInterface extends BaseServletInterface {
+public interface ChannelHistoryServletInterface extends BaseServletInterface {
 
 
     @GET
@@ -75,16 +72,6 @@ public interface channelHistoryServletInterface extends BaseServletInterface {
                              @Param("mode") @Parameter(description = "channel or code template", required = true) @QueryParam("mode") String mode) throws ClientException;
 
     @POST
-    @Path("/updateSetting")
-    @ApiResponse(responseCode = "200", description = "update repo setting",
-            content = {
-                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
-                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
-            })
-    @MirthOperation(name = "updateSetting", display = "update git repo setting", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.SYNC, auditable = false)
-    public String updateSetting() throws ClientException;
-
-    @POST
     @Path("/validateSetting")
     @ApiResponse(responseCode = "200", description = "validate git repo setting",
             content = {
@@ -109,7 +96,11 @@ public interface channelHistoryServletInterface extends BaseServletInterface {
             })
     @MirthOperation(name = "commitAndPushChannel", display = "commit and push channel", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.SYNC, auditable = false)
     public String commitAndPushChannel(
-            @Param("channelId") @Parameter(description = "channel id", required = true) @QueryParam("channelId") String channelId,
+            @Param("channel") @RequestBody(description = "The Channel object to create.", required = true, content = {
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = Channel.class), examples = {
+                            @ExampleObject(name = "channel", ref = "../apiexamples/channel_xml")}),
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = Channel.class), examples = {
+                            @ExampleObject(name = "channel", ref = "../apiexamples/channel_json")})}) Channel channel,
             @Param("message") @Parameter(description = "message", required = true) @QueryParam("message") String message,
             @Param("userId") @Parameter(description = "user id", required = true) @QueryParam("userId") String userId) throws ClientException;
 

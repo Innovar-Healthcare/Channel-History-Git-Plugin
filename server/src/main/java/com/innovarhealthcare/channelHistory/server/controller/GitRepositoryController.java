@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.server.controller;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 
+import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
 import com.mirth.connect.server.ExtensionLoader;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
@@ -44,6 +45,8 @@ public abstract class GitRepositoryController {
     public abstract boolean isGitConnected();
 
     public abstract boolean isAutoCommit();
+
+    public abstract GitRepositoryService getService();
 
     public abstract String validate(Properties properties) throws GitRepositoryException;
 

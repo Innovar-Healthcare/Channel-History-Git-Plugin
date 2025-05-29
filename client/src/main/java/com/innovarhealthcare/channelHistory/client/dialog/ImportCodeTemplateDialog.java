@@ -1,7 +1,8 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.dialog;
 
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateRepoTableModel;
-import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.client.table.CodeTemplateRepoTable;
+import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
 
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
@@ -40,7 +41,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     private JButton okButton;
     private JButton cancelButton;
 
-    private channelHistoryServletInterface gitServlet;
+    private ChannelHistoryServletInterface gitServlet;
     private final Frame parent;
 
     public ImportCodeTemplateDialog(Frame parent) {
@@ -75,14 +76,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         }
         libraryComboBox.setModel(new DefaultComboBoxModel<String>(libraryNames.toArray(new String[libraryNames.size()])));
 
-        codeTemplateRepoTable = new MirthTable() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        codeTemplateRepoTable.setRowSelectionAllowed(true);
-        codeTemplateRepoTable.setColumnSelectionAllowed(false);
+        codeTemplateRepoTable = new CodeTemplateRepoTable();
 
         codeTemplateScrollPane = new JScrollPane(codeTemplateRepoTable, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         codeTemplateScrollPane.setPreferredSize(new Dimension(600, 300));
@@ -168,7 +162,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(channelHistoryServletInterface.class);
+                    gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
                 }
 
                 // then fetch revisions

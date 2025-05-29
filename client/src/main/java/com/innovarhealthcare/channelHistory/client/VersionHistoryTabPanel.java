@@ -1,10 +1,15 @@
 package com.innovarhealthcare.channelHistory.client;
 
+import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
+import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
+import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
+
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.channelHistoryServletInterface;
-import com.innovarhealthcare.channelHistory.shared.RevisionInfo;
+import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
@@ -12,19 +17,30 @@ import com.mirth.connect.client.ui.AbstractChannelTabPanel;
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.UIConstants;
-import com.mirth.connect.client.ui.util.DisplayUtil;
 
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.InvalidChannel;
-import com.mirth.connect.model.User;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 
-import javax.swing.*;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JButton;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JTextArea;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.SwingWorker;
+import javax.swing.BorderFactory;
+import javax.swing.SwingUtilities;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import javax.swing.ImageIcon;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -33,10 +49,11 @@ import java.awt.event.MouseEvent;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
-import java.util.ArrayList;
+import java.util.Properties;
 import java.util.Date;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.Objects;
+import java.util.List;
 
 import net.miginfocom.swing.MigLayout;
 import org.json.JSONObject;
@@ -44,23 +61,24 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
 /**
- * @author Kiran Ayyagari (kayyagari@apache.org)
+ * @author Thai Tran
+ * @create 2025-04-30 10:00 AM
  */
 public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
     private final String MODE = VersionControlConstants.MODE_CHANNEL;
-    private static Logger log = Logger.getLogger(VersionHistoryTabPanel.class);
+    private static Logger logger = Logger.getLogger(VersionHistoryTabPanel.class);
 
     private JPanel disablePanel;
     private JPanel actionPanel;
     private JPanel historyPanel;
     private JScrollPane historyScrollPane;
 
-    private RevisionInfoTable tblRevisions;
+    private CommitMetaDataTable tblCommitMetaData;
     private JButton differenceButton;
     private JButton commitPushButton;
     private JButton pullButton;
 
-    private channelHistoryServletInterface gitServlet;
+    private ChannelHistoryServletInterface gitServlet;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
 
     private String cid;
@@ -71,6 +89,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
     private JMenuItem mnuShowDiff;
 
     private final Frame parent;
+    private VersionHistoryProperties versionHistoryProperties;
 
     public VersionHistoryTabPanel(Frame parent) {
         this.parent = parent;
@@ -79,11 +98,17 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         initLayout();
 
         parent.addTask("importChannelFromRepo", "Import Channel From Repo", "Import Channel From Repo", "", new ImageIcon(Frame.class.getResource("images/report_go.png")), parent.channelPanel.channelTasks, parent.channelPanel.channelPopupMenu, this);
+
+        versionHistoryProperties = new VersionHistoryProperties();
     }
 
     @Override
     public void load(Channel channel) {
-        if (VersionControlUtil.isDisableVersionControl(parent.mirthClient)) {
+        // load Version History Setting
+        // then store
+        loadVersionHistoryProperties();
+
+        if (!versionHistoryProperties.isEnableVersionHistory()) {
             disablePanel.setVisible(true);
             actionPanel.setVisible(false);
             historyPanel.setVisible(false);
@@ -92,20 +117,96 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             actionPanel.setVisible(true);
             historyPanel.setVisible(true);
 
-            commitPushButton.setVisible(VersionControlUtil.isAutoCommitDisable(parent.mirthClient));
+            commitPushButton.setVisible(!versionHistoryProperties.isEnableAutoCommit());
 
             cid = channel.getId();
-            this.loadHistory(false);
+
+            loadHistory(false);
         }
     }
 
     @Override
     public void save(Channel channel) {
-        log.info("saving channel " + channel.getId());
+        if (!versionHistoryProperties.isEnableVersionHistory()) {
+            return;
+        }
+
+        if (!versionHistoryProperties.isEnableAutoCommit()) {
+            return;
+        }
+
+        String message = "";
+        if (versionHistoryProperties.isEnableAutoCommitPrompt()) {
+            // show prompt at here
+            JTextArea textArea = new JTextArea(5, 30); // 5 rows, 30 columns
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+            JScrollPane scrollPane = new JScrollPane(textArea);
+
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.add(new JLabel("Enter a comment:"), BorderLayout.NORTH);
+            panel.add(scrollPane, BorderLayout.CENTER);
+
+            int result = JOptionPane.showConfirmDialog(
+                    parent,
+                    panel,
+                    "Auto Commit",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (result == JOptionPane.OK_OPTION) {
+                message = StringUtils.trim(textArea.getText());
+            } else {
+                message = versionHistoryProperties.getAutoCommitMsg();
+            }
+        } else {
+            message = versionHistoryProperties.getAutoCommitMsg();
+        }
+
+        final String workingId = parent.startWorking("Commit & Push " + cid + " channel...");
+
+        String finalMessage = message;
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                final int MAX_TRY = 5;
+                int cnt = 0;
+                while (parent.isSaveEnabled() && cnt < MAX_TRY) {
+                    Thread.sleep(1000); // wait 1 second
+                    cnt++;
+                }
+
+                if (cnt < MAX_TRY) {
+                    try {
+                        String response = doCommitAndPushCurrentChannel(finalMessage);
+
+                        JSONObject resObj = new JSONObject(response);
+                        if (resObj.get("validate").equals("success")) {
+                            if (isShowing()) {
+                                loadHistory(false);
+                            }
+                        } else {
+                            logger.error("Failed to commit and push channel to remote repository. Error: " + resObj.get("body"));
+                        }
+                    } catch (Exception e) {
+                        logger.error("Failed to commit and push channel to remote repository. Error: " + e.getMessage());
+                    }
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                parent.stopWorking(workingId);
+            }
+        };
+
+        worker.execute();
     }
 
     private void initComponents() {
-
         setBackground(UIConstants.BACKGROUND_COLOR);
 
         // Disable
@@ -138,7 +239,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         commitPushButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
-                commitThenPush();
+                commitThenPushAction();
             }
         });
 
@@ -155,20 +256,17 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         historyPanel.setBackground(this.getBackground());
         historyPanel.setBorder(BorderFactory.createTitledBorder("History"));
 
-        tblRevisions = new RevisionInfoTable();
-        tblRevisions.setRowSelectionAllowed(true);
-        tblRevisions.setColumnSelectionAllowed(false);
-        tblRevisions.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        tblRevisions.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+        tblCommitMetaData = new CommitMetaDataTable();
+        tblCommitMetaData.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
                 if (!e.getValueIsAdjusting()) { // Avoid duplicate events
-                    differenceButton.setEnabled(tblRevisions.getSelectedRowCount() == 1);
+                    differenceButton.setEnabled(tblCommitMetaData.getSelectedRowCount() == 1);
                 }
             }
         });
 
-        historyScrollPane = new JScrollPane(tblRevisions);
+        historyScrollPane = new JScrollPane(tblCommitMetaData);
 
         popupMenu = new JPopupMenu();
 
@@ -176,11 +274,11 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         revertRevision.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                int row = tblRevisions.getSelectedRow();
+                int row = tblCommitMetaData.getSelectedRow();
 
-                RevisionInfoTableModel model = (RevisionInfoTableModel) tblRevisions.getModel();
-                RevisionInfo rev = model.getRevisionAt(row);
-                revert(cid, rev.getHash());
+                CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+                CommitMetaData meta = model.getCommitMetaDataAt(row);
+                revert(cid, meta.getHash());
             }
         });
         popupMenu.add(revertRevision);
@@ -194,7 +292,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         });
         popupMenu.add(mnuShowDiff);
 
-        tblRevisions.addMouseListener(new MouseAdapter() {
+        tblCommitMetaData.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
                 handlePopupEvent(e);
@@ -207,8 +305,8 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
 
             public void handlePopupEvent(MouseEvent e) {
                 if (e.isPopupTrigger()) {
-                    revertRevision.setVisible(tblRevisions.getSelectedRowCount() == 1);
-                    mnuShowDiff.setVisible(tblRevisions.getSelectedRowCount() == 2);
+                    revertRevision.setVisible(tblCommitMetaData.getSelectedRowCount() == 1);
+                    mnuShowDiff.setVisible(tblCommitMetaData.getSelectedRowCount() == 2);
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
@@ -234,11 +332,26 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         add(disablePanel, "newline, growx, sx");
     }
 
+    private void loadVersionHistoryProperties() {
+        Properties properties;
+        try {
+            Client client = parent.mirthClient;
+            properties = client.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
+        } catch (ClientException e) {
+            properties = new Properties();
+        }
+
+        versionHistoryProperties.fromProperties(properties);
+    }
+
     public void importChannelFromRepo() {
-        if (VersionControlUtil.isDisableVersionControl(parent.mirthClient)) {
-            showError(VersionControlUtil.getAlertText());
-        } else {
+        // always load git setting first
+        loadVersionHistoryProperties();
+
+        if (versionHistoryProperties.isEnableVersionHistory()) {
             new ImportChannelDialog(parent);
+        } else {
+            showError(VersionControlUtil.getAlertText());
         }
     }
 
@@ -251,8 +364,8 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
     }
 
     private void showDiffLastChangeWindow() {
-        RevisionInfoTableModel model = (RevisionInfoTableModel) tblRevisions.getModel();
-        RevisionInfo lastChange = model.getRevisionAt(tblRevisions.getSelectedRow());
+        CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+        CommitMetaData lastChange = model.getCommitMetaDataAt(tblCommitMetaData.getSelectedRow());
 
         if (lastChange == null) {
             showError("No channel revision selected");
@@ -264,14 +377,13 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             String currentUserName = client.getCurrentUser().getUsername();
 
             Channel leftCh = client.getChannel(cid, false);
-            leftCh.clearExportData();
             String left = ObjectXMLSerializer.getInstance().serialize(leftCh);
 
             String right = gitServlet.getContent(cid, lastChange.getHash(), MODE);
             Channel rightCh = parse(right, lastChange.getShortHash());
 
             String leftLabel = leftCh.getName() + " - Current - Editing by " + currentUserName;
-            String rightLabel = leftCh.getName() + " - Time: " + df.format(new Date(lastChange.getTime())) + " - Committed by " + lastChange.getCommitterName();
+            String rightLabel = leftCh.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
 
             DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, rightCh, left, right, parent);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
@@ -283,10 +395,10 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
 
     private void showDiffWindow() {
         popupMenu.setVisible(false);
-        int[] rows = tblRevisions.getSelectedRows();
-        RevisionInfoTableModel model = (RevisionInfoTableModel) tblRevisions.getModel();
-        RevisionInfo ri1 = model.getRevisionAt(rows[0]);
-        RevisionInfo ri2 = model.getRevisionAt(rows[1]);
+        int[] rows = tblCommitMetaData.getSelectedRows();
+        CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+        CommitMetaData ri1 = model.getCommitMetaDataAt(rows[0]);
+        CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
         try {
             String left = gitServlet.getContent(cid, ri1.getHash(), MODE);
@@ -295,8 +407,8 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             Channel rightCh = parse(right, ri2.getShortHash());
 
             String labelPrefix = leftCh.getName();
-            String leftLabel = labelPrefix + " - Time: " + df.format(new Date(ri1.getTime())) + " - Committed by " + ri1.getCommitterName();
-            String rightLabel = labelPrefix + " - Time: " + df.format(new Date(ri2.getTime())) + " - Committed by " + ri1.getCommitterName();
+            String leftLabel = labelPrefix + " - Time: " + df.format(new Date(ri1.getTimestamp())) + " - Committed by " + ri1.getCommitter();
+            String rightLabel = labelPrefix + " - Time: " + df.format(new Date(ri2.getTimestamp())) + " - Committed by " + ri1.getCommitter();
 
             DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, rightCh, left, right, parent);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
@@ -342,14 +454,34 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         }
     }
 
-    private void commitThenPush() {
-        Object response = DisplayUtil.showInputDialog(parent, "Enter a comment:", "Commit & Push", JOptionPane.QUESTION_MESSAGE, null, null, "");
-
-        if (response == null) {
+    private void commitThenPushAction() {
+        if (parent.isSaveEnabled()) {
+            showInformation("This channel has been modified. You must save the channel changes before you can commit to remote repository");
             return;
         }
 
-        SwingUtilities.invokeLater(new CommitThenPushChannelRunnable(StringUtils.trim(response.toString())));
+        JTextArea textArea = new JTextArea(5, 30); // 5 rows, 30 columns
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(new JLabel("Enter a comment:"), BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(
+                parent,
+                panel,
+                "Commit & Push",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        SwingUtilities.invokeLater(new CommitThenPushChannelRunnable(StringUtils.trim(textArea.getText())));
     }
 
     private class LoadGitHistoryRunnable implements Runnable {
@@ -362,24 +494,26 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         @Override
         public void run() {
             try {
+                Client client = parent.mirthClient;
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(channelHistoryServletInterface.class);
+                    gitServlet = client.getServlet(ChannelHistoryServletInterface.class);
                 }
 
                 // then fetch revisions
                 List<String> revisions = gitServlet.getHistory(cid, MODE);
-                RevisionInfoTableModel model = new RevisionInfoTableModel(revisions);
-                tblRevisions.setModel(model);
+                CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
+                tblCommitMetaData.setModel(model);
 
                 // check warning if last commit done from other servers
-                boolean alertWarning = false;
-                RevisionInfo ri = model.getRevisionAt(0);
-                if (ri != null) {
-                    String commitId = VersionControlUtil.getChannelCommitId(parent.mirthClient, cid);
+                String commitId = VersionControlUtil.getChannelCommitId(client, cid);
+                tblCommitMetaData.setHighlightValue(commitId);
 
-                    boolean warning = (commitId != null) && !Objects.equals(ri.getHash(), commitId);
+                boolean alertWarning = false;
+                CommitMetaData meta = model.getCommitMetaDataAt(0);
+                if (meta != null) {
+                    boolean warning = (commitId != null) && !Objects.equals(meta.getHash(), commitId);
 
                     if (warning) {
                         alertWarning = true;
@@ -388,11 +522,11 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                 }
 
                 if (!alertWarning && shouldNotifyOnComplete) {
-                    PlatformUI.MIRTH_FRAME.alertInformation(parent, "History refreshed!");
+                    showInformation("History refreshed!");
                 }
             } catch (Exception e) {
-                RevisionInfoTableModel model = new RevisionInfoTableModel(new ArrayList<>());
-                tblRevisions.setModel(model);
+                CommitMetaDataTableModel model = new CommitMetaDataTableModel(new ArrayList<>());
+                tblCommitMetaData.setModel(model);
 
                 if (shouldNotifyOnComplete) {
                     showError("Failed to pull history channel from repository");
@@ -411,36 +545,37 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         @Override
         public void run() {
             try {
-                // initialize once
-                // doing here because do not want to delay the startup of MC client which takes several seconds to start.
-                if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(channelHistoryServletInterface.class);
-                }
-
-                // then fetch revisions
-                String chanelId = cid;
-                String userId = String.valueOf(parent.mirthClient.getCurrentUser().getId());
-                String response = gitServlet.commitAndPushChannel(chanelId, message, userId);
+                String response = doCommitAndPushCurrentChannel(message);
 
                 JSONObject resObj = new JSONObject(response);
                 if (resObj.get("validate").equals("success")) {
-                    JOptionPane.showMessageDialog(parent, resObj.get("body"),
-                            "Channel History", JOptionPane.INFORMATION_MESSAGE);
+                    showInformation(resObj.get("body").toString());
 
                     // fetch history panel again at here
-                    // thai
                     loadHistory(false);
                 } else {
-                    JOptionPane.showMessageDialog(parent, "Error: " + resObj.get("body"),
-                            "Channel History", JOptionPane.ERROR_MESSAGE);
+                    showError("Error: " + resObj.get("body"));
                 }
             } catch (Exception e) {
-                showError("Failed to commit and push channel to repository");
+                showError("Failed to commit and push channel to remote repository. Error: " + e.getMessage());
             }
         }
     }
 
+    private void showInformation(String msg) {
+        PlatformUI.MIRTH_FRAME.alertInformation(parent, msg);
+    }
+
     private void showError(String msg) {
         PlatformUI.MIRTH_FRAME.alertError(parent, msg);
+    }
+
+    private String doCommitAndPushCurrentChannel(String message) throws ClientException {
+        Client client = parent.mirthClient;
+        ChannelHistoryServletInterface servlet = client.getServlet(ChannelHistoryServletInterface.class);
+        Channel channel = client.getChannel(cid, false);
+        String userId = String.valueOf(client.getCurrentUser().getId());
+
+        return servlet.commitAndPushChannel(channel, message, userId);
     }
 }

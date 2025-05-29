@@ -69,7 +69,7 @@ public class VersionHistoryPlugin implements ServicePlugin {
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_REPO_URL, "");
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_BRANCH, "");
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_REMOTE_SSH_KEY, "");
-        properties.setProperty(VersionControlConstants.VERSION_HISTORY_ENABLE, "");
+        properties.setProperty(VersionControlConstants.VERSION_HISTORY_ENABLE, String.valueOf(false));
         properties.setProperty(VersionControlConstants.VERSION_HISTORY_AUTO_COMMIT_ENABLE, String.valueOf(false));
 
         return properties;
