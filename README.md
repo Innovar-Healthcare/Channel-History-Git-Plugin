@@ -6,7 +6,6 @@ Authors: <br />
 [Zi-Min (Jim) Weng](https://github.com/Innovarzweng)<br />
 [Daniel Svanstedt](https://github.com/dsvanstedt)<br />
 [Josh McDonald](https://github.com/joshmc82)<br />
-[Thai Tran](https://github.com/joshmc82)<br />
 <br />
 
 Original plugin author: [Kiran Ayyagari](https://github.com/kayyagari)
