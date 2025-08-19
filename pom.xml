@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright 2021 Kaur Palang
-  
+  Copyright 2025 Innovar Healthcare
+
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
   You may obtain a copy of the License at
@@ -13,7 +13,7 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
--->
+  -->
 
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -46,7 +46,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- skip it if you want to sign jar files for production  -->
-        <maven.jarsigner.skip>false</maven.jarsigner.skip>
+        <maven.jarsigner.skip>true</maven.jarsigner.skip>
 
         <mirth.version>4.5.0</mirth.version>
 
@@ -74,6 +74,7 @@
         <commons-collections4.version>4.4</commons-collections4.version>
         <log4j.version>1.2.17</log4j.version>
         <javassist.version>3.28.0-GA</javassist.version>
+        <jackson.version>2.14.3</jackson.version>
         <json.version>20231013</json.version>
 
         <!-- Where should annotation processor generate aggregation file -->
@@ -84,7 +85,7 @@
         <plugin.name>Version History Plugin</plugin.name>
         <plugin.url>https://www.innovarhealthcare.com</plugin.url>
         <plugin.author>Jim Weng, Thai Tran</plugin.author>
-        <plugin.version>2.1.1</plugin.version>
+        <plugin.version>3.0.0</plugin.version>
         <plugin.description>Innovar Healthcare Channel History Plugin</plugin.description>
         <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
         <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
@@ -114,11 +115,6 @@
             <artifactId>org.eclipse.jgit</artifactId>
             <version>${jgit.version}</version>
         </dependency>
-        <!--        <dependency>-->
-        <!--            <groupId>org.eclipse.jgit</groupId>-->
-        <!--            <artifactId>org.eclipse.jgit.ssh.apache</artifactId>-->
-        <!--            <version>${jgit.version}</version>-->
-        <!--        </dependency>-->
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>server</artifactId>
@@ -201,6 +197,27 @@
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>${json.version}</version>
+        </dependency>
+
+        <!-- Core databind module -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- Core JSON parser/generator -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- Jackson annotations support -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>
@@ -335,18 +352,6 @@
     </build>
 
     <profiles>
-        <!-- Version 4.5.0 (default) -->
-        <profile>
-            <id>v450</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <mirth.version>4.5.0</mirth.version>
-                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
-            </properties>
-        </profile>
         <!-- Version 4.4.1 -->
         <profile>
             <id>v441</id>
@@ -361,6 +366,18 @@
             <id>v442</id>
             <properties>
                 <mirth.version>4.4.2</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.5.0 (default) -->
+        <profile>
+            <id>v450</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <mirth.version>4.5.0</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
                 <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
             </properties>
@@ -388,6 +405,18 @@
             <id>v453</id>
             <properties>
                 <mirth.version>4.5.3</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.5.4 -->
+        <profile>
+            <id>v454</id>
+            <properties>
+                <maven.compiler.source>17</maven.compiler.source>
+                <maven.compiler.target>17</maven.compiler.target>
+
+                <mirth.version>4.5.4</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
                 <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
             </properties>
