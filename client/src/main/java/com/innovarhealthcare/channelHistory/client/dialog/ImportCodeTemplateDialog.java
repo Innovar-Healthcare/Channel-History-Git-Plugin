@@ -3,7 +3,6 @@ package com.innovarhealthcare.channelHistory.client.dialog;
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateRepoTableModel;
 import com.innovarhealthcare.channelHistory.client.table.CodeTemplateRepoTable;
 import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
-
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -16,30 +15,55 @@ import com.mirth.connect.model.codetemplates.CodeTemplateLibrary;
 import com.mirth.connect.model.codetemplates.CodeTemplateLibrarySaveResult;
 import net.miginfocom.swing.MigLayout;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.RowFilter;
+import javax.swing.RowSorter;
+import javax.swing.SortOrder;
+import javax.swing.SwingWorker;
+import javax.swing.WindowConstants;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.TableRowSorter;
+import java.awt.Dimension;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Optional;
 
 /**
  * @author Thai Tran
  * @create 2024-11-20 2:30 PM
  */
 public class ImportCodeTemplateDialog extends MirthDialog {
-    private JLabel libraryLabel;
-    private JComboBox<String> libraryComboBox;
-
     private MirthTable codeTemplateRepoTable;
     private JScrollPane codeTemplateScrollPane;
 
+    private CodeTemplateRepoTableModel model;
+    private TableRowSorter<CodeTemplateRepoTableModel> sorter;
+
+    private JTextField searchField;
+    private JButton clearSearchButton;
+
     private JButton okButton;
     private JButton cancelButton;
+
+    // Footer-left loader
+    private JProgressBar loadingBar;
+    private JLabel loadingLabel;
+    private boolean loading = false;
+    private Map<String, CodeTemplateLibrary> codeTemplateLibraries;
 
     private ChannelHistoryServletInterface gitServlet;
     private final Frame parent;
@@ -48,12 +72,12 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         super(parent, true);
 
         this.parent = parent;
-
+        this.codeTemplateLibraries = parent.codeTemplatePanel.getCachedCodeTemplateLibraries();
         initComponents();
         initLayout();
 
         // start thread to load channels on repo
-        SwingUtilities.invokeLater(new LoadCodeTemplateInRepoRunnable());
+        new ImportCodeTemplateDialog.LoadCodeTemplateWorker().execute();
 
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Import Code Template From Repo");
@@ -66,113 +90,233 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         setBackground(UIConstants.BACKGROUND_COLOR);
         getContentPane().setBackground(getBackground());
 
-        Map<String, CodeTemplateLibrary> codeTemplateLibraries = parent.codeTemplatePanel.getCachedCodeTemplateLibraries();
-
-        libraryLabel = new JLabel("Library:");
-        libraryComboBox = new JComboBox<String>();
-        List<String> libraryNames = new ArrayList<>();
-        for (CodeTemplateLibrary library : codeTemplateLibraries.values()) {
-            libraryNames.add(library.getName());
-        }
-        libraryComboBox.setModel(new DefaultComboBoxModel<String>(libraryNames.toArray(new String[libraryNames.size()])));
-
         codeTemplateRepoTable = new CodeTemplateRepoTable();
+        this.model = (CodeTemplateRepoTableModel) codeTemplateRepoTable.getModel();
+
+        sorter = new TableRowSorter<>(this.model);
+        codeTemplateRepoTable.setRowSorter(sorter);
+
+        reapplySortKeys();
 
         codeTemplateScrollPane = new JScrollPane(codeTemplateRepoTable, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         codeTemplateScrollPane.setPreferredSize(new Dimension(600, 300));
 
-        okButton = new JButton("Import");
-        okButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                int row = codeTemplateRepoTable.getSelectedRow();
+        searchField = new JTextField();
+        searchField.setPreferredSize(new Dimension(100, 25));
+        searchField.getDocument().addDocumentListener(new ImportCodeTemplateDialog.SimpleDoc(this::applyFilter));
 
-                if (row < 0) {
-                    PlatformUI.MIRTH_FRAME.alertInformation(parent, "You should select at least one code template!");
-                } else {
-                    if (libraryComboBox.getSelectedIndex() < 0) {
-                        PlatformUI.MIRTH_FRAME.alertInformation(parent, "You should select Library!");
-                        return;
-                    }
-
-                    String libraryName = (String) libraryComboBox.getSelectedItem();
-                    CodeTemplateLibrary matchLibrary = null;
-                    for (CodeTemplateLibrary library : codeTemplateLibraries.values()) {
-                        if (library.getName().equalsIgnoreCase(libraryName)) {
-                            matchLibrary = library;
-                            break;
-                        }
-                    }
-
-                    if (matchLibrary == null) {
-                        PlatformUI.MIRTH_FRAME.alertError(parent, "Library is not found");
-                        return;
-                    }
-
-                    CodeTemplateRepoTableModel model = (CodeTemplateRepoTableModel) codeTemplateRepoTable.getModel();
-                    CodeTemplate template = model.getCodeTemplateAt(row);
-
-                    if (template != null) {
-                        try {
-                            if (doAddCodeTemplate(template, matchLibrary)) {
-                                dispose();
-
-                                parent.codeTemplatePanel.doRefreshCodeTemplates();
-                            }
-                        } catch (ClientException e) {
-                            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
-                        }
-                    } else {
-                        PlatformUI.MIRTH_FRAME.alertError(parent, "Code Template is null");
-                    }
-                }
-            }
+        clearSearchButton = new JButton("X");
+        clearSearchButton.setMargin(new Insets(2, 8, 2, 8));
+        clearSearchButton.addActionListener(e -> {
+            searchField.setText("");
+            sorter.setRowFilter(null);
+            searchField.requestFocusInWindow();
         });
+
+        // --- Footer-left loading indicator ---
+        loadingLabel = new JLabel("Loading code templates…");
+        loadingBar = new JProgressBar();
+        loadingBar.setIndeterminate(true);
+
+        okButton = new JButton("Import");
+        okButton.addActionListener(evt -> onOkImport(evt));
 
         cancelButton = new JButton("Cancel");
-        cancelButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                dispose();
-            }
-        });
+        cancelButton.addActionListener(evt -> dispose());
     }
 
     private void initLayout() {
-        setLayout(new MigLayout("insets 8, novisualpadding, hidemode 3, fill", "", "[grow][][]"));
+        setLayout(new MigLayout(
+                "insets 8, novisualpadding, hidemode 3, fillx",
+                "[pref][grow,fill][pref]",
+                "[] [grow] []"
+        ));
 
-        add(libraryLabel, "newline, left, split");
-        add(libraryComboBox, "w 120!");
+        // Search row
+        add(new JLabel("Search:"), "cell 0 0, alignx left");
+        add(searchField, "cell 1 0, growx, pushx, split 2");
+        add(clearSearchButton, "gapleft 0, wrap");
 
-        add(codeTemplateScrollPane, "newline, grow, push");
+        // Table
+        add(codeTemplateScrollPane, "cell 0 1 3 1, grow, push, wrap");
 
-        add(new JSeparator(), "newline, growx");
+        // Left side (progress + text)
+        add(loadingBar, "cell 0 2, alignx left");
+        add(loadingLabel, "cell 0 2, gapleft 8, alignx left");
 
-        add(okButton, "newline, w 120!, sx, right, split");
-        add(cancelButton, "w 51!");
+        // Right side (buttons)
+        add(okButton, "cell 2 2, split 2, alignx right, w 120!");
+        add(cancelButton, "w 70!");
     }
 
-    private class LoadCodeTemplateInRepoRunnable implements Runnable {
-        LoadCodeTemplateInRepoRunnable() {
+    // ----- Loading state -----
+    private void enterLoadingState() {
+        loading = true;
+        okButton.setEnabled(false);
+        setLoadingVisible(true);
+    }
+
+    private void exitLoadingState() {
+        loading = false;
+        setLoadingVisible(false);
+        okButton.setEnabled(codeTemplateRepoTable.getRowCount() > 0);
+    }
+
+    private void setLoadingVisible(boolean visible) {
+        loadingBar.setVisible(visible);
+        loadingLabel.setVisible(visible);
+        revalidate();
+        repaint();
+    }
+
+    // ----- Background fetch -----
+    private final class LoadCodeTemplateWorker extends SwingWorker<List<String>, Void> {
+        @Override
+        protected List<String> doInBackground() throws Exception {
+            if (gitServlet == null) {
+                gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
+            }
+            return gitServlet.loadCodeTemplateOnRepo();
         }
 
         @Override
-        public void run() {
+        protected void done() {
             try {
-                // initialize once
-                // doing here because do not want to delay the startup of MC client which takes several seconds to start.
-                if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
-                }
+                List<String> templates = get();
+                CodeTemplateRepoTableModel newModel = new CodeTemplateRepoTableModel(templates);
 
-                // then fetch revisions
-                codeTemplateRepoTable.setModel(new CodeTemplateRepoTableModel(gitServlet.loadCodeTemplateOnRepo()));
-            } catch (Exception e) {
+                // Swap model and keep sorter working
+                codeTemplateRepoTable.setModel(newModel);
+
+                ImportCodeTemplateDialog.this.model = newModel;
+
+                sorter.setModel(newModel);
+                codeTemplateRepoTable.setRowSorter(sorter);
+
+                reapplySortKeys();
+
+                applyFilter();
+
+                exitLoadingState();
+            } catch (Exception ex) {
                 PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load code templates in repository");
 
-                dispose();
+                okButton.setEnabled(false);
+
+                setLoadingVisible(false);
             }
         }
+    }
+
+    // ----- Sort & Filter -----
+    private void reapplySortKeys() {
+        if (sorter == null) {
+            return;
+        }
+
+        int cols = codeTemplateRepoTable.getColumnModel().getColumnCount();
+        List<RowSorter.SortKey> keys = new ArrayList<>();
+
+        if (cols > 1) {
+            keys.add(new RowSorter.SortKey(1, SortOrder.ASCENDING));
+        }// Name
+
+        if (cols > 0) {
+            keys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
+        } // ID
+
+        try {
+            sorter.setSortKeys(keys.isEmpty() ? null : keys);
+        } catch (IllegalArgumentException ignore) {
+            // Columns not ready—skip
+        }
+    }
+
+    private void applyFilter() {
+        String text = Optional.ofNullable(searchField.getText()).orElse("").trim();
+        if (text.isEmpty()) {
+            sorter.setRowFilter(null);
+            return;
+        }
+        final String needle = text.toLowerCase();
+
+        sorter.setRowFilter(new RowFilter<CodeTemplateRepoTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends CodeTemplateRepoTableModel, ? extends Integer> entry) {
+                // Adjust indices if different: assuming 0=ID, 1=Name
+                String id = Optional.ofNullable(entry.getValue(0)).map(Object::toString).orElse("").toLowerCase();
+                String name = Optional.ofNullable(entry.getValue(1)).map(Object::toString).orElse("").toLowerCase();
+                return id.contains(needle) || name.contains(needle);
+            }
+        });
+    }
+
+    private void onOkImport(ActionEvent evt) {
+        int viewRow = codeTemplateRepoTable.getSelectedRow();
+        if (viewRow < 0) {
+            PlatformUI.MIRTH_FRAME.alertInformation(parent, "You should select at least one code template!");
+            return;
+        }
+
+        int modelRow = codeTemplateRepoTable.convertRowIndexToModel(viewRow);
+        CodeTemplateRepoTableModel model = (CodeTemplateRepoTableModel) codeTemplateRepoTable.getModel();
+        CodeTemplate template = model.getCodeTemplateAt(modelRow);
+        if (template == null) {
+            PlatformUI.MIRTH_FRAME.alertError(parent, "Code Template is null");
+            return;
+        }
+
+        // Choose a library
+        CodeTemplateLibrary selectedLib = promptForLibrarySelectionByIndex();
+        if (selectedLib == null) {
+            return;
+        }
+
+        try {
+            if (doAddCodeTemplate(template, selectedLib)) {
+                dispose();
+                parent.codeTemplatePanel.doRefreshCodeTemplates();
+            }
+        } catch (ClientException e) {
+            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+        }
+    }
+
+    /**
+     * Shows a modal combo (sorted by name) and returns the actual library object (id-safe).
+     */
+    private CodeTemplateLibrary promptForLibrarySelectionByIndex() {
+        if (codeTemplateLibraries == null || codeTemplateLibraries.isEmpty()) {
+            PlatformUI.MIRTH_FRAME.alertError(parent, "No Code Template Libraries available.");
+            return null;
+        }
+
+        // Stable list used for both display and selection → index maps directly to object
+        List<CodeTemplateLibrary> libs = new ArrayList<>(codeTemplateLibraries.values());
+        libs.sort(Comparator.comparing(l -> {
+            String n = l.getName();
+            return n == null ? "" : n.toLowerCase();
+        }));
+
+        String[] names = libs.stream()
+                .map(l -> l.getName() == null ? "(unnamed)" : l.getName())
+                .toArray(String[]::new);
+
+        JComboBox<String> combo = new JComboBox<>(names);
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                combo,
+                "Choose Library",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            int idx = combo.getSelectedIndex();
+            return (idx >= 0 && idx < libs.size()) ? libs.get(idx) : null;
+        }
+
+        return null;
     }
 
     private boolean doAddCodeTemplate(CodeTemplate template, CodeTemplateLibrary selectedLibrary) throws ClientException {
@@ -288,5 +432,29 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         }
 
         return null;
+    }
+
+    // ----- Small helper -----
+    private static final class SimpleDoc implements DocumentListener {
+        private final Runnable r;
+
+        SimpleDoc(Runnable r) {
+            this.r = r;
+        }
+
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            r.run();
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            r.run();
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            r.run();
+        }
     }
 }
