@@ -157,6 +157,9 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
 
             if (result == JOptionPane.OK_OPTION) {
                 message = StringUtils.trim(textArea.getText());
+                if(message.isEmpty()){
+                    message = versionHistoryProperties.getAutoCommitMsg();
+                }
             } else {
                 message = versionHistoryProperties.getAutoCommitMsg();
             }
