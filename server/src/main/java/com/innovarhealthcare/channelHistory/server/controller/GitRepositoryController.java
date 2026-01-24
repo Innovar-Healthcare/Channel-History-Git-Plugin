@@ -3,7 +3,7 @@ package com.innovarhealthcare.channelHistory.server.controller;
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 
 import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
-import com.mirth.connect.server.ExtensionLoader;
+
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
@@ -18,50 +18,136 @@ import java.util.Properties;
  * @create 2024-11-27 4:25 PM
  */
 
-public abstract class GitRepositoryController {
+public class GitRepositoryController {
     private static final Logger logger = LogManager.getLogger(GitRepositoryController.class);
+    private final GitRepositoryService service = new GitRepositoryService();
+
     private static GitRepositoryController instance;
 
     public static GitRepositoryController getInstance() {
         synchronized (GitRepositoryController.class) {
             if (instance == null) {
-                instance = ExtensionLoader.getInstance().getControllerInstance(GitRepositoryController.class);
-
-                if (instance == null) {
-                    instance = new DefaultGitRepositoryController();
-                }
+                instance = new GitRepositoryController();
             }
 
             return instance;
         }
     }
 
-    public abstract void init(Properties properties) throws GitRepositoryException;
+    public void init(Properties properties) throws GitRepositoryException {
+        try {
+            service.init(properties);
+        } catch (Exception e) {
+            throw new GitRepositoryException(e);
+        }
+    }
 
-    public abstract void start() throws GitRepositoryException;
+    public void start() throws GitRepositoryException {
+        try {
+            service.startGit();
+        } catch (Exception e) {
+            throw new GitRepositoryException(e);
+        }
+    }
 
-    public abstract boolean isEnable();
+    public boolean isEnable() {
+        return service.isEnable();
+    }
 
-    public abstract boolean isGitConnected();
+    public boolean isGitConnected() {
+        return service.isGitConnected();
+    }
 
-    public abstract boolean isAutoCommit();
+    public boolean isAutoCommit() {
+        return service.isAutoCommit();
+    }
 
-    public abstract GitRepositoryService getService();
+    public GitRepositoryService getService() {
+        return service;
+    }
 
-    public abstract String validate(Properties properties) throws GitRepositoryException;
+    public String validate(Properties properties) throws GitRepositoryException {
+        try {
+            return service.validateSettings(properties);
+        } catch (Exception e) {
+            throw new GitRepositoryException(e);
+        }
+    }
 
-    public abstract void update(Properties properties) throws GitRepositoryException;
+    public void update(Properties properties) throws GitRepositoryException {
+        try {
+            service.applySettings(properties);
+        } catch (Exception e) {
+            throw new GitRepositoryException(e);
+        }
+    }
 
-    public abstract List<String> getHistory(String fileName, String mode) throws GitRepositoryException;
+    public List<String> getHistory(String fileName, String mode) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
 
-    public abstract String getContent(String fileName, String revision, String mode) throws GitRepositoryException;
+        try {
+            return service.getHistory(fileName, mode);
+        } catch (Exception e) {
+            logger.error("Failed to get history on repo", e);
+            throw new GitRepositoryException(e);
+        }
+    }
 
-    public abstract List<String> loadChannelOnRepo() throws GitRepositoryException;
+    public String getContent(String fileName, String revision, String mode) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
 
-    public abstract String commitAndPushChannel(Channel channel, String message, User user) throws GitRepositoryException;
+        try {
+            return service.getContent(fileName, revision, mode);
+        } catch (Exception e) {
+            logger.error("Failed to get content on repo", e);
+            throw new GitRepositoryException(e);
+        }
+    }
 
-    public abstract List<String> loadCodeTemplateOnRepo() throws GitRepositoryException;
+    public List<String> loadChannelOnRepo() throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
 
-    public abstract String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws GitRepositoryException;
+        try {
 
+            return service.loadChannelOnRepo();
+        } catch (Exception e) {
+            logger.error("Failed to load channels on repo", e);
+            throw new GitRepositoryException(e);
+        }
+    }
+
+    public String commitAndPushChannel(Channel channel, String message, User user) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            return "Cannot connect to git repository";
+        }
+
+        return service.commitAndPushChannel(channel, message, user);
+    }
+
+    public List<String> loadCodeTemplateOnRepo() throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
+
+        try {
+            return service.loadCodeTemplateOnRepo();
+        } catch (Exception e) {
+            logger.error("Failed to load code templates on repo", e);
+            throw new GitRepositoryException(e);
+        }
+    }
+
+    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws GitRepositoryException {
+        if (!service.isGitConnected()) {
+            throw new GitRepositoryException("Cannot connect to git repository");
+        }
+
+        return service.commitAndPushCodeTemplate(template, message, user);
+    }
 }

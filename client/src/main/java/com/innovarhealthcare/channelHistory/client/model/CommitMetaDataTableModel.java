@@ -1,5 +1,6 @@
 package com.innovarhealthcare.channelHistory.client.model;
 
+import com.innovarhealthcare.channelHistory.shared.model.CommitMessage;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -22,7 +23,7 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
     private static final Logger logger = LoggerFactory.getLogger(CommitMetaDataTableModel.class);
     private final List<CommitMetaData> revisions;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
-    private static final String[] columnNames = {"Commit Id", "Message", "Committer", "Date", "Server Id"};
+    private static final String[] columnNames = {"Commit Id", "Message", "Committer", "Date", "Server Id", "Server Name"};
 
     public CommitMetaDataTableModel(List<String> jsonRevisions) {
         this.revisions = new ArrayList<>();
@@ -32,12 +33,8 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
             } catch (IllegalArgumentException e) {
                 logger.error("Failed to parse JSON revision: {}", json, e);
                 // Add a placeholder for invalid JSON
-                CommitMetaData placeholder = new CommitMetaData(new JSONObject()
-                        .put("hash", "(error)")
-                        .put("committer", "(error)")
-                        .put("timestamp", 0L)
-                        .put("message", "[" + CommitMetaData.DEFAULT_SERVER_ID + "]")
-                        .toString());
+                CommitMessage errorMessage = new CommitMessage("");
+                CommitMetaData placeholder = new CommitMetaData("(error)", "(error)", 0L, errorMessage);
                 revisions.add(placeholder);
             }
         }
@@ -65,6 +62,7 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
             case 1: // Message
             case 2: // Committer
             case 4: // Server Id
+            case 5: // Server Name
                 return String.class;
             case 3: // Date
                 return String.class; // Formatted date is a string
@@ -87,6 +85,9 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
                 return formatTime(meta.getTimestamp());
             case 4:
                 return meta.getServerId();
+            case 5:
+                String serverName = meta.getServerName();
+                return serverName != null ? serverName : "";
             default:
                 throw new IllegalArgumentException("Unknown column number: " + columnIndex);
         }
@@ -109,14 +110,20 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
 
         if (duration.toDays() > 3) {
             return df.format(new Date(t));
-        } else if (duration.toDays() > 0) {
-            return duration.toDays() + " days ago";
-        } else if (duration.toHours() > 0) {
-            return duration.toHours() + " hours ago";
-        } else if (duration.toMinutes() > 0) {
-            return duration.toMinutes() + " minutes ago";
-        } else {
-            return duration.getSeconds() + " seconds ago";
         }
+
+        if (duration.toDays() > 0) {
+            return duration.toDays() + " days ago";
+        }
+
+        if (duration.toHours() > 0) {
+            return duration.toHours() + " hours ago";
+        }
+
+        if (duration.toMinutes() > 0) {
+            return duration.toMinutes() + " minutes ago";
+        }
+
+        return duration.getSeconds() + " seconds ago";
     }
 }

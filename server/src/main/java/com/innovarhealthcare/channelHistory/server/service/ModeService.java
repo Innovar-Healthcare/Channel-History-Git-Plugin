@@ -1,11 +1,14 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
+import com.innovarhealthcare.channelHistory.shared.model.CommitMessage;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 
+import com.mirth.connect.server.controllers.ConfigurationController;
+import com.mirth.connect.server.controllers.ControllerFactory;
 import org.apache.commons.lang3.StringUtils;
 
 import org.eclipse.jgit.api.Git;
@@ -63,6 +66,7 @@ import java.util.List;
  */
 public abstract class ModeService {
     private static final Logger logger = LoggerFactory.getLogger(ModeService.class);
+    private static final ConfigurationController configurationController = ControllerFactory.getFactory().createConfigurationController();
     protected final GitRepositoryService gitService;
 
     public abstract String getDirectory();
@@ -87,6 +91,7 @@ public abstract class ModeService {
         Git git = this.gitService.git;
         File dir = this.gitService.dir;
         String serverId = this.gitService.serverId;
+        String serverName = configurationController.getServerName();
         ObjectXMLSerializer serializer = this.gitService.serializer;
         String remoteRepoUrl = this.gitService.getRemoteRepoUrl();
         String branch = this.gitService.getRemoteRepoBranch();
@@ -204,9 +209,9 @@ public abstract class ModeService {
 
             // Stage and commit
             String objectType = object instanceof Channel ? "Channel" : object instanceof CodeTemplate ? "Code Template" : "Object";
-            String commentMsg = objectType + " name: " + getObjectName(object) + ". Message: " + message + ". Server Id: " + serverId;
+            CommitMessage commitMessage = CommitMessage.create(object, message, serverId, serverName);
             git.add().addFilepattern(path).call();
-            RevCommit rc = git.commit().setCommitter(committer).setMessage(commentMsg).call();
+            RevCommit rc = git.commit().setCommitter(committer).setMessage(commitMessage.getRawMessage()).call();
             response.append("Commit: Staged and committed " + objectType.toLowerCase() + " " + id).append(System.lineSeparator());
 
             // Allow subclasses to perform post-commit actions
@@ -248,10 +253,7 @@ public abstract class ModeService {
 
             boolean pushSuccessful = false;
             for (RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
-                response.append("  Ref: ").append(update.getRemoteName())
-                        .append(", Status: ").append(update.getStatus())
-                        .append(", New ObjectId: ").append(update.getNewObjectId() != null ? update.getNewObjectId().name() : "none")
-                        .append("\n");
+                response.append("  Ref: ").append(update.getRemoteName()).append(", Status: ").append(update.getStatus()).append(", New ObjectId: ").append(update.getNewObjectId() != null ? update.getNewObjectId().name() : "none").append("\n");
 
                 if (update.getStatus() == RemoteRefUpdate.Status.OK) {
                     response.append("    Success: ").append((allowForcePush ? "Force push" : "Push")).append(" completed successfully").append(System.lineSeparator());

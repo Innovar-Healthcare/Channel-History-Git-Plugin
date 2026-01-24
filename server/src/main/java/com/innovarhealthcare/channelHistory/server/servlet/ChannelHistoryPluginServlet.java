@@ -1,10 +1,5 @@
 package com.innovarhealthcare.channelHistory.server.servlet;
 
-/**
- * @author Jim(Zi Min) Weng
- * @create 2023-10-20 3:31 PM
- */
-
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
