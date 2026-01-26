@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.jcraft.jsch.JSch;
@@ -286,11 +287,11 @@ public class GitRepositoryService {
             return codeTemplateService.getContent(fileName, revision);
         }
 
-        throw new Exception("mode (" + mode + ")" + "is not supported");
+        throw new IllegalArgumentException("Unsupported repository mode: " + mode + ". Supported modes: " + VersionControlConstants.MODE_CHANNEL + ", " + VersionControlConstants.MODE_CODE_TEMPLATE);
     }
 
-    public List<String> loadChannelOnRepo() throws Exception {
-        return channelService.load();
+    public List<RepoItemMetadata> loadChannelOnRepo() throws Exception {
+        return channelService.loadMetadata();
     }
 
     public String commitAndPushChannel(Channel channel, String message, User user) {
@@ -305,8 +306,8 @@ public class GitRepositoryService {
         return channelService.remove(channel, message, committer, true);
     }
 
-    public List<String> loadCodeTemplateOnRepo() throws Exception {
-        return codeTemplateService.load();
+    public List<RepoItemMetadata> loadCodeTemplateOnRepo() throws Exception {
+        return codeTemplateService.loadMetadata();
     }
 
     public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) {
@@ -506,10 +507,7 @@ public class GitRepositoryService {
 
             boolean pushSuccessful = false;
             for (RemoteRefUpdate update : pushResult.getRemoteUpdates()) {
-                operationDetails.append("  Ref: ").append(update.getRemoteName())
-                        .append(", Status: ").append(update.getStatus())
-                        .append(", New ObjectId: ").append(update.getNewObjectId() != null ? update.getNewObjectId().name() : "none")
-                        .append(System.lineSeparator());
+                operationDetails.append("  Ref: ").append(update.getRemoteName()).append(", Status: ").append(update.getStatus()).append(", New ObjectId: ").append(update.getNewObjectId() != null ? update.getNewObjectId().name() : "none").append(System.lineSeparator());
 
                 if (update.getStatus() == RemoteRefUpdate.Status.OK) {
                     operationDetails.append("    Success: ").append(allowForcePush ? "Force push" : "Push").append(" completed successfully").append(System.lineSeparator());

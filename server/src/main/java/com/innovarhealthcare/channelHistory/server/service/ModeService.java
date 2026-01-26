@@ -1,9 +1,11 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMessage;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.model.Channel;
+import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 
@@ -60,6 +62,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Abstract service for managing versioned objects in a Git repository.
@@ -537,8 +540,8 @@ public abstract class ModeService {
         return content;
     }
 
-    public List<String> load() throws Exception {
-        List<String> lst = new ArrayList<>();
+    public List<RepoItemMetadata> loadMetadata() throws Exception {
+        List<RepoItemMetadata> lst = new ArrayList<>();
         Git git = this.gitService.git;
         Repository repo = this.gitService.git.getRepository();
         String path = getDirectory() + "/";
@@ -557,22 +560,96 @@ public abstract class ModeService {
             if (treeWalk.isSubtree()) {
                 treeWalk.enterSubtree();
             } else {
-                ObjectId objectId = treeWalk.getObjectId(0);
-                ObjectLoader loader = repo.open(objectId);
-                String content = new String(loader.getBytes(), StandardCharsets.UTF_8);
+                try {
+                    String fileName = treeWalk.getNameString();
+                    String filePath = treeWalk.getPathString();
 
-                // Convert to JSON Object
-                JSONObject obj = new JSONObject();
-                obj.put("content", content);
+                    // Filename = channel ID (no extension)
+                    String expectedChannelId = fileName;
 
-                Iterable<RevCommit> commits = git.log().addPath(treeWalk.getPathString()).call();
-                obj.put("lastCommitId", commits.iterator().next().getName());
+                    // Validate filename is UUID format - skip early if not
+                    if (!isValidUUID(expectedChannelId)) {
+                        logger.debug("Skipping non-UUID filename: {}", filePath);
+                        continue;
+                    }
 
-                lst.add(obj.toString());
+                    // Load content
+                    ObjectId objectId = treeWalk.getObjectId(0);
+                    ObjectLoader loader = repo.open(objectId);
+                    String content = new String(loader.getBytes(), StandardCharsets.UTF_8);
+
+                    // Deserialize and verify
+                    Channel channel = deserializeAndVerifyChannel(content, filePath);
+
+                    // Skip if not valid
+                    if (channel == null) {
+                        continue;
+                    }
+
+                    // Get channel ID and name from Channel object
+                    String channelId = channel.getId();
+                    String channelName = channel.getName();
+
+                    // Validate channel ID exists
+                    if (channelId == null || channelId.isEmpty()) {
+                        logger.warn("Skipping channel with null/empty ID: {}", filePath);
+                        continue;
+                    }
+
+                    // Verify channel ID matches filename
+                    if (!channelId.equals(expectedChannelId)) {
+                        logger.warn("Channel ID mismatch: filename is '{}' but channel has ID '{}' in path: {}", expectedChannelId, channelId, filePath);
+                        continue;
+                    }
+
+                    // Get last commit ID
+                    Iterable<RevCommit> commits = git.log().addPath(filePath).call();
+                    String commitId = commits.iterator().next().getName();
+
+                    // Create metadata object
+                    RepoItemMetadata metadata = new RepoItemMetadata(channelId, channelName != null ? channelName : channelId, filePath, commitId);
+
+                    lst.add(metadata);
+
+                } catch (Exception e) {
+                    logger.error("Failed to process file: {}", treeWalk.getPathString(), e);
+                }
             }
         }
 
         return lst;
+    }
+
+    /**
+     * Deserialize content to Channel and verify it's valid
+     *
+     * @param content  XML content
+     * @param filePath File path for logging
+     * @return Channel object if valid, null otherwise
+     */
+    private Channel deserializeAndVerifyChannel(String content, String filePath) {
+        try {
+            // Deserialize XML to Channel object
+            Channel channel = ObjectXMLSerializer.getInstance().deserialize(content, Channel.class);
+
+            // Verify channel is not null
+            if (channel == null) {
+                logger.warn("Deserialized channel is null: {}", filePath);
+                return null;
+            }
+
+            // Verify it's not an InvalidChannel
+            if (channel instanceof InvalidChannel) {
+                logger.warn("Skipping invalid channel: {}", filePath);
+                return null;
+            }
+
+            return channel;
+
+        } catch (Exception e) {
+            logger.warn("Failed to deserialize channel from: {}", filePath, e);
+            return null;
+        }
     }
 
     private String getObjectId(Object object) {
@@ -621,5 +698,24 @@ public abstract class ModeService {
         result.put("validate", "fail");
         result.put("body", response.toString() + errorMessage);
         return result.toString();
+    }
+
+    /**
+     * Check if string is valid UUID format
+     *
+     * @param str String to check
+     * @return true if valid UUID, false otherwise
+     */
+    private boolean isValidUUID(String str) {
+        if (str == null || str.isEmpty()) {
+            return false;
+        }
+
+        try {
+            UUID.fromString(str);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

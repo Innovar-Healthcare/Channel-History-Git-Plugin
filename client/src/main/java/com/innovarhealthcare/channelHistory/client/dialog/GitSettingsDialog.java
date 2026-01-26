@@ -1,6 +1,6 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
-import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.GitSettings;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 
@@ -142,24 +142,21 @@ public class GitSettingsDialog extends MirthDialog {
         if (StringUtils.isEmpty(url)) {
             valid = false;
             remoteRepositoryUrlField.setBackground(UIConstants.INVALID_COLOR);
-            errorMessage.append("Please provide an SSH remote repository URL (e.g., git@github.com:user/repo.git).")
-                    .append(System.lineSeparator());
+            errorMessage.append("Please provide an SSH remote repository URL (e.g., git@github.com:user/repo.git).").append(System.lineSeparator());
         }
 
         String branch = branchNameField.getText().trim();
         if (StringUtils.isEmpty(branch)) {
             valid = false;
             branchNameField.setBackground(UIConstants.INVALID_COLOR);
-            errorMessage.append("Please provide a branch name (e.g., main, develop, or feature/xyz).")
-                    .append(System.lineSeparator());
+            errorMessage.append("Please provide a branch name (e.g., main, develop, or feature/xyz).").append(System.lineSeparator());
         }
 
         String sshKey = sshPrivateKeyField.getText().trim();
         if (StringUtils.isEmpty(sshKey)) {
             valid = false;
             sshPrivateKeyField.setBackground(UIConstants.INVALID_COLOR);
-            errorMessage.append("Please provide an SSH private key (starts with '-----BEGIN').")
-                    .append(System.lineSeparator());
+            errorMessage.append("Please provide an SSH private key (starts with '-----BEGIN').").append(System.lineSeparator());
         }
 
         if (!valid) {
@@ -174,7 +171,7 @@ public class GitSettingsDialog extends MirthDialog {
             try {
                 Client client = parent.mirthClient;
 
-                ChannelHistoryServletInterface servlet = client.getServlet(ChannelHistoryServletInterface.class);
+                VersionHistoryServletInterface servlet = client.getServlet(VersionHistoryServletInterface.class);
                 String ret = servlet.validateSetting(toProperties());
 
                 showInformation(ret);

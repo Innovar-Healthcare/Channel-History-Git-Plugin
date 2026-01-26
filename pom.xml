@@ -72,7 +72,7 @@
         <commons-io.version>2.10.0</commons-io.version>
         <commons-lang3.version>3.13.0</commons-lang3.version>
         <commons-collections4.version>4.4</commons-collections4.version>
-        <log4j.version>1.2.17</log4j.version>
+        <log4j.version>2.17.2</log4j.version>
         <javassist.version>3.28.0-GA</javassist.version>
         <jackson.version>2.14.3</jackson.version>
         <json.version>20231013</json.version>
@@ -91,18 +91,18 @@
         <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
     </properties>
 
-<!--    <repositories>-->
-<!--        <repository>-->
-<!--            <id>repsy</id>-->
-<!--            <url>https://repo.repsy.io/mvn/kpalang/default</url>-->
-<!--        </repository>-->
-<!--    </repositories>-->
-<!--    <pluginRepositories>-->
-<!--        <pluginRepository>-->
-<!--            <id>repsy-default</id>-->
-<!--            <url>https://repo.repsy.io/mvn/kpalang/default</url>-->
-<!--        </pluginRepository>-->
-<!--    </pluginRepositories>-->
+    <!--    <repositories>-->
+    <!--        <repository>-->
+    <!--            <id>repsy</id>-->
+    <!--            <url>https://repo.repsy.io/mvn/kpalang/default</url>-->
+    <!--        </repository>-->
+    <!--    </repositories>-->
+    <!--    <pluginRepositories>-->
+    <!--        <pluginRepository>-->
+    <!--            <id>repsy-default</id>-->
+    <!--            <url>https://repo.repsy.io/mvn/kpalang/default</url>-->
+    <!--        </pluginRepository>-->
+    <!--    </pluginRepositories>-->
     <dependencies>
         <!-- Helper plugin to handle Mirth plugin specific tasks. -->
         <dependency>
@@ -251,12 +251,28 @@
             <version>${xstream.version}</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
             <version>${log4j.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>${log4j.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
@@ -358,7 +374,8 @@
             <properties>
                 <mirth.version>4.4.1</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.4.2 -->
@@ -367,7 +384,8 @@
             <properties>
                 <mirth.version>4.4.2</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.5.0 (default) -->
@@ -379,7 +397,8 @@
             <properties>
                 <mirth.version>4.5.0</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.5.1 -->
@@ -388,7 +407,8 @@
             <properties>
                 <mirth.version>4.5.1</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.5.2 -->
@@ -397,7 +417,8 @@
             <properties>
                 <mirth.version>4.5.2</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-mc${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.5.3 -->
@@ -406,7 +427,8 @@
             <properties>
                 <mirth.version>4.5.3</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.5.4 -->
@@ -418,7 +440,8 @@
 
                 <mirth.version>4.5.4</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <!-- Version 4.6.0 -->
@@ -430,7 +453,8 @@
 
                 <mirth.version>4.6.0</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
         <profile>
@@ -444,7 +468,8 @@
 
                 <mirth.version>4.6.1</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
-                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}</plugin.archive.name>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}
+                </plugin.archive.name>
             </properties>
         </profile>
     </profiles>

@@ -6,7 +6,7 @@ import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 
 import com.mirth.connect.client.core.Client;
@@ -73,7 +73,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
     private CommitMetaDataTable tblCommitMetaData;
     private JScrollPane historyScrollPane;
 
-    private ChannelHistoryServletInterface gitServlet;
+    private VersionHistoryServletInterface gitServlet;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
 
     private final String codeTemplateId;
@@ -324,13 +324,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
         panel.add(new JLabel("Enter a comment:"), BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
 
-        int result = JOptionPane.showConfirmDialog(
-                parent,
-                panel,
-                "Commit & Push",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-        );
+        int result = JOptionPane.showConfirmDialog(parent, panel, "Commit & Push", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
         if (result != JOptionPane.OK_OPTION) {
             return;
@@ -352,7 +346,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
+                    gitServlet = parent.mirthClient.getServlet(VersionHistoryServletInterface.class);
                 }
 
                 // then fetch revisions
@@ -389,7 +383,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = client.getServlet(ChannelHistoryServletInterface.class);
+                    gitServlet = client.getServlet(VersionHistoryServletInterface.class);
                 }
 
                 // then fetch revisions

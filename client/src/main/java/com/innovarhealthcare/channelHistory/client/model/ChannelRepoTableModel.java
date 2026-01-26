@@ -1,14 +1,12 @@
 package com.innovarhealthcare.channelHistory.client.model;
 
-import com.mirth.connect.model.Channel;
-import com.mirth.connect.model.InvalidChannel;
-import com.mirth.connect.model.converters.ObjectXMLSerializer;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -16,33 +14,23 @@ import java.util.List;
  * @create 2024-11-27 4:25 PM
  */
 public class ChannelRepoTableModel extends AbstractTableModel {
-    private static final Logger logger = LoggerFactory.getLogger(ChannelRepoTableModel.class);
-    private static final String[] columnNames = {"Channel Id", "Channel Name", "Last Commit Id"};
-    private final List<ChannelEntry> entries;
+    private static final Logger logger = LogManager.getLogger(ChannelRepoTableModel.class);
 
-    private static class ChannelEntry {
-        Channel channel;
-        String lastCommitId;
+    private static final String[] COLUMN_NAMES = {"Channel Id", "Channel Name", "Last Commit Id"};
+    private final List<RepoItemMetadata> entries;
 
-        ChannelEntry(Channel channel, String lastCommitId) {
-            this.channel = channel;
-            this.lastCommitId = lastCommitId != null ? lastCommitId : "(unknown)";
-        }
-    }
-
-    public ChannelRepoTableModel(List<String> jsonList) {
+    /**
+     * Constructor with metadata list
+     *
+     * @param metadataList List of channel metadata (no full content)
+     */
+    public ChannelRepoTableModel(List<RepoItemMetadata> metadataList) {
         this.entries = new ArrayList<>();
-        for (String json : jsonList) {
-            try {
-                JSONObject obj = new JSONObject(json);
-                String content = obj.has("content") && !obj.isNull("content") ? obj.getString("content") : "";
-                String lastCommitId = obj.has("lastCommitId") && !obj.isNull("lastCommitId") ? obj.getString("lastCommitId") : null;
-                Channel channel = stringToChannel(content);
-                if (channel != null) {
-                    entries.add(new ChannelEntry(channel, lastCommitId));
-                }
-            } catch (Exception e) {
-                logger.error("Failed to parse JSON: {}", json, e);
+        for (RepoItemMetadata metadata : metadataList) {
+            if (metadata != null && metadata.getId() != null) {
+                entries.add(metadata);
+            } else {
+                logger.warn("Skipping null or invalid metadata entry");
             }
         }
     }
@@ -54,61 +42,115 @@ public class ChannelRepoTableModel extends AbstractTableModel {
 
     @Override
     public int getColumnCount() {
-        return columnNames.length;
+        return COLUMN_NAMES.length;
     }
 
     @Override
     public String getColumnName(int column) {
-        return columnNames[column];
+        return COLUMN_NAMES[column];
     }
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        return String.class; // All columns return strings
+        return String.class;
     }
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        ChannelEntry entry = entries.get(rowIndex);
-        Channel channel = entry.channel;
+        RepoItemMetadata metadata = entries.get(rowIndex);
 
         switch (columnIndex) {
             case 0: // Channel Id
-                return channel != null ? channel.getId() : "(error)";
+                return metadata.getId() != null ? metadata.getId() : "(unknown)";
             case 1: // Channel Name
-                return channel != null ? channel.getName() : "(error)";
+                return metadata.getName() != null ? metadata.getName() : "(unknown)";
             case 2: // Last Commit Id
-                return entry.lastCommitId;
+                return metadata.getLastCommitId() != null ? metadata.getLastCommitId() : "(unknown)";
             default:
                 throw new IllegalArgumentException("Unknown column number: " + columnIndex);
         }
     }
 
-    public Channel getChannelAt(int row) {
+    /**
+     * Get metadata at specified row
+     *
+     * @param row Row index
+     * @return RepoItemMetadata or null if invalid row
+     */
+    public RepoItemMetadata getMetadataAt(int row) {
         if (row < 0 || row >= entries.size()) {
             return null;
         }
-        return entries.get(row).channel;
+        return entries.get(row);
     }
 
+    /**
+     * Get channel ID at specified row
+     *
+     * @param row Row index
+     * @return Channel ID or null if invalid row
+     */
+    public String getChannelIdAt(int row) {
+        RepoItemMetadata metadata = getMetadataAt(row);
+        return metadata != null ? metadata.getId() : null;
+    }
+
+    /**
+     * Get channel name at specified row
+     *
+     * @param row Row index
+     * @return Channel name or null if invalid row
+     */
+    public String getChannelNameAt(int row) {
+        RepoItemMetadata metadata = getMetadataAt(row);
+        return metadata != null ? metadata.getName() : null;
+    }
+
+    /**
+     * Get last commit ID at specified row
+     *
+     * @param row Row index
+     * @return Last commit ID or null if invalid row
+     */
     public String getLastCommitIdAt(int row) {
-        if (row < 0 || row >= entries.size()) {
-            return null;
-        }
-        return entries.get(row).lastCommitId;
+        RepoItemMetadata metadata = getMetadataAt(row);
+        return metadata != null ? metadata.getLastCommitId() : null;
     }
 
-    private Channel stringToChannel(String xml) {
-        try {
-            Channel ch = ObjectXMLSerializer.getInstance().deserialize(xml, Channel.class);
-            if (ch instanceof InvalidChannel) {
-                logger.warn("Invalid channel XML: {}", xml);
-                return null;
+    /**
+     * Get file path at specified row
+     *
+     * @param row Row index
+     * @return File path or null if invalid row
+     */
+    public String getPathAt(int row) {
+        RepoItemMetadata metadata = getMetadataAt(row);
+        return metadata != null ? metadata.getPath() : null;
+    }
+
+    /**
+     * Get all metadata entries
+     *
+     * @return Unmodifiable list of metadata
+     */
+    public List<RepoItemMetadata> getAllMetadata() {
+        return Collections.unmodifiableList(entries);
+    }
+
+    /**
+     * Get selected metadata by indices
+     *
+     * @param selectedRows Array of selected row indices
+     * @return List of selected metadata
+     */
+    public List<RepoItemMetadata> getSelectedMetadata(int[] selectedRows) {
+        List<RepoItemMetadata> selected = new ArrayList<>();
+        for (int row : selectedRows) {
+            RepoItemMetadata metadata = getMetadataAt(row);
+            if (metadata != null) {
+                selected.add(metadata);
             }
-            return ch;
-        } catch (Exception e) {
-            logger.warn("Failed to deserialize channel XML: {}", xml, e);
-            return null;
         }
+        return selected;
     }
 }

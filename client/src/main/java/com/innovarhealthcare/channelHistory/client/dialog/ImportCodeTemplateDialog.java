@@ -2,7 +2,7 @@ package com.innovarhealthcare.channelHistory.client.dialog;
 
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateRepoTableModel;
 import com.innovarhealthcare.channelHistory.client.table.CodeTemplateRepoTable;
-import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -65,7 +65,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     private boolean loading = false;
     private Map<String, CodeTemplateLibrary> codeTemplateLibraries;
 
-    private ChannelHistoryServletInterface gitServlet;
+    private VersionHistoryServletInterface gitServlet;
     private final Frame parent;
 
     public ImportCodeTemplateDialog(Frame parent) {
@@ -126,11 +126,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     }
 
     private void initLayout() {
-        setLayout(new MigLayout(
-                "insets 8, novisualpadding, hidemode 3, fillx",
-                "[pref][grow,fill][pref]",
-                "[] [grow] []"
-        ));
+        setLayout(new MigLayout("insets 8, novisualpadding, hidemode 3, fillx", "[pref][grow,fill][pref]", "[] [grow] []"));
 
         // Search row
         add(new JLabel("Search:"), "cell 0 0, alignx left");
@@ -174,7 +170,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         @Override
         protected List<String> doInBackground() throws Exception {
             if (gitServlet == null) {
-                gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
+                gitServlet = parent.mirthClient.getServlet(VersionHistoryServletInterface.class);
             }
             return gitServlet.loadCodeTemplateOnRepo();
         }
@@ -298,18 +294,10 @@ public class ImportCodeTemplateDialog extends MirthDialog {
             return n == null ? "" : n.toLowerCase();
         }));
 
-        String[] names = libs.stream()
-                .map(l -> l.getName() == null ? "(unnamed)" : l.getName())
-                .toArray(String[]::new);
+        String[] names = libs.stream().map(l -> l.getName() == null ? "(unnamed)" : l.getName()).toArray(String[]::new);
 
         JComboBox<String> combo = new JComboBox<>(names);
-        int result = JOptionPane.showConfirmDialog(
-                this,
-                combo,
-                "Choose Library",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-        );
+        int result = JOptionPane.showConfirmDialog(this, combo, "Choose Library", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
         if (result == JOptionPane.OK_OPTION) {
             int idx = combo.getSelectedIndex();

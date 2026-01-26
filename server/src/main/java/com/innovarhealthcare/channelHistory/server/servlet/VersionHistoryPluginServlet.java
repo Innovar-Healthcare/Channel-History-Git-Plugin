@@ -3,8 +3,10 @@ package com.innovarhealthcare.channelHistory.server.servlet;
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 
+import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
 import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
 
@@ -30,12 +32,12 @@ import java.util.List;
 import java.util.Properties;
 
 @MirthApiProvider(type = ApiProviderType.SERVER_CLASS)
-public class ChannelHistoryPluginServlet extends MirthServlet implements ChannelHistoryServletInterface {
+public class VersionHistoryPluginServlet extends MirthServlet implements VersionHistoryServletInterface {
     private static final UserController userController = ControllerFactory.getFactory().createUserController();
     private static final CodeTemplateController codeTemplateController = ControllerFactory.getFactory().createCodeTemplateController();
-    private static final Logger logger = Logger.getLogger(ChannelHistoryPluginServlet.class);
+    private static final Logger logger = Logger.getLogger(VersionHistoryPluginServlet.class);
 
-    public ChannelHistoryPluginServlet(@Context HttpServletRequest request, @Context SecurityContext sc) {
+    public VersionHistoryPluginServlet(@Context HttpServletRequest request, @Context SecurityContext sc) {
         super(request, sc, VersionControlConstants.PLUGIN_POINTNAME);
     }
 
@@ -69,9 +71,10 @@ public class ChannelHistoryPluginServlet extends MirthServlet implements Channel
     }
 
     @Override
-    public List<String> loadChannelOnRepo() throws ClientException {
+    public String loadChannelOnRepo() throws ClientException {
         try {
-            return GitRepositoryController.getInstance().loadChannelOnRepo();
+            List<RepoItemMetadata> metadataList = GitRepositoryController.getInstance().loadChannelOnRepo();
+            return JsonUtils.toJson(metadataList);
         } catch (Exception e) {
             logger.warn("Failed to load channels on repo. Error: ", e);
             throw new ClientException(e);
@@ -103,7 +106,8 @@ public class ChannelHistoryPluginServlet extends MirthServlet implements Channel
     @Override
     public List<String> loadCodeTemplateOnRepo() throws ClientException {
         try {
-            return GitRepositoryController.getInstance().loadCodeTemplateOnRepo();
+//            return GitRepositoryController.getInstance().loadCodeTemplateOnRepo();
+            return null;
         } catch (Exception e) {
             logger.warn("Failed to load code templates on repo", e);
             throw new ClientException(e);

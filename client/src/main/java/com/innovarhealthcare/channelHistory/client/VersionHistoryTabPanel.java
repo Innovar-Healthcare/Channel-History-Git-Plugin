@@ -6,7 +6,7 @@ import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
@@ -78,7 +78,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
     private JButton commitPushButton;
     private JButton pullButton;
 
-    private ChannelHistoryServletInterface gitServlet;
+    private VersionHistoryServletInterface gitServlet;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
 
     private String cid;
@@ -147,17 +147,11 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             panel.add(new JLabel("Enter a comment:"), BorderLayout.NORTH);
             panel.add(scrollPane, BorderLayout.CENTER);
 
-            int result = JOptionPane.showConfirmDialog(
-                    parent,
-                    panel,
-                    "Auto Commit",
-                    JOptionPane.OK_CANCEL_OPTION,
-                    JOptionPane.QUESTION_MESSAGE
-            );
+            int result = JOptionPane.showConfirmDialog(parent, panel, "Auto Commit", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
             if (result == JOptionPane.OK_OPTION) {
                 message = StringUtils.trim(textArea.getText());
-                if(message.isEmpty()){
+                if (message.isEmpty()) {
                     message = versionHistoryProperties.getAutoCommitMsg();
                 }
             } else {
@@ -215,15 +209,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         // Disable
         disablePanel = new JPanel();
         disablePanel.setBackground(this.getBackground());
-        disablePanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        BorderFactory.createMatteBorder(0, 0, 0, 0, new Color(204, 204, 204)),
-                        VersionControlUtil.getAlertText(),
-                        TitledBorder.DEFAULT_JUSTIFICATION,
-                        1,
-                        new Font("Tahoma", 1, 15)
-                )
-        );
+        disablePanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(0, 0, 0, 0, new Color(204, 204, 204)), VersionControlUtil.getAlertText(), TitledBorder.DEFAULT_JUSTIFICATION, 1, new Font("Tahoma", 1, 15)));
 
         // Action
         actionPanel = new JPanel();
@@ -448,8 +434,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                     // store channel commit id at here
                     VersionControlUtil.setChannelCommitId(parent.mirthClient, channelId, rev);
 
-                    JOptionPane.showMessageDialog(parent, "Exit channel edit screen without saving to complete reverting channel",
-                            "Successfully Reverted Channel", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(parent, "Exit channel edit screen without saving to complete reverting channel", "Successfully Reverted Channel", JOptionPane.INFORMATION_MESSAGE);
                 }
             } catch (ClientException e) {
                 showError("Failed to revert channel");
@@ -472,13 +457,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         panel.add(new JLabel("Enter a comment:"), BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
 
-        int result = JOptionPane.showConfirmDialog(
-                parent,
-                panel,
-                "Commit & Push",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-        );
+        int result = JOptionPane.showConfirmDialog(parent, panel, "Commit & Push", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
         if (result != JOptionPane.OK_OPTION) {
             return;
@@ -501,7 +480,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
                 // initialize once
                 // doing here because do not want to delay the startup of MC client which takes several seconds to start.
                 if (gitServlet == null) {
-                    gitServlet = client.getServlet(ChannelHistoryServletInterface.class);
+                    gitServlet = client.getServlet(VersionHistoryServletInterface.class);
                 }
 
                 // then fetch revisions
@@ -575,7 +554,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
 
     private String doCommitAndPushCurrentChannel(String message) throws ClientException {
         Client client = parent.mirthClient;
-        ChannelHistoryServletInterface servlet = client.getServlet(ChannelHistoryServletInterface.class);
+        VersionHistoryServletInterface servlet = client.getServlet(VersionHistoryServletInterface.class);
         Channel channel = client.getChannel(cid, false);
         String userId = String.valueOf(client.getCurrentUser().getId());
 

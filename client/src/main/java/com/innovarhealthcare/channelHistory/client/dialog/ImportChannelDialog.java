@@ -1,9 +1,11 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
 import com.innovarhealthcare.channelHistory.client.model.ChannelRepoTableModel;
+import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.ChannelRepoTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-import com.innovarhealthcare.channelHistory.shared.interfaces.ChannelHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -53,7 +55,7 @@ public class ImportChannelDialog extends MirthDialog {
     private JLabel loadingLabel;
     private boolean loading = false;
 
-    private ChannelHistoryServletInterface gitServlet;
+    private VersionHistoryServletInterface gitServlet;
     private final Frame parent;
 
     public ImportChannelDialog(Frame parent) {
@@ -86,11 +88,7 @@ public class ImportChannelDialog extends MirthDialog {
 
         reapplySortKeys();
 
-        channelsScrollPane = new JScrollPane(
-                channelRepoTable,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-        );
+        channelsScrollPane = new JScrollPane(channelRepoTable, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         channelsScrollPane.setPreferredSize(new Dimension(600, 300));
 
         searchField = new JTextField();
@@ -115,23 +113,44 @@ public class ImportChannelDialog extends MirthDialog {
         okButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
+                // Get selected row
                 int viewRow = channelRepoTable.getSelectedRow();
                 if (viewRow < 0) {
                     PlatformUI.MIRTH_FRAME.alertInformation(parent, "You should select at least one channel!");
                     return;
                 }
+
+                // Convert to model row
                 int modelRow = channelRepoTable.convertRowIndexToModel(viewRow);
-                ChannelRepoTableModel m = (ChannelRepoTableModel) channelRepoTable.getModel();
-                Channel channel = m.getChannelAt(modelRow);
-                if (channel == null) {
-                    PlatformUI.MIRTH_FRAME.alertError(parent, "Channel is null");
+                ChannelRepoTableModel model = (ChannelRepoTableModel) channelRepoTable.getModel();
+
+                // Get metadata from selected row
+                RepoItemMetadata metadata = model.getMetadataAt(modelRow);
+                if (metadata == null) {
+                    PlatformUI.MIRTH_FRAME.alertError(parent, "Channel metadata is null");
                     return;
                 }
-                if (doAddChannel(channel)) {
-                    VersionControlUtil.setChannelCommitId(
-                            parent.mirthClient, channel.getId(), m.getLastCommitIdAt(modelRow)
-                    );
-                    dispose();
+
+                try {
+                    // ✅ Load channel using convenience method - clean and simple!
+                    Channel channel = VersionHistoryServiceClient.getInstance().loadChannelFromRepo(metadata);
+
+                    if (channel == null) {
+                        PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load channel content");
+                        return;
+                    }
+
+                    // Add channel to Mirth
+                    if (doAddChannel(channel)) {
+                        // Store the commit ID for version tracking
+                        VersionControlUtil.setChannelCommitId(parent.mirthClient, channel.getId(), metadata.getLastCommitId());
+                        dispose();
+                    }
+
+                } catch (ClientException e) {
+                    PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load channel: " + e.getMessage());
+                } catch (Exception e) {
+                    PlatformUI.MIRTH_FRAME.alertError(parent, "Unexpected error: " + e.getMessage());
                 }
             }
         });
@@ -141,11 +160,7 @@ public class ImportChannelDialog extends MirthDialog {
     }
 
     private void initLayout() {
-        setLayout(new MigLayout(
-                "insets 8, novisualpadding, hidemode 3, fillx",
-                "[pref][grow,fill][pref]",
-                "[] [grow] []"
-        ));
+        setLayout(new MigLayout("insets 8, novisualpadding, hidemode 3, fillx", "[pref][grow,fill][pref]", "[] [grow] []"));
 
         // Search row
         add(new JLabel("Search:"), "cell 0 0, alignx left");
@@ -185,20 +200,18 @@ public class ImportChannelDialog extends MirthDialog {
     }
 
     // ----- Background fetch -----
-    private final class LoadChannelsWorker extends SwingWorker<List<String>, Void> {
+    private final class LoadChannelsWorker extends SwingWorker<List<RepoItemMetadata>, Void> {
         @Override
-        protected List<String> doInBackground() throws Exception {
-            if (gitServlet == null) {
-                gitServlet = parent.mirthClient.getServlet(ChannelHistoryServletInterface.class);
-            }
-            return gitServlet.loadChannelOnRepo();
+        protected List<RepoItemMetadata> doInBackground() throws Exception {
+            return VersionHistoryServiceClient.getInstance().loadChannelOnRepo();
         }
 
         @Override
         protected void done() {
             try {
-                List<String> channels = get();
-                ChannelRepoTableModel newModel = new ChannelRepoTableModel(channels);
+                List<RepoItemMetadata> metadataList = get();
+
+                ChannelRepoTableModel newModel = new ChannelRepoTableModel(metadataList);
 
                 // Swap model and keep sorter working
                 channelRepoTable.setModel(newModel);
