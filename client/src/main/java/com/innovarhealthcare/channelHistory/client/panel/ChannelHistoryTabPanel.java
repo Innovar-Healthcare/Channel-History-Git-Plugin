@@ -1,4 +1,4 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.panel;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 
+import com.innovarhealthcare.channelHistory.client.dialog.DiffWindow;
 import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
@@ -45,9 +46,9 @@ import org.json.JSONObject;
  * @author Thai Tran
  * @create 2025-04-30 10:00 AM
  */
-public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
+public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
     private final String MODE = VersionControlConstants.MODE_CHANNEL;
-    private static Logger logger = Logger.getLogger(VersionHistoryTabPanel.class);
+    private static Logger logger = Logger.getLogger(ChannelHistoryTabPanel.class);
 
     private JPanel disablePanel;
     private JPanel actionPanel;
@@ -72,7 +73,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
     private final Frame parent;
     private VersionHistoryProperties versionHistoryProperties;
 
-    public VersionHistoryTabPanel(Frame parent) {
+    public ChannelHistoryTabPanel(Frame parent) {
         this.parent = parent;
 
         initComponents();

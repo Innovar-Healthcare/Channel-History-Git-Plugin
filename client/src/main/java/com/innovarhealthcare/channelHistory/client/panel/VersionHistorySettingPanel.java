@@ -1,8 +1,15 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.panel;
+
+import javax.swing.*;
+import javax.swing.border.TitledBorder;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.client.dialog.GitSettingsDialog;
+import com.innovarhealthcare.channelHistory.client.plugin.VersionHistorySettingPlugin;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
-
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.AbstractSettingsPanel;
 import com.mirth.connect.client.ui.Frame;
@@ -10,29 +17,9 @@ import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.UIConstants;
 import com.mirth.connect.client.ui.components.MirthRadioButton;
 import com.mirth.connect.client.ui.components.MirthTextPane;
-
 import com.mirth.connect.model.Channel;
 import net.miginfocom.swing.MigLayout;
 import org.apache.commons.lang3.StringUtils;
-
-import javax.swing.JPanel;
-import javax.swing.JLabel;
-import javax.swing.ButtonGroup;
-import javax.swing.JButton;
-import javax.swing.JTextPane;
-import javax.swing.JScrollPane;
-import javax.swing.BorderFactory;
-import javax.swing.ImageIcon;
-import javax.swing.SwingWorker;
-import javax.swing.border.TitledBorder;
-
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-
-import java.util.Properties;
 
 /**
  * @author Thai Tran
@@ -327,8 +314,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
 
         if (!versionHistoryProperties.getGitSettings().validate()) {
             valid = false;
-            errorMessage.append("Git Settings are invalid.")
-                    .append(System.lineSeparator());
+            errorMessage.append("Git Settings are invalid.").append(System.lineSeparator());
         }
 
         if (autoCommitYes.isSelected()) {
@@ -336,8 +322,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
             if (StringUtils.isEmpty(url)) {
                 valid = false;
                 defaultMessageField.setBackground(UIConstants.INVALID_COLOR);
-                errorMessage.append("Please provide a default message.")
-                        .append(System.lineSeparator());
+                errorMessage.append("Please provide a default message.").append(System.lineSeparator());
             }
         }
 

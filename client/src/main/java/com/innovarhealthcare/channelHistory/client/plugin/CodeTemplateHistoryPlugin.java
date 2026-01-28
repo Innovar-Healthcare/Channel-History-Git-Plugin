@@ -1,5 +1,9 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.plugin;
 
+
+import javax.swing.*;
+import java.util.Collections;
+import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.client.dialog.CodeTemplateHistoryDialog;
 import com.innovarhealthcare.channelHistory.client.dialog.ImportCodeTemplateDialog;
@@ -7,18 +11,12 @@ import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthClientClass;
-
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.plugins.ClientPlugin;
-
 import org.jdesktop.swingx.action.ActionFactory;
 import org.jdesktop.swingx.action.BoundAction;
-
-import javax.swing.ImageIcon;
-import java.util.Collections;
-import java.util.Properties;
 
 /**
  * @author Jim(Zi Min) Weng

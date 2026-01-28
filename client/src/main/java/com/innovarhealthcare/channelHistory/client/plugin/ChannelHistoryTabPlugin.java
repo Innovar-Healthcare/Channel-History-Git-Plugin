@@ -1,27 +1,25 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.plugin;
 
+import com.innovarhealthcare.channelHistory.client.panel.ChannelHistoryTabPanel;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthClientClass;
 import com.mirth.connect.client.ui.AbstractChannelTabPanel;
 import com.mirth.connect.plugins.ChannelTabPlugin;
 import lombok.SneakyThrows;
 
-/**
- * @author Kiran Ayyagari (kayyagari@apache.org)
- */
 @MirthClientClass
-public class VersionHistoryTabPlugin extends ChannelTabPlugin {
+public class ChannelHistoryTabPlugin extends ChannelTabPlugin {
 
-    private VersionHistoryTabPanel tabPanel;
+    private ChannelHistoryTabPanel tabPanel;
 
-    public VersionHistoryTabPlugin(String name) {
+    public ChannelHistoryTabPlugin(String name) {
         super(VersionControlConstants.PLUGIN_POINTNAME);
     }
 
     @SneakyThrows
     @Override
     public void start() {
-        tabPanel = new VersionHistoryTabPanel(parent);
+        tabPanel = new ChannelHistoryTabPanel(parent);
     }
 
     @Override

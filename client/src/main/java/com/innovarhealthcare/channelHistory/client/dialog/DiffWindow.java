@@ -1,21 +1,17 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.dialog;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Collections;
 
 import com.innovarhealthcare.channelHistory.shared.ObjectDiff;
 import com.kayyagari.objmeld.OgnlComparison;
 import com.kayyagari.objmeld.StringContent;
 import com.mirth.connect.client.ui.ChannelSetup;
 import com.mirth.connect.client.ui.MirthDialog;
-import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.model.Channel;
-import com.mirth.connect.model.converters.ObjectXMLSerializer;
-import org.apache.commons.io.IOUtils;
-
-import javax.swing.*;
-import java.awt.*;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.nio.charset.Charset;
-import java.util.Collections;
 
 /**
  * The main window for showing diff.

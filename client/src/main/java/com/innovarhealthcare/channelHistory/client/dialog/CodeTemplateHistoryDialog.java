@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import com.innovarhealthcare.channelHistory.client.DiffWindow;
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;

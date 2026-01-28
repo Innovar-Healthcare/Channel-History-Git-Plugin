@@ -1,7 +1,6 @@
-package com.innovarhealthcare.channelHistory.client;
+package com.innovarhealthcare.channelHistory.client.plugin;
 
-import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-
+import com.innovarhealthcare.channelHistory.client.panel.VersionHistorySettingPanel;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthClientClass;
 import com.mirth.connect.client.ui.AbstractSettingsPanel;
 import com.mirth.connect.plugins.SettingsPanelPlugin;
