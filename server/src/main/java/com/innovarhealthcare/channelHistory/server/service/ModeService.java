@@ -505,8 +505,8 @@ public abstract class ModeService<T> {
     /**
      * Get commit history for a file
      */
-    public List<String> getHistory(String fileName) {
-        List<String> lst = new ArrayList<>();
+    public List<CommitMetaData> getHistory(String fileName) {
+        List<CommitMetaData> lst = new ArrayList<>();
 
         if (StringUtils.isBlank(fileName) || fileName.contains("..") || fileName.contains("/")) {
             logger.error("Invalid fileName: {}", fileName);
@@ -526,8 +526,7 @@ public abstract class ModeService<T> {
             Iterator<RevCommit> rcItr = logCommand.call().iterator();
             while (rcItr.hasNext()) {
                 RevCommit rc = rcItr.next();
-                CommitMetaData metaData = new CommitMetaData(rc);
-                lst.add(metaData.toJson());
+                lst.add(new CommitMetaData(rc));
             }
         } catch (GitAPIException | IOException e) {
             logger.error("Failed to retrieve commit history for file: {}", fileName, e);

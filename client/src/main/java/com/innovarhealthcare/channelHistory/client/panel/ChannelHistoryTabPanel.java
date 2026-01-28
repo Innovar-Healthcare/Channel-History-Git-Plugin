@@ -454,14 +454,9 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         public void run() {
             try {
                 Client client = parent.mirthClient;
-                // initialize once
-                // doing here because do not want to delay the startup of MC client which takes several seconds to start.
-                if (gitServlet == null) {
-                    gitServlet = client.getServlet(VersionHistoryServletInterface.class);
-                }
 
                 // then fetch revisions
-                List<String> revisions = gitServlet.getHistory(cid, MODE);
+                List<CommitMetaData> revisions = VersionHistoryServiceClient.getInstance().loadChannelHistory(cid);
                 CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
                 tblCommitMetaData.setModel(model);
 

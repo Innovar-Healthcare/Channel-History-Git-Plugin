@@ -12,6 +12,7 @@ import java.util.Properties;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.jcraft.jsch.JSch;
@@ -262,7 +263,7 @@ public class GitRepositoryService {
         }
     }
 
-    public List<String> getHistory(String fileName, String mode) throws Exception {
+    public List<CommitMetaData> getHistory(String fileName, String mode) throws Exception {
         // Check connection first
         if (!isGitConnected()) {
             throw new GitNotConnectedException();

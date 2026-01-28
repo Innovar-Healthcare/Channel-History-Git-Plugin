@@ -1,6 +1,5 @@
 package com.innovarhealthcare.channelHistory.server.controller;
 
-import java.util.List;
 import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
@@ -73,19 +72,6 @@ public class GitRepositoryController {
         try {
             service.applySettings(properties);
         } catch (Exception e) {
-            throw new GitRepositoryException(e);
-        }
-    }
-
-    public List<String> getHistory(String fileName, String mode) throws GitRepositoryException {
-        if (!service.isGitConnected()) {
-            throw new GitRepositoryException("Cannot connect to git repository");
-        }
-
-        try {
-            return service.getHistory(fileName, mode);
-        } catch (Exception e) {
-            logger.error("Failed to get history on repo", e);
             throw new GitRepositoryException(e);
         }
     }

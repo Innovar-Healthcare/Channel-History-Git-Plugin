@@ -9,6 +9,7 @@ import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
@@ -37,7 +38,32 @@ public class VersionHistoryServiceClient {
         }
     }
 
-    public VersionHistoryServiceClient() {
+    private VersionHistoryServiceClient() {
+    }
+
+    /**
+     * Load complete commit history for a channel
+     *
+     * @param channelId Channel UUID
+     * @return List of commit history entries (newest first)
+     * @throws ClientException if channel not found or Git error occurs
+     */
+    public List<CommitMetaData> loadChannelHistory(String channelId) throws ClientException {
+        if (StringUtils.isBlank(channelId)) {
+            throw new ClientException("Channel ID cannot be null or empty");
+        }
+
+        try {
+            String jsonResponse = getServlet().getHistory(channelId, VersionControlConstants.MODE_CHANNEL);
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+
+        } catch (ClientException e) {
+            rethrowParsedClientError(e);
+            return null;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load channel history for ID: " + channelId, e);
+        }
     }
 
     public List<RepoItemMetadata> loadChannelListFromRepo() throws ClientException {
@@ -133,6 +159,31 @@ public class VersionHistoryServiceClient {
         }
 
         return loadChannelFromRepo(metadata.getId(), metadata.getLastCommitId());
+    }
+
+    /**
+     * Load complete commit history for a code template
+     *
+     * @param codeTemplateId Code template UUID
+     * @return List of commit history entries (newest first)
+     * @throws ClientException if code template not found or Git error occurs
+     */
+    public List<CommitMetaData> loadCodeTemplateHistory(String codeTemplateId) throws ClientException {
+        if (StringUtils.isBlank(codeTemplateId)) {
+            throw new ClientException("Code template ID cannot be null or empty");
+        }
+
+        try {
+            String jsonResponse = getServlet().getHistory(codeTemplateId, VersionControlConstants.MODE_CODE_TEMPLATE);
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+
+        } catch (ClientException e) {
+            rethrowParsedClientError(e);
+            return null;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load code template history for ID: " + codeTemplateId, e);
+        }
     }
 
     /**

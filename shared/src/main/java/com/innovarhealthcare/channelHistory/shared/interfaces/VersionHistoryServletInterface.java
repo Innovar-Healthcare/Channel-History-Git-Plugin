@@ -24,7 +24,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
-import java.util.List;
 import java.util.Properties;
 
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
@@ -53,12 +52,38 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public interface VersionHistoryServletInterface extends BaseServletInterface {
 
 
+//    @GET
+//    @Path("/history")
+//    @ApiResponse(responseCode = "200", description = "Found the information", content = {@Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)), @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))})
+//    @MirthOperation(name = "getHistory", display = "Get all revisions of a file", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.ASYNC, auditable = false)
+//    public String getHistory(@Param("fileName") @Parameter(description = "The name of the file", required = true) @QueryParam("fileName") String fileName, @Param("mode") @Parameter(description = "channel or code template", required = true) @QueryParam("mode") String mode) throws ClientException;
+
     @GET
     @Path("/history")
-    @ApiResponse(responseCode = "200", description = "Found the information", content = {@Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)), @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))})
-    @MirthOperation(name = "getHistory", display = "Get all revisions of a file", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.ASYNC, auditable = false)
-    public List<String> getHistory(@Param("fileName") @Parameter(description = "The name of the file", required = true) @QueryParam("fileName") String fileName, @Param("mode") @Parameter(description = "channel or code template", required = true) @QueryParam("mode") String mode) throws ClientException;
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successfully retrieved all commit revisions of the file",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getHistory",
+            display = "Get all commit revisions of a file",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.ASYNC,
+            auditable = false
+    )
+    public String getHistory(
+            @Param("fileName")
+            @Parameter(description = "The file name (UUID) of the channel or code template", required = true)
+            @QueryParam("fileName") String fileName,
 
+            @Param("mode")
+            @Parameter(description = "The type of item: 'channel' or 'codetemplate'", required = true)
+            @QueryParam("mode") String mode
+    ) throws ClientException;
 
     @GET
     @Path("/file-content")

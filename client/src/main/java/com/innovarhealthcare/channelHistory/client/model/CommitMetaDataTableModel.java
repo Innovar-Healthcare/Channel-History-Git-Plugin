@@ -1,11 +1,5 @@
 package com.innovarhealthcare.channelHistory.client.model;
 
-import com.innovarhealthcare.channelHistory.shared.model.CommitMessage;
-import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.swing.table.AbstractTableModel;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -15,29 +9,23 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-/**
- * @author Thai Tran
- * @create 2025-04-30 10:00 AM
- */
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class CommitMetaDataTableModel extends AbstractTableModel {
     private static final Logger logger = LoggerFactory.getLogger(CommitMetaDataTableModel.class);
     private final List<CommitMetaData> revisions;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
     private static final String[] columnNames = {"Commit Id", "Message", "Committer", "Date", "Server Id", "Server Name"};
 
-    public CommitMetaDataTableModel(List<String> jsonRevisions) {
-        this.revisions = new ArrayList<>();
-        for (String json : jsonRevisions) {
-            try {
-                revisions.add(new CommitMetaData(json));
-            } catch (IllegalArgumentException e) {
-                logger.error("Failed to parse JSON revision: {}", json, e);
-                // Add a placeholder for invalid JSON
-                CommitMessage errorMessage = new CommitMessage("");
-                CommitMetaData placeholder = new CommitMetaData("(error)", "(error)", 0L, errorMessage);
-                revisions.add(placeholder);
-            }
-        }
+    /**
+     * Constructor that accepts List<CommitMetaData> directly
+     *
+     * @param revisions List of CommitMetaData objects
+     */
+    public CommitMetaDataTableModel(List<CommitMetaData> revisions) {
+        this.revisions = revisions != null ? new ArrayList<>(revisions) : new ArrayList<>();
     }
 
     @Override
@@ -93,6 +81,12 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
         }
     }
 
+    /**
+     * Get the CommitMetaData object at the specified row
+     *
+     * @param row Row index
+     * @return CommitMetaData object or null if row is out of bounds
+     */
     public CommitMetaData getCommitMetaDataAt(int row) {
         if (row < 0 || row >= revisions.size()) {
             return null;
@@ -100,6 +94,14 @@ public class CommitMetaDataTableModel extends AbstractTableModel {
         return revisions.get(row);
     }
 
+    /**
+     * Format timestamp to human-readable string
+     * Shows relative time (e.g., "2 hours ago") for recent commits,
+     * absolute date for older commits
+     *
+     * @param t Timestamp in milliseconds
+     * @return Formatted time string
+     */
     private String formatTime(long t) {
         if (t <= 0) {
             return "(unknown)";

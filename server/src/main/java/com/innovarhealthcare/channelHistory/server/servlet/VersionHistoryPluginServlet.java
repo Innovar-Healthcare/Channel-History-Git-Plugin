@@ -12,6 +12,7 @@ import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
 import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
@@ -47,11 +48,19 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
         }
     }
 
-
     @Override
-    public List<String> getHistory(String fileName, String mode) throws ClientException {
+    public String getHistory(String fileName, String mode) throws ClientException {
+        // Validate inputs
+        if (fileName == null || fileName.trim().isEmpty()) {
+            throw new ClientException("File name is required");
+        }
+        if (mode == null || mode.trim().isEmpty()) {
+            throw new ClientException("Mode is required");
+        }
+
         try {
-            return GitRepositoryController.getInstance().getHistory(fileName, mode);
+            List<CommitMetaData> commitList = getService().getHistory(fileName, mode);
+            return JsonUtils.toJson(commitList);
         } catch (Exception e) {
             logger.warn("failed to get the history of file " + fileName, e);
             throw new ClientException(e);

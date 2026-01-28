@@ -315,14 +315,9 @@ public class CodeTemplateHistoryDialog extends JDialog {
         @Override
         public void run() {
             try {
-                // initialize once
-                // doing here because do not want to delay the startup of MC client which takes several seconds to start.
-                if (gitServlet == null) {
-                    gitServlet = parent.mirthClient.getServlet(VersionHistoryServletInterface.class);
-                }
-
                 // then fetch revisions
-                List<String> revisions = gitServlet.getHistory(codeTemplateId, MODE);
+                List<CommitMetaData> revisions = VersionHistoryServiceClient.getInstance().loadCodeTemplateHistory(codeTemplateId);
+
                 CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
                 tblCommitMetaData.setModel(model);
 
