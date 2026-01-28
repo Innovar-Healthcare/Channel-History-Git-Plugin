@@ -1,65 +1,61 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
-import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Properties;
 
+import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
+import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
-
 import com.mirth.connect.donkey.server.Donkey;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.CloneCommand;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.TransportConfigCallback;
-import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.FetchCommand;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.PullCommand;
+import org.eclipse.jgit.api.PushCommand;
+import org.eclipse.jgit.api.RemoteAddCommand;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.RmCommand;
-import org.eclipse.jgit.api.AddCommand;
-import org.eclipse.jgit.api.RemoteAddCommand;
-import org.eclipse.jgit.api.PushCommand;
-import org.eclipse.jgit.api.PullCommand;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.StoredConfig;
-import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.transport.JschConfigSessionFactory;
 import org.eclipse.jgit.transport.OpenSshConfig;
-import org.eclipse.jgit.transport.Transport;
+import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.RefSpec;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.SshSessionFactory;
 import org.eclipse.jgit.transport.SshTransport;
-import org.eclipse.jgit.transport.RefSpec;
-import org.eclipse.jgit.transport.FetchResult;
+import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.PushResult;
-import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.io.File;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.Properties;
-import java.util.List;
-import java.util.Objects;
-import java.util.Iterator;
-
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
@@ -67,7 +63,7 @@ import java.util.Iterator;
  */
 
 public class GitRepositoryService {
-    private static final Logger logger = LoggerFactory.getLogger(GitRepositoryService.class);
+    private static final Logger logger = LogManager.getLogger(GitRepositoryService.class);
     public static final String DATA_DIR = "InnovarHealthcare-version-control";
     public static final Charset CHARSET_UTF_8 = StandardCharsets.UTF_8;
 
@@ -267,6 +263,11 @@ public class GitRepositoryService {
     }
 
     public List<String> getHistory(String fileName, String mode) throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
+
         if (Objects.equals(mode, VersionControlConstants.MODE_CHANNEL)) {
             return channelService.getHistory(fileName);
         }
@@ -278,7 +279,12 @@ public class GitRepositoryService {
         throw new Exception("Mode (" + mode + ")" + "is not supported");
     }
 
-    public String getContent(String fileName, String revision, String mode) throws Exception {
+    public String getFileContentFromRepo(String fileName, String revision, String mode) throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
+
         if (Objects.equals(mode, VersionControlConstants.MODE_CHANNEL)) {
             return channelService.getContent(fileName, revision);
         }
@@ -291,34 +297,62 @@ public class GitRepositoryService {
     }
 
     public List<RepoItemMetadata> loadChannelOnRepo() throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
+
         return channelService.loadMetadata();
     }
 
-    public String commitAndPushChannel(Channel channel, String message, User user) {
+    public String commitAndPushChannel(Channel channel, String message, User user) throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
+
         PersonIdent committer = getCommitter(user); // get committer
 
         return channelService.commitAndPush(channel, message, committer, true);
     }
 
-    public String removeChannel(Channel channel, String message, User user) {
+    public String removeChannel(Channel channel, String message, User user) throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
+
         PersonIdent committer = getCommitter(user); // get committer
 
         return channelService.remove(channel, message, committer, true);
     }
 
     public List<RepoItemMetadata> loadCodeTemplateOnRepo() throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
+
         return codeTemplateService.loadMetadata();
     }
 
-    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) {
-        PersonIdent committer = getCommitter(user); // get committer
+    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
 
+        PersonIdent committer = getCommitter(user);
         return codeTemplateService.commitAndPush(template, message, committer, true);
     }
 
-    public String removeCodeTemplate(CodeTemplate template, String message, User user) {
-        PersonIdent committer = getCommitter(user); // get committer
+    public String removeCodeTemplate(CodeTemplate template, String message, User user) throws Exception {
+        // Check connection first
+        if (!isGitConnected()) {
+            throw new GitNotConnectedException();
+        }
 
+        PersonIdent committer = getCommitter(user);
         return codeTemplateService.remove(template, message, committer, true);
     }
 

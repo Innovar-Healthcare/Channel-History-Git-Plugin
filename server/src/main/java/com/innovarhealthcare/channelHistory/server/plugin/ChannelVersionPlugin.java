@@ -1,22 +1,20 @@
 package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
+import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
 import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthServerClass;
-
 import com.mirth.connect.client.core.ControllerException;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.ServerEventContext;
 import com.mirth.connect.model.User;
 import com.mirth.connect.plugins.ChannelPlugin;
 import com.mirth.connect.server.controllers.ControllerFactory;
-
-import org.apache.log4j.Logger;
-import org.json.JSONObject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
@@ -25,7 +23,7 @@ import org.json.JSONObject;
 
 @MirthServerClass
 public class ChannelVersionPlugin implements ChannelPlugin {
-    private static final Logger logger = Logger.getLogger(ChannelVersionPlugin.class);
+    private static final Logger logger = LogManager.getLogger(ChannelVersionPlugin.class);
 
     @Override
     public String getPluginPointName() {
@@ -78,10 +76,16 @@ public class ChannelVersionPlugin implements ChannelPlugin {
             return;
         }
 
-        String response = gitService.removeChannel(channel, "Remove Channel", user);
-        ResponseUtil responseUtil = new ResponseUtil(response);
-        if (!responseUtil.isSuccess()) {
-            logger.error(responseUtil.getOperationDetails());
+        try {
+            String response = gitService.removeChannel(channel, "Remove Channel", user);
+            ResponseUtil responseUtil = new ResponseUtil(response);
+            if (!responseUtil.isSuccess()) {
+                logger.error(responseUtil.getOperationDetails());
+            }
+        } catch (GitNotConnectedException e) {
+            logger.warn("Git repository not connected", e);
+        } catch (Exception e) {
+            logger.error("Unexpected error during commit and push", e);
         }
     }
 

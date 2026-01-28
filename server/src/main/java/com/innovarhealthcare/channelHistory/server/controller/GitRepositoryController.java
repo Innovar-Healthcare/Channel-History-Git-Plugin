@@ -1,19 +1,12 @@
 package com.innovarhealthcare.channelHistory.server.controller;
 
-import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
-
-import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
-
-import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
-import com.mirth.connect.model.Channel;
-import com.mirth.connect.model.User;
-import com.mirth.connect.model.codetemplates.CodeTemplate;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.List;
 import java.util.Properties;
+
+import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
+import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
@@ -95,66 +88,5 @@ public class GitRepositoryController {
             logger.error("Failed to get history on repo", e);
             throw new GitRepositoryException(e);
         }
-    }
-
-    public String getContent(String fileName, String revision, String mode) throws GitRepositoryException {
-        if (!service.isGitConnected()) {
-            throw new GitRepositoryException("Cannot connect to git repository");
-        }
-
-        // Validate inputs
-        if (StringUtils.isBlank(fileName) || StringUtils.isBlank(revision) || StringUtils.isBlank(mode)) {
-            throw new GitRepositoryException("Invalid parameters: fileName, revision, and mode are required");
-        }
-
-        try {
-            return service.getContent(fileName, revision, mode);
-        } catch (Exception e) {
-            logger.error("Failed to get content: file={}, revision={}, mode={}", fileName, revision, mode, e);
-            throw new GitRepositoryException(e);
-        }
-    }
-
-    public List<RepoItemMetadata> loadChannelOnRepo() throws GitRepositoryException {
-        if (!service.isGitConnected()) {
-            throw new GitRepositoryException("Cannot connect to git repository");
-        }
-
-        try {
-
-            return service.loadChannelOnRepo();
-        } catch (Exception e) {
-            logger.error("Failed to load channels on repo", e);
-            throw new GitRepositoryException(e);
-        }
-    }
-
-    public String commitAndPushChannel(Channel channel, String message, User user) throws GitRepositoryException {
-        if (!service.isGitConnected()) {
-            return "Cannot connect to git repository";
-        }
-
-        return service.commitAndPushChannel(channel, message, user);
-    }
-
-    public List<RepoItemMetadata> loadCodeTemplateOnRepo() throws GitRepositoryException {
-        if (!service.isGitConnected()) {
-            throw new GitRepositoryException("Cannot connect to git repository");
-        }
-
-        try {
-            return service.loadCodeTemplateOnRepo();
-        } catch (Exception e) {
-            logger.error("Failed to load code templates on repo", e);
-            throw new GitRepositoryException(e);
-        }
-    }
-
-    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws GitRepositoryException {
-        if (!service.isGitConnected()) {
-            throw new GitRepositoryException("Cannot connect to git repository");
-        }
-
-        return service.commitAndPushCodeTemplate(template, message, user);
     }
 }

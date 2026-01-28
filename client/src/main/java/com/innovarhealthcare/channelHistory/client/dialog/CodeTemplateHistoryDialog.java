@@ -1,59 +1,38 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
-import com.innovarhealthcare.channelHistory.client.DiffWindow;
-import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
-import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
-import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-
-import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
-import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
-
-import com.mirth.connect.client.core.Client;
-import com.mirth.connect.client.core.ClientException;
-import com.mirth.connect.client.ui.Frame;
-import com.mirth.connect.client.ui.PlatformUI;
-
-import com.mirth.connect.model.codetemplates.CodeTemplate;
-import com.mirth.connect.model.converters.ObjectXMLSerializer;
-
-import net.miginfocom.swing.MigLayout;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.log4j.Logger;
-
-import org.json.JSONObject;
-
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JButton;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
-import javax.swing.BorderFactory;
-import javax.swing.SwingUtilities;
-import javax.swing.JOptionPane;
-import javax.swing.JTextArea;
-import javax.swing.JLabel;
-import javax.swing.JDialog;
-import javax.swing.WindowConstants;
+import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
-
-import java.awt.Window;
-import java.awt.Dimension;
-import java.awt.Point;
-import java.awt.BorderLayout;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import com.innovarhealthcare.channelHistory.client.DiffWindow;
+import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
+import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
+import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
+import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
+import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
+import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.mirth.connect.client.core.Client;
+import com.mirth.connect.client.core.ClientException;
+import com.mirth.connect.client.ui.Frame;
+import com.mirth.connect.client.ui.PlatformUI;
+import com.mirth.connect.model.codetemplates.CodeTemplate;
+import com.mirth.connect.model.converters.ObjectXMLSerializer;
+import net.miginfocom.swing.MigLayout;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+import org.json.JSONObject;
 
 /**
  * @author Jim(Zi Min) Weng
@@ -246,13 +225,12 @@ public class CodeTemplateHistoryDialog extends JDialog {
             CodeTemplate leftCodeTemplate = client.getCodeTemplate(codeTemplateId);
             String left = ObjectXMLSerializer.getInstance().serialize(leftCodeTemplate);
 
-            String right = gitServlet.getContent(codeTemplateId, lastChange.getHash(), MODE);
-            CodeTemplate rightCodeTemplate = parse(right, lastChange.getShortHash());
+            CodeTemplateWithRaw right = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, lastChange.getHash());
 
             String leftLabel = leftCodeTemplate.getName() + " - Current - Editing by " + currentUserName;
             String rightLabel = leftCodeTemplate.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
 
-            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left, right, this);
+            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, right.getCodeTemplate(), left, right.getRawContent(), this);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
@@ -268,16 +246,16 @@ public class CodeTemplateHistoryDialog extends JDialog {
         CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
         try {
-            String left = gitServlet.getContent(codeTemplateId, ri1.getHash(), MODE);
-            CodeTemplate leftCodeTemplate = parse(left, ri1.getShortHash());
-            String right = gitServlet.getContent(codeTemplateId, ri2.getHash(), MODE);
-            CodeTemplate rightCodeTemplate = parse(right, ri2.getShortHash());
+            CodeTemplateWithRaw left = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, ri1.getHash());
+            CodeTemplate leftCodeTemplate = left.getCodeTemplate();
+            CodeTemplateWithRaw right = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, ri2.getHash());
+            CodeTemplate rightCodeTemplate = right.getCodeTemplate();
 
             String labelPrefix = leftCodeTemplate.getName();
             String leftLabel = labelPrefix + " Time: " + df.format(new Date(ri1.getTimestamp())) + " Committed by " + ri1.getCommitter();
             String rightLabel = labelPrefix + " Time: " + df.format(new Date(ri2.getTimestamp())) + " Committed by " + ri1.getCommitter();
 
-            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left, right, this);
+            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left.getRawContent(), right.getRawContent(), this);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
@@ -296,12 +274,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
             Client client = parent.mirthClient;
 
             try {
-                String xml = gitServlet.getContent(codeTemplateId, rev, MODE);
-                CodeTemplate codeTemplate = parse(xml, rev);
-                if (codeTemplate == null) {
-                    showError("Code Template is null");
-                    return;
-                }
+                CodeTemplate codeTemplate = VersionHistoryServiceClient.getInstance().loadCodeTemplateFromRepo(codeTemplateId, rev);
 
                 if (client.updateCodeTemplate(codeTemplate, true)) {
                     showInformation("Successfully Reverted Code Template");

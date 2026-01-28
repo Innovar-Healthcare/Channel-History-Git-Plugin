@@ -1,7 +1,9 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateRepoTableModel;
+import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CodeTemplateRepoTable;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
@@ -166,20 +168,18 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     }
 
     // ----- Background fetch -----
-    private final class LoadCodeTemplateWorker extends SwingWorker<List<String>, Void> {
+    private final class LoadCodeTemplateWorker extends SwingWorker<List<RepoItemMetadata>, Void> {
         @Override
-        protected List<String> doInBackground() throws Exception {
-            if (gitServlet == null) {
-                gitServlet = parent.mirthClient.getServlet(VersionHistoryServletInterface.class);
-            }
-            return gitServlet.loadCodeTemplateOnRepo();
+        protected List<RepoItemMetadata> doInBackground() throws Exception {
+            return VersionHistoryServiceClient.getInstance().loadCodeTemplateListFromRepo();
         }
 
         @Override
         protected void done() {
             try {
-                List<String> templates = get();
-                CodeTemplateRepoTableModel newModel = new CodeTemplateRepoTableModel(templates);
+                List<RepoItemMetadata> metadataList = get();
+
+                CodeTemplateRepoTableModel newModel = new CodeTemplateRepoTableModel(metadataList);
 
                 // Swap model and keep sorter working
                 codeTemplateRepoTable.setModel(newModel);
@@ -256,9 +256,11 @@ public class ImportCodeTemplateDialog extends MirthDialog {
 
         int modelRow = codeTemplateRepoTable.convertRowIndexToModel(viewRow);
         CodeTemplateRepoTableModel model = (CodeTemplateRepoTableModel) codeTemplateRepoTable.getModel();
-        CodeTemplate template = model.getCodeTemplateAt(modelRow);
-        if (template == null) {
-            PlatformUI.MIRTH_FRAME.alertError(parent, "Code Template is null");
+
+        // Get metadata from selected row
+        RepoItemMetadata metadata = model.getMetadataAt(modelRow);
+        if (metadata == null) {
+            PlatformUI.MIRTH_FRAME.alertError(parent, "Code template metadata is null");
             return;
         }
 
@@ -269,6 +271,14 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         }
 
         try {
+            // Load full code template content from repository
+            CodeTemplate template = VersionHistoryServiceClient.getInstance().loadCodeTemplateFromRepo(metadata);
+
+            if (template == null) {
+                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load code template content");
+                return;
+            }
+
             if (doAddCodeTemplate(template, selectedLib)) {
                 dispose();
                 parent.codeTemplatePanel.doRefreshCodeTemplates();

@@ -1,64 +1,45 @@
 package com.innovarhealthcare.channelHistory.client;
 
+import javax.swing.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Objects;
+import java.util.Properties;
+
 import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
+import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
+import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
-
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
-
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.AbstractChannelTabPanel;
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.UIConstants;
-
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
-
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JButton;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JTextArea;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.SwingWorker;
-import javax.swing.BorderFactory;
-import javax.swing.SwingUtilities;
-import javax.swing.border.TitledBorder;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-import javax.swing.ImageIcon;
-
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.BorderLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-
-import java.util.Properties;
-import java.util.Date;
-import java.util.ArrayList;
-import java.util.Objects;
-import java.util.List;
-
 import net.miginfocom.swing.MigLayout;
-import org.json.JSONObject;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
+import org.json.JSONObject;
 
 /**
  * @author Thai Tran
@@ -368,13 +349,12 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             Channel leftCh = client.getChannel(cid, false);
             String left = ObjectXMLSerializer.getInstance().serialize(leftCh);
 
-            String right = gitServlet.getContent(cid, lastChange.getHash(), MODE);
-            Channel rightCh = parse(right, lastChange.getShortHash());
+            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(cid, lastChange.getHash());
 
             String leftLabel = leftCh.getName() + " - Current - Editing by " + currentUserName;
             String rightLabel = leftCh.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
 
-            DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, rightCh, left, right, parent);
+            DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, right.getChannel(), left, right.getRawContent(), parent);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
@@ -390,16 +370,17 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
         CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
         try {
-            String left = gitServlet.getContent(cid, ri1.getHash(), MODE);
-            Channel leftCh = parse(left, ri1.getShortHash());
-            String right = gitServlet.getContent(cid, ri2.getHash(), MODE);
-            Channel rightCh = parse(right, ri2.getShortHash());
+            ChannelWithRaw left = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(cid, ri1.getHash());
+            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(cid, ri2.getHash());
+
+            Channel leftCh = left.getChannel();
+            Channel rightCh = right.getChannel();
 
             String labelPrefix = leftCh.getName();
             String leftLabel = labelPrefix + " - Time: " + df.format(new Date(ri1.getTimestamp())) + " - Committed by " + ri1.getCommitter();
             String rightLabel = labelPrefix + " - Time: " + df.format(new Date(ri2.getTimestamp())) + " - Committed by " + ri1.getCommitter();
 
-            DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, rightCh, left, right, parent);
+            DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, rightCh, left.getRawContent(), right.getRawContent(), parent);
             dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
             dw.setVisible(true);
         } catch (Exception e) {
@@ -423,12 +404,7 @@ public class VersionHistoryTabPanel extends AbstractChannelTabPanel {
             Client client = parent.mirthClient;
 
             try {
-                String xml = gitServlet.getContent(channelId, rev, MODE);
-                Channel channel = parse(xml, rev);
-                if (channel == null) {
-                    showError("Channel is null");
-                    return;
-                }
+                Channel channel = VersionHistoryServiceClient.getInstance().loadChannelFromRepo(channelId, rev);
 
                 if (client.updateChannel(channel, true, null)) {
                     // store channel commit id at here

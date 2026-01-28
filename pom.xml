@@ -48,7 +48,7 @@
         <!-- skip it if you want to sign jar files for production  -->
         <maven.jarsigner.skip>true</maven.jarsigner.skip>
 
-        <mirth.version>4.5.0</mirth.version>
+        <mirth.version>4.6.1</mirth.version>
 
         <maven-processor-plugin.version>3.3.3</maven-processor-plugin.version>
         <maven-assembly-plugin.version>3.3.0</maven-assembly-plugin.version>

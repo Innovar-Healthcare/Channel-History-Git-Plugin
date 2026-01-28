@@ -17,6 +17,16 @@
 package com.innovarhealthcare.channelHistory.shared.interfaces;
 
 
+import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.MediaType;
+import java.util.List;
+import java.util.Properties;
+
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
 import com.kaurpalang.mirth.annotationsplugin.type.ApiProviderType;
 import com.mirth.connect.client.core.ClientException;
@@ -34,11 +44,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
-import java.util.List;
-import java.util.Properties;
-
+//@formatter:off
 @Path("/plugins/version-history")
 @Tag(name = "Version History Plugin")
 @Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
@@ -55,10 +61,22 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
 
 
     @GET
-    @Path("/content")
-    @ApiResponse(responseCode = "200", description = "Found the information", content = {@Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)), @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))})
-    @MirthOperation(name = "getContent", display = "Get the content of the file at a specific revision", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.SYNC, auditable = false)
-    public String getContent(@Param("fileName") @Parameter(description = "The name of the file", required = true) @QueryParam("fileName") String fileName, @Param("revision") @Parameter(description = "The value of revision", required = true) @QueryParam("revision") String revision, @Param("mode") @Parameter(description = "channel or code template", required = true) @QueryParam("mode") String mode) throws ClientException;
+    @Path("/file-content")
+    @ApiResponse(responseCode = "200", description = "Retrieved file content from repository", content = {@Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)), @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))})
+    @MirthOperation(name = "getFileContentFromRepo", display = "Get file content from repository at a specific revision", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.SYNC, auditable = false)
+    public String getFileContentFromRepo(
+            @Param("fileName")
+            @Parameter(description = "The name of the file in the repository", required = true)
+            @QueryParam("fileName") String fileName,
+
+            @Param("revision")
+            @Parameter(description = "The Git revision/commit hash to retrieve content from", required = true)
+            @QueryParam("revision") String revision,
+
+            @Param("mode")
+            @Parameter(description = "The type of content: 'channel' or 'codetemplate'", required = true)
+            @QueryParam("mode") String mode
+    ) throws ClientException;
 
     @POST
     @Path("/validateSetting")
@@ -82,7 +100,7 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
     @Path("/code_template_on_repo")
     @ApiResponse(responseCode = "200", description = "Load code templates on repo", content = {@Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)), @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))})
     @MirthOperation(name = "loadCodeTemplateOnRepo", display = "load the code templates on repo", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.SYNC, auditable = false)
-    public List<String> loadCodeTemplateOnRepo() throws ClientException;
+    public String loadCodeTemplateOnRepo() throws ClientException;
 
     @POST
     @Path("/commitAndPushCodeTemplate")
@@ -91,3 +109,5 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
     public String commitAndPushCodeTemplate(@Param("codeTemplateId") @Parameter(description = "code template id", required = true) @QueryParam("codeTemplateId") String codeTemplateId, @Param("message") @Parameter(description = "message", required = true) @QueryParam("message") String message, @Param("userId") @Parameter(description = "user id", required = true) @QueryParam("userId") String userId) throws ClientException;
 
 }
+
+//@formatter:on

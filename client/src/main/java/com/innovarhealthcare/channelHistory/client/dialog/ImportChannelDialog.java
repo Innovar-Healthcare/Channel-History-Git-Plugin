@@ -132,7 +132,7 @@ public class ImportChannelDialog extends MirthDialog {
                 }
 
                 try {
-                    // ✅ Load channel using convenience method - clean and simple!
+                    // Load channel using convenience method - clean and simple!
                     Channel channel = VersionHistoryServiceClient.getInstance().loadChannelFromRepo(metadata);
 
                     if (channel == null) {
@@ -203,7 +203,7 @@ public class ImportChannelDialog extends MirthDialog {
     private final class LoadChannelsWorker extends SwingWorker<List<RepoItemMetadata>, Void> {
         @Override
         protected List<RepoItemMetadata> doInBackground() throws Exception {
-            return VersionHistoryServiceClient.getInstance().loadChannelOnRepo();
+            return VersionHistoryServiceClient.getInstance().loadChannelListFromRepo();
         }
 
         @Override
