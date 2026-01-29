@@ -50,14 +50,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
 @MirthApiProvider(type = ApiProviderType.SERVLET_INTERFACE)
 public interface VersionHistoryServletInterface extends BaseServletInterface {
-
-
-//    @GET
-//    @Path("/history")
-//    @ApiResponse(responseCode = "200", description = "Found the information", content = {@Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)), @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))})
-//    @MirthOperation(name = "getHistory", display = "Get all revisions of a file", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.ASYNC, auditable = false)
-//    public String getHistory(@Param("fileName") @Parameter(description = "The name of the file", required = true) @QueryParam("fileName") String fileName, @Param("mode") @Parameter(description = "channel or code template", required = true) @QueryParam("mode") String mode) throws ClientException;
-
     @GET
     @Path("/history")
     @ApiResponse(

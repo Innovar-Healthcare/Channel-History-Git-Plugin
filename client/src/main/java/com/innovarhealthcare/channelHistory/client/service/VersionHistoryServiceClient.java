@@ -11,6 +11,7 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
+import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.core.EntityException;
@@ -48,95 +49,19 @@ public class VersionHistoryServiceClient {
      * @return List of commit history entries (newest first)
      * @throws ClientException if channel not found or Git error occurs
      */
-//    public List<CommitMetaData> loadChannelHistory(String channelId) throws ClientException {
-//        if (StringUtils.isBlank(channelId)) {
-//            throw new ClientException("Channel ID cannot be null or empty");
-//        }
-//
-//        try {
-//            String jsonResponse = getServlet().getHistory(channelId, VersionControlConstants.MODE_CHANNEL);
-//            logger.error(jsonResponse);
-//
-//            List<CommitMetaData> revisions = JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
-//
-//            logger.error("Found {} revisions for channel {}", revisions != null ? revisions.size() : 0, channelId);
-//            if (revisions != null) {
-//                for (int i = 0; i < revisions.size(); i++) {
-//                    CommitMetaData meta = revisions.get(i);
-//                    logger.error("Revision {}: hash={}, committer={}, timestamp={}, message={}", i, meta.getHash(), meta.getCommitter(), meta.getTimestamp(), meta.getMessageContent());
-//                }
-//            }
-//
-//            return revisions;
-//
-//        } catch (ClientException e) {
-//            rethrowParsedClientError(e);
-//            return null;
-//
-//        } catch (Exception e) {
-//            throw new RuntimeException("Failed to load channel history for ID: " + channelId, e);
-//        }
-//    }
     public List<CommitMetaData> loadChannelHistory(String channelId) throws ClientException {
         if (StringUtils.isBlank(channelId)) {
             throw new ClientException("Channel ID cannot be null or empty");
         }
 
         try {
-            logger.error("=== START loadChannelHistory for: {} ===", channelId);
-
             String jsonResponse = getServlet().getHistory(channelId, VersionControlConstants.MODE_CHANNEL);
-            logger.error("JSON Response received, length: {}", jsonResponse != null ? jsonResponse.length() : 0);
-            logger.error("JSON Response content (first 500 chars): {}", jsonResponse != null && jsonResponse.length() > 500 ? jsonResponse.substring(0, 500) + "..." : jsonResponse);
-
-            // Try to parse
-            logger.error("Attempting to parse JSON to List<CommitMetaData>...");
-            List<CommitMetaData> revisions = null;
-
-            try {
-                revisions = JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
-                logger.error("✓ JSON parsing SUCCESS!");
-
-            } catch (Exception parseEx) {
-                logger.error("✗ JSON parsing FAILED!", parseEx);
-                logger.error("Parse exception type: {}", parseEx.getClass().getName());
-                logger.error("Parse exception message: {}", parseEx.getMessage());
-
-                // Print full stack trace
-                parseEx.printStackTrace();
-
-                // Try to understand the JSON structure
-                logger.error("Trying to parse as raw object to see structure...");
-                try {
-                    Object rawObj = JsonUtils.fromJson(jsonResponse, Object.class);
-                    logger.error("Raw object type: {}", rawObj.getClass().getName());
-                    logger.error("Raw object: {}", rawObj);
-                } catch (Exception e2) {
-                    logger.error("Even raw parsing failed", e2);
-                }
-
-                throw parseEx; // Rethrow to be caught by outer catch
-            }
-
-            logger.error("Found {} revisions for channel {}", revisions != null ? revisions.size() : 0, channelId);
-
-            if (revisions != null && !revisions.isEmpty()) {
-                for (int i = 0; i < Math.min(3, revisions.size()); i++) {
-                    CommitMetaData meta = revisions.get(i);
-                    logger.error("Revision {}: hash={}, committer={}, timestamp={}, message={}", i, meta.getHash(), meta.getCommitter(), meta.getTimestamp(), meta.getMessageContent());
-                }
-            }
-
-            logger.error("=== END loadChannelHistory SUCCESS ===");
-            return revisions;
-
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
         } catch (ClientException e) {
-            logger.error("ClientException in loadChannelHistory", e);
             rethrowParsedClientError(e);
             return null;
 
         } catch (Exception e) {
-            logger.error("Exception in loadChannelHistory for ID: {}", channelId, e);
             throw new RuntimeException("Failed to load channel history for ID: " + channelId, e);
         }
     }
@@ -234,6 +159,45 @@ public class VersionHistoryServiceClient {
         }
 
         return loadChannelFromRepo(metadata.getId(), metadata.getLastCommitId());
+    }
+
+    /**
+     * Commit and push a channel to the repository
+     * Creates a new commit with the channel's current state and pushes to remote repository
+     *
+     * @param channel The channel object to commit
+     * @param message User's commit message describing the changes
+     * @param userId  The user ID performing the commit
+     * @return ResponseUtil containing the operation result and commit information
+     * @throws ClientException          if channel is invalid, commit fails, or push operation fails
+     * @throws IllegalArgumentException if any required parameter is null or empty
+     */
+    public ResponseUtil commitAndPushChannel(Channel channel, String message, String userId) throws ClientException {
+        // Validate inputs
+        if (channel == null) {
+            throw new IllegalArgumentException("Channel cannot be null");
+        }
+
+        if (StringUtils.isBlank(message)) {
+            throw new IllegalArgumentException("Commit message cannot be null or empty");
+        }
+
+        if (StringUtils.isBlank(userId)) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        try {
+            String jsonResponse = getServlet().commitAndPushChannel(channel, message, userId);
+
+            return new ResponseUtil(jsonResponse);
+
+        } catch (ClientException e) {
+            rethrowParsedClientError(e);
+            return null;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to commit and push channel: " + channel.getId() + " by user: " + userId, e);
+        }
     }
 
     /**
@@ -433,6 +397,45 @@ public class VersionHistoryServiceClient {
         } catch (Exception e) {
             // Unexpected errors
             throw new ClientException("Failed to load code template from repository: templateId=" + templateId + ", revision=" + revision, e);
+        }
+    }
+
+    /**
+     * Commit and push a code template to the repository
+     * Creates a new commit with the code template's current state and pushes to remote repository
+     *
+     * @param codeTemplateId The code template ID (UUID) to commit
+     * @param message        User's commit message describing the changes
+     * @param userId         The user ID performing the commit
+     * @return ResponseUtil containing the operation result and commit information
+     * @throws ClientException          if code template is invalid, commit fails, or push operation fails
+     * @throws IllegalArgumentException if any required parameter is null or empty
+     */
+    public ResponseUtil commitAndPushCodeTemplate(String codeTemplateId, String message, String userId) throws ClientException {
+        // Validate inputs
+        if (StringUtils.isBlank(codeTemplateId)) {
+            throw new IllegalArgumentException("Code template ID cannot be null or empty");
+        }
+
+        if (StringUtils.isBlank(message)) {
+            throw new IllegalArgumentException("Commit message cannot be null or empty");
+        }
+
+        if (StringUtils.isBlank(userId)) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        try {
+            String jsonResponse = getServlet().commitAndPushCodeTemplate(codeTemplateId, message, userId);
+
+            return new ResponseUtil(jsonResponse);
+
+        } catch (ClientException e) {
+            rethrowParsedClientError(e);
+            return null;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to commit and push code template: " + codeTemplateId + " by user: " + userId, e);
         }
     }
 

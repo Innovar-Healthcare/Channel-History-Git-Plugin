@@ -1,9 +1,23 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.SwingWorker;
+import javax.swing.WindowConstants;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Point;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -13,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
@@ -21,6 +36,7 @@ import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -31,7 +47,6 @@ import net.miginfocom.swing.MigLayout;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 /**
  * @author Jim(Zi Min) Weng
@@ -204,7 +219,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     public void loadHistory(boolean shouldNotifyOnComplete) {
-        SwingUtilities.invokeLater(new CodeTemplateHistoryDialog.LoadGitHistoryRunnable(shouldNotifyOnComplete));
+        new LoadGitHistoryWorker(shouldNotifyOnComplete).execute();
     }
 
     private void showDiffLastChangeWindow() {
@@ -261,10 +276,6 @@ public class CodeTemplateHistoryDialog extends JDialog {
         }
     }
 
-    private CodeTemplate parse(String xml, String rev) {
-        return ObjectXMLSerializer.getInstance().deserialize(xml, CodeTemplate.class);
-    }
-
     private void revert(String codeTemplateId, String rev) {
         int option = JOptionPane.showConfirmDialog(this, "Would you like to revert code template to this revision?", "Select an Option", JOptionPane.YES_NO_OPTION);
 
@@ -301,72 +312,109 @@ public class CodeTemplateHistoryDialog extends JDialog {
             return;
         }
 
-        SwingUtilities.invokeLater(new CommitThenPushCodeTemplateRunnable(StringUtils.trim(textArea.getText())));
+        String message = StringUtils.trim(textArea.getText());
+        new CommitThenPushCodeTemplateWorker(message).execute();
     }
 
-    private class LoadGitHistoryRunnable implements Runnable {
+    /**
+     * SwingWorker to load code template commit history in background
+     */
+    private class LoadGitHistoryWorker extends SwingWorker<List<CommitMetaData>, Void> {
         private final boolean shouldNotifyOnComplete;
 
-        LoadGitHistoryRunnable(boolean shouldNotifyOnComplete) {
+        LoadGitHistoryWorker(boolean shouldNotifyOnComplete) {
             this.shouldNotifyOnComplete = shouldNotifyOnComplete;
         }
 
         @Override
-        public void run() {
-            try {
-                // then fetch revisions
-                List<CommitMetaData> revisions = VersionHistoryServiceClient.getInstance().loadCodeTemplateHistory(codeTemplateId);
+        protected List<CommitMetaData> doInBackground() throws Exception {
+            logger.debug("Loading history for code template: {}", codeTemplateId);
+            return VersionHistoryServiceClient.getInstance().loadCodeTemplateHistory(codeTemplateId);
+        }
 
+        @Override
+        protected void done() {
+            try {
+                List<CommitMetaData> revisions = get();
+                logger.debug("Loaded {} revisions for code template", revisions.size());
+
+                // Update table model
                 CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
                 tblCommitMetaData.setModel(model);
 
+                // Show success notification if requested
                 if (shouldNotifyOnComplete) {
                     showInformation("History refreshed!");
                 }
-            } catch (Exception e) {
-                CommitMetaDataTableModel model = new CommitMetaDataTableModel(new ArrayList<>());
-                tblCommitMetaData.setModel(model);
+
+            } catch (ExecutionException e) {
+                logger.error("Failed to load code template history", e);
+
+                // Set empty model on error
+                tblCommitMetaData.setModel(new CommitMetaDataTableModel(new ArrayList<>()));
 
                 if (shouldNotifyOnComplete) {
-                    showError("Failed to pull code template from repository. Error: " + e.getMessage());
+                    // Extract error message
+                    Throwable cause = e.getCause();
+                    String errorMsg = cause != null && cause.getMessage() != null ? cause.getMessage() : "Failed to pull code template history from repository";
+
+                    showError(errorMsg);
                 }
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("Code template history loading was interrupted");
             }
         }
     }
 
-    private class CommitThenPushCodeTemplateRunnable implements Runnable {
+    /**
+     * SwingWorker to commit and push code template to repository
+     */
+    private class CommitThenPushCodeTemplateWorker extends SwingWorker<ResponseUtil, Void> {
         private final String message;
 
-        CommitThenPushCodeTemplateRunnable(String message) {
+        CommitThenPushCodeTemplateWorker(String message) {
             this.message = message;
         }
 
         @Override
-        public void run() {
+        protected ResponseUtil doInBackground() throws Exception {
+            Client client = parent.mirthClient;
+            String userId = String.valueOf(client.getCurrentUser().getId());
+
+            logger.debug("Committing code template: {} by user: {}", codeTemplateId, userId);
+
+            return VersionHistoryServiceClient.getInstance().commitAndPushCodeTemplate(codeTemplateId, message, userId);
+        }
+
+        @Override
+        protected void done() {
             try {
-                Client client = parent.mirthClient;
+                ResponseUtil response = get();
 
-                // initialize once
-                // doing here because do not want to delay the startup of MC client which takes several seconds to start.
-                if (gitServlet == null) {
-                    gitServlet = client.getServlet(VersionHistoryServletInterface.class);
-                }
+                if (response.isSuccess()) {
+                    showInformation(response.getMessage());
 
-                // then fetch revisions
-                String userId = String.valueOf(client.getCurrentUser().getId());
-                String response = gitServlet.commitAndPushCodeTemplate(codeTemplateId, message, userId);
-
-                JSONObject resObj = new JSONObject(response);
-                if (resObj.get("validate").equals("success")) {
-                    showInformation((String) (resObj.get("body")));
-
-                    // fetch history panel again at here
+                    // Reload history in background
                     loadHistory(false);
+
                 } else {
-                    showError("Error: " + resObj.get("body"));
+                    showError("Commit failed: " + response.getOperationDetails());
+                    logger.error("Commit failed: {}", response.getOperationDetails());
                 }
-            } catch (Exception e) {
-                showError("Failed to commit and push code template to repository");
+
+            } catch (ExecutionException e) {
+                logger.error("Failed to commit code template", e);
+
+                Throwable cause = e.getCause();
+                String errorMsg = cause != null && cause.getMessage() != null ? cause.getMessage() : "Failed to commit and push code template to repository";
+
+                showError(errorMsg);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("Commit operation was interrupted");
             }
         }
     }

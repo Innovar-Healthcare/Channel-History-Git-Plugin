@@ -10,7 +10,6 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
-import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ListSelectionEvent;
@@ -29,6 +28,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
 import com.innovarhealthcare.channelHistory.client.dialog.DiffWindow;
 import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
@@ -41,6 +41,7 @@ import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
+import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.AbstractChannelTabPanel;
@@ -48,13 +49,11 @@ import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.UIConstants;
 import com.mirth.connect.model.Channel;
-import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 import net.miginfocom.swing.MigLayout;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 /**
  * @author Thai Tran
@@ -160,30 +159,41 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
         String finalMessage = message;
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            private String errorMessage = null;
+
             @Override
             protected Void doInBackground() throws Exception {
-                final int MAX_TRY = 5;
+                // Wait for save to complete (silent, in background)
+                final int MAX_TRY = 10;
                 int cnt = 0;
                 while (parent.isSaveEnabled() && cnt < MAX_TRY) {
-                    Thread.sleep(1000); // wait 1 second
+                    Thread.sleep(500);
                     cnt++;
                 }
 
-                if (cnt < MAX_TRY) {
-                    try {
-                        String response = doCommitAndPushCurrentChannel(finalMessage);
+                // Check timeout
+                if (cnt >= MAX_TRY) {
+                    errorMessage = "Cannot commit: Channel is still being saved.\nPlease commit manually.";
+                    return null;
+                }
 
-                        JSONObject resObj = new JSONObject(response);
-                        if (resObj.get("validate").equals("success")) {
-                            if (isShowing()) {
-                                loadHistory(false);
-                            }
-                        } else {
-                            logger.error("Failed to commit and push channel to remote repository. Error: " + resObj.get("body"));
-                        }
-                    } catch (Exception e) {
-                        logger.error("Failed to commit and push channel to remote repository. Error: " + e.getMessage());
+                // Extra buffer to ensure save is complete
+                Thread.sleep(300);
+
+                // Try to commit
+                try {
+                    ResponseUtil response = doCommitAndPushCurrentChannel(finalMessage);
+
+                    if (!response.isSuccess()) {
+                        errorMessage = "Failed to commit channel:\n" + response.getOperationDetails();
+                        logger.error("Commit failed: {}", response.getOperationDetails());
+                    } else {
+                        logger.info("Commit successful");
                     }
+
+                } catch (Exception e) {
+                    errorMessage = "Failed to commit channel:\n" + e.getMessage();
+                    logger.error("Commit exception", e);
                 }
 
                 return null;
@@ -192,6 +202,15 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             @Override
             protected void done() {
                 parent.stopWorking(workingId);
+
+                if (errorMessage != null) {
+                    showError(errorMessage);
+                } else {
+                    // Reload history if needed (still showing)
+                    if (isShowing()) {
+                        loadHistory(false);
+                    }
+                }
             }
         };
 
@@ -339,12 +358,17 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         }
     }
 
-    public void loadHistory() {
-        this.loadHistory(true);
+    private void loadHistory() {
+        loadHistory(true);
     }
 
-    public void loadHistory(boolean shouldNotifyOnComplete) {
-        SwingUtilities.invokeLater(new LoadGitHistoryRunnable(shouldNotifyOnComplete));
+    /**
+     * Load git history in background thread
+     *
+     * @param shouldNotifyOnComplete Whether to show success notification
+     */
+    private void loadHistory(boolean shouldNotifyOnComplete) {
+        new LoadGitHistoryWorker(shouldNotifyOnComplete).execute();
     }
 
     private void showDiffLastChangeWindow() {
@@ -402,15 +426,6 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         }
     }
 
-    private Channel parse(String xml, String rev) {
-        Channel ch = ObjectXMLSerializer.getInstance().deserialize(xml, Channel.class);
-        if (ch instanceof InvalidChannel) {
-            throw new IllegalStateException("could not parse channel at revision " + rev);
-        }
-
-        return ch;
-    }
-
     private void revert(String channelId, String rev) {
         int option = JOptionPane.showConfirmDialog(parent, "Would you like to revert channel to this revision?", "Select an Option", JOptionPane.YES_NO_OPTION);
 
@@ -453,80 +468,117 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             return;
         }
 
-        SwingUtilities.invokeLater(new CommitThenPushChannelRunnable(StringUtils.trim(textArea.getText())));
+        String message = StringUtils.trim(textArea.getText());
+        new CommitThenPushChannelWorker(message).execute();
     }
 
-    private class LoadGitHistoryRunnable implements Runnable {
+    /**
+     * SwingWorker to load commit history in background
+     */
+    private class LoadGitHistoryWorker extends SwingWorker<List<CommitMetaData>, Void> {
         private final boolean shouldNotifyOnComplete;
 
-        LoadGitHistoryRunnable(boolean shouldNotifyOnComplete) {
+        LoadGitHistoryWorker(boolean shouldNotifyOnComplete) {
             this.shouldNotifyOnComplete = shouldNotifyOnComplete;
         }
 
         @Override
-        public void run() {
-            try {
-                Client client = parent.mirthClient;
+        protected List<CommitMetaData> doInBackground() throws Exception {
+            // Background thread - load history from server
+            logger.debug("Loading history for channel: {}", cid);
+            return VersionHistoryServiceClient.getInstance().loadChannelHistory(cid);
+        }
 
-                // then fetch revisions
-                List<CommitMetaData> revisions = VersionHistoryServiceClient.getInstance().loadChannelHistory(cid);
+        @Override
+        protected void done() {
+            // EDT - update UI
+            try {
+                List<CommitMetaData> revisions = get();
+                logger.debug("Loaded {} revisions", revisions.size());
+
+                // Update table model
                 CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
                 tblCommitMetaData.setModel(model);
 
-                // check warning if last commit done from other servers
+                // Get current channel commit ID
+                Client client = parent.mirthClient;
                 String commitId = VersionControlUtil.getChannelCommitId(client, cid);
                 tblCommitMetaData.setHighlightValue(commitId);
 
+                // Check if there's a newer version on remote
                 boolean alertWarning = false;
-                CommitMetaData meta = model.getCommitMetaDataAt(0);
-                if (meta != null) {
-                    boolean warning = (commitId != null) && !Objects.equals(meta.getHash(), commitId);
+                if (!revisions.isEmpty()) {
+                    CommitMetaData latestCommit = revisions.get(0);
+                    boolean hasNewerVersion = (commitId != null) && !Objects.equals(latestCommit.getHash(), commitId);
 
-                    if (warning) {
+                    if (hasNewerVersion) {
                         alertWarning = true;
                         PlatformUI.MIRTH_FRAME.alertWarning(parent, "Remote repository contains a more recent version of this channel, are you sure you want to edit?");
                     }
                 }
 
+                // Show success notification if requested and no warning shown
                 if (!alertWarning && shouldNotifyOnComplete) {
                     showInformation("History refreshed!");
                 }
-            } catch (Exception e) {
-                CommitMetaDataTableModel model = new CommitMetaDataTableModel(new ArrayList<>());
-                tblCommitMetaData.setModel(model);
 
-                String errorMsg = "Failed to pull history channel from repository";
-                if (e.getMessage() != null) {
-                    errorMsg = e.getMessage();
+            } catch (ExecutionException e) {
+                logger.error("Failed to load channel history", e);
+
+                // Set empty model on error
+                tblCommitMetaData.setModel(new CommitMetaDataTableModel(new ArrayList<>()));
+
+                // Extract error message
+                Throwable cause = e.getCause();
+                String errorMsg = "Failed to load history from repository";
+
+                if (cause != null) {
+                    if (cause.getMessage() != null && !cause.getMessage().isEmpty()) {
+                        errorMsg = cause.getMessage();
+                    }
                 }
+
                 showError(errorMsg);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("History loading was interrupted");
             }
         }
     }
 
-    private class CommitThenPushChannelRunnable implements Runnable {
+    private class CommitThenPushChannelWorker extends SwingWorker<ResponseUtil, Void> {
         private final String message;
 
-        CommitThenPushChannelRunnable(String message) {
+        CommitThenPushChannelWorker(String message) {
             this.message = message;
         }
 
         @Override
-        public void run() {
+        protected ResponseUtil doInBackground() throws Exception {
+            return doCommitAndPushCurrentChannel(message);
+        }
+
+        @Override
+        protected void done() {
             try {
-                String response = doCommitAndPushCurrentChannel(message);
+                ResponseUtil response = get();
 
-                JSONObject resObj = new JSONObject(response);
-                if (resObj.get("validate").equals("success")) {
-                    showInformation(resObj.get("body").toString());
-
-                    // fetch history panel again at here
+                if (response.isSuccess()) {
+                    showInformation(response.getMessage());
+                    // Refresh history
                     loadHistory(false);
                 } else {
-                    showError("Error: " + resObj.get("body"));
+                    showError("Commit failed: " + response.getOperationDetails());
                 }
-            } catch (Exception e) {
-                showError("Failed to commit and push channel to remote repository. Error: " + e.getMessage());
+
+            } catch (ExecutionException e) {
+                logger.error("Commit failed", e);
+                showError("Error: " + e.getCause().getMessage());
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                showError("Operation cancelled");
             }
         }
     }
@@ -539,12 +591,11 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         PlatformUI.MIRTH_FRAME.alertError(parent, msg);
     }
 
-    private String doCommitAndPushCurrentChannel(String message) throws ClientException {
+    private ResponseUtil doCommitAndPushCurrentChannel(String message) throws ClientException {
         Client client = parent.mirthClient;
-        VersionHistoryServletInterface servlet = client.getServlet(VersionHistoryServletInterface.class);
         Channel channel = client.getChannel(cid, false);
         String userId = String.valueOf(client.getCurrentUser().getId());
 
-        return servlet.commitAndPushChannel(channel, message, userId);
+        return VersionHistoryServiceClient.getInstance().commitAndPushChannel(channel, message, userId);
     }
 }
