@@ -1,10 +1,23 @@
 package com.innovarhealthcare.channelHistory.client.panel;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -39,7 +52,8 @@ import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 import net.miginfocom.swing.MigLayout;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
 /**
@@ -47,8 +61,7 @@ import org.json.JSONObject;
  * @create 2025-04-30 10:00 AM
  */
 public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
-    private final String MODE = VersionControlConstants.MODE_CHANNEL;
-    private static Logger logger = Logger.getLogger(ChannelHistoryTabPanel.class);
+    private static Logger logger = LogManager.getLogger(ChannelHistoryTabPanel.class);
 
     private JPanel disablePanel;
     private JPanel actionPanel;
@@ -482,9 +495,11 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
                 CommitMetaDataTableModel model = new CommitMetaDataTableModel(new ArrayList<>());
                 tblCommitMetaData.setModel(model);
 
-                if (shouldNotifyOnComplete) {
-                    showError("Failed to pull history channel from repository");
+                String errorMsg = "Failed to pull history channel from repository";
+                if (e.getMessage() != null) {
+                    errorMsg = e.getMessage();
                 }
+                showError(errorMsg);
             }
         }
     }

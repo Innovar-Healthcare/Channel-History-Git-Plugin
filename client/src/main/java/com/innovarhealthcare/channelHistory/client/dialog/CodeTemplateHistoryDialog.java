@@ -19,7 +19,6 @@ import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableMode
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.mirth.connect.client.core.Client;
@@ -30,7 +29,8 @@ import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 import net.miginfocom.swing.MigLayout;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
 /**
@@ -38,8 +38,7 @@ import org.json.JSONObject;
  * @create 2024-05-07 8:46 AM
  */
 public class CodeTemplateHistoryDialog extends JDialog {
-    private final String MODE = VersionControlConstants.MODE_CODE_TEMPLATE;
-    private static Logger logger = Logger.getLogger(CodeTemplateHistoryDialog.class);
+    private static Logger logger = LogManager.getLogger(CodeTemplateHistoryDialog.class);
 
     private JPanel actionPanel;
     private JPanel historyPanel;

@@ -48,20 +48,95 @@ public class VersionHistoryServiceClient {
      * @return List of commit history entries (newest first)
      * @throws ClientException if channel not found or Git error occurs
      */
+//    public List<CommitMetaData> loadChannelHistory(String channelId) throws ClientException {
+//        if (StringUtils.isBlank(channelId)) {
+//            throw new ClientException("Channel ID cannot be null or empty");
+//        }
+//
+//        try {
+//            String jsonResponse = getServlet().getHistory(channelId, VersionControlConstants.MODE_CHANNEL);
+//            logger.error(jsonResponse);
+//
+//            List<CommitMetaData> revisions = JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+//
+//            logger.error("Found {} revisions for channel {}", revisions != null ? revisions.size() : 0, channelId);
+//            if (revisions != null) {
+//                for (int i = 0; i < revisions.size(); i++) {
+//                    CommitMetaData meta = revisions.get(i);
+//                    logger.error("Revision {}: hash={}, committer={}, timestamp={}, message={}", i, meta.getHash(), meta.getCommitter(), meta.getTimestamp(), meta.getMessageContent());
+//                }
+//            }
+//
+//            return revisions;
+//
+//        } catch (ClientException e) {
+//            rethrowParsedClientError(e);
+//            return null;
+//
+//        } catch (Exception e) {
+//            throw new RuntimeException("Failed to load channel history for ID: " + channelId, e);
+//        }
+//    }
     public List<CommitMetaData> loadChannelHistory(String channelId) throws ClientException {
         if (StringUtils.isBlank(channelId)) {
             throw new ClientException("Channel ID cannot be null or empty");
         }
 
         try {
+            logger.error("=== START loadChannelHistory for: {} ===", channelId);
+
             String jsonResponse = getServlet().getHistory(channelId, VersionControlConstants.MODE_CHANNEL);
-            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+            logger.error("JSON Response received, length: {}", jsonResponse != null ? jsonResponse.length() : 0);
+            logger.error("JSON Response content (first 500 chars): {}", jsonResponse != null && jsonResponse.length() > 500 ? jsonResponse.substring(0, 500) + "..." : jsonResponse);
+
+            // Try to parse
+            logger.error("Attempting to parse JSON to List<CommitMetaData>...");
+            List<CommitMetaData> revisions = null;
+
+            try {
+                revisions = JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+                logger.error("✓ JSON parsing SUCCESS!");
+
+            } catch (Exception parseEx) {
+                logger.error("✗ JSON parsing FAILED!", parseEx);
+                logger.error("Parse exception type: {}", parseEx.getClass().getName());
+                logger.error("Parse exception message: {}", parseEx.getMessage());
+
+                // Print full stack trace
+                parseEx.printStackTrace();
+
+                // Try to understand the JSON structure
+                logger.error("Trying to parse as raw object to see structure...");
+                try {
+                    Object rawObj = JsonUtils.fromJson(jsonResponse, Object.class);
+                    logger.error("Raw object type: {}", rawObj.getClass().getName());
+                    logger.error("Raw object: {}", rawObj);
+                } catch (Exception e2) {
+                    logger.error("Even raw parsing failed", e2);
+                }
+
+                throw parseEx; // Rethrow to be caught by outer catch
+            }
+
+            logger.error("Found {} revisions for channel {}", revisions != null ? revisions.size() : 0, channelId);
+
+            if (revisions != null && !revisions.isEmpty()) {
+                for (int i = 0; i < Math.min(3, revisions.size()); i++) {
+                    CommitMetaData meta = revisions.get(i);
+                    logger.error("Revision {}: hash={}, committer={}, timestamp={}, message={}", i, meta.getHash(), meta.getCommitter(), meta.getTimestamp(), meta.getMessageContent());
+                }
+            }
+
+            logger.error("=== END loadChannelHistory SUCCESS ===");
+            return revisions;
 
         } catch (ClientException e) {
+            logger.error("ClientException in loadChannelHistory", e);
             rethrowParsedClientError(e);
             return null;
 
         } catch (Exception e) {
+            logger.error("Exception in loadChannelHistory for ID: {}", channelId, e);
             throw new RuntimeException("Failed to load channel history for ID: " + channelId, e);
         }
     }

@@ -10,11 +10,8 @@ import java.util.Date;
 import java.util.List;
 
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class CommitMetaDataTableModel extends AbstractTableModel {
-    private static final Logger logger = LoggerFactory.getLogger(CommitMetaDataTableModel.class);
     private final List<CommitMetaData> revisions;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
     private static final String[] columnNames = {"Commit Id", "Message", "Committer", "Date", "Server Id", "Server Name"};

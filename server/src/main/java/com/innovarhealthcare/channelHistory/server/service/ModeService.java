@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
-import com.innovarhealthcare.channelHistory.shared.model.CommitMessage;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.util.CommitMessageUtil;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.server.controllers.ConfigurationController;
 import com.mirth.connect.server.controllers.ControllerFactory;
@@ -298,9 +298,9 @@ public abstract class ModeService<T> {
             }
 
             // Stage and commit
-            CommitMessage commitMessage = CommitMessage.create(object, message, serverId, serverName);
+            String commitMessage = CommitMessageUtil.create(object, message, serverId, serverName);
             git.add().addFilepattern(path).call();
-            RevCommit rc = git.commit().setCommitter(committer).setMessage(commitMessage.getRawMessage()).call();
+            RevCommit rc = git.commit().setCommitter(committer).setMessage(commitMessage).call();
             response.append("Commit: Staged and committed ").append(typeName.toLowerCase()).append(" ").append(id).append(System.lineSeparator());
 
             // Post-commit hook
@@ -526,7 +526,14 @@ public abstract class ModeService<T> {
             Iterator<RevCommit> rcItr = logCommand.call().iterator();
             while (rcItr.hasNext()) {
                 RevCommit rc = rcItr.next();
-                lst.add(new CommitMetaData(rc));
+
+                // create CommitMetaData
+                String hash = rc.getId().getName();
+                String committer = rc.getCommitterIdent() != null ? rc.getCommitterIdent().getName() : "Unknown";
+                long timestamp = rc.getCommitTime() * 1000L; // Convert seconds to milliseconds
+                String message = rc.getFullMessage() != null ? rc.getFullMessage() : "";
+
+                lst.add(new CommitMetaData(hash, committer, timestamp, message));
             }
         } catch (GitAPIException | IOException e) {
             logger.error("Failed to retrieve commit history for file: {}", fileName, e);
