@@ -1,21 +1,5 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
-import com.innovarhealthcare.channelHistory.client.model.ChannelRepoTableModel;
-import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
-import com.innovarhealthcare.channelHistory.client.table.ChannelRepoTable;
-import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
-import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
-import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
-import com.mirth.connect.client.core.Client;
-import com.mirth.connect.client.core.ClientException;
-import com.mirth.connect.client.ui.Frame;
-import com.mirth.connect.client.ui.MirthDialog;
-import com.mirth.connect.client.ui.PlatformUI;
-import com.mirth.connect.client.ui.UIConstants;
-import com.mirth.connect.client.ui.components.MirthTable;
-import com.mirth.connect.model.Channel;
-import net.miginfocom.swing.MigLayout;
-
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JProgressBar;
@@ -36,6 +20,24 @@ import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+
+import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
+import com.innovarhealthcare.channelHistory.client.model.ChannelRepoTableModel;
+import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
+import com.innovarhealthcare.channelHistory.client.table.ChannelRepoTable;
+import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
+import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
+import com.mirth.connect.client.core.Client;
+import com.mirth.connect.client.core.ClientException;
+import com.mirth.connect.client.ui.Frame;
+import com.mirth.connect.client.ui.MirthDialog;
+import com.mirth.connect.client.ui.PlatformUI;
+import com.mirth.connect.client.ui.UIConstants;
+import com.mirth.connect.client.ui.components.MirthTable;
+import com.mirth.connect.model.Channel;
+import net.miginfocom.swing.MigLayout;
 
 public class ImportChannelDialog extends MirthDialog {
     private MirthTable channelRepoTable;
@@ -226,11 +228,28 @@ public class ImportChannelDialog extends MirthDialog {
                 applyFilter();
 
                 exitLoadingState();
-            } catch (Exception ex) {
-                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load channels in repository");
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
 
+                // Extract error message
+                String errorMessage;
+                if (cause instanceof VersionHistoryClientException) {
+                    VersionHistoryClientException vhException = (VersionHistoryClientException) cause;
+                    errorMessage = vhException.getError().getMessage();
+                } else {
+                    errorMessage = cause != null && cause.getMessage() != null ? cause.getMessage() : "Failed to load channels from repository";
+                }
+
+                // Show error
+                PlatformUI.MIRTH_FRAME.alertError(parent, errorMessage);
+
+                // Set empty model and disable OK button
+                channelRepoTable.setModel(new ChannelRepoTableModel(new ArrayList<>()));
                 okButton.setEnabled(false);
+                setLoadingVisible(false);
 
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 setLoadingVisible(false);
             }
         }

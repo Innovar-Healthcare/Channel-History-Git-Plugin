@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
@@ -23,6 +22,7 @@ import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
+import com.mirth.connect.server.controllers.ControllerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.AddCommand;
@@ -101,7 +101,7 @@ public class GitRepositoryService {
         codeTemplateService = new CodeTemplateService(this);
 
         serializer = ObjectXMLSerializer.getInstance();
-        serverId = Donkey.getInstance().getConfiguration().getServerId();
+        serverId = ControllerFactory.getFactory().createConfigurationController().getServerId();
         dir = new File(Donkey.getInstance().getConfiguration().getAppData(), DATA_DIR);
 
         if (enable) {
@@ -263,94 +263,154 @@ public class GitRepositoryService {
         }
     }
 
-    public List<CommitMetaData> getHistory(String fileName, String mode) throws Exception {
-        // Check connection first
+    /**
+     * Get commit history for a file (channel or code template)
+     *
+     * @param fileName Channel ID or Code Template ID (validated by caller)
+     * @param mode     Either MODE_CHANNEL or MODE_CODE_TEMPLATE (validated by caller)
+     * @return List of commit metadata (newest first)
+     * @throws GitNotConnectedException if Git is not connected
+     * @throws IllegalArgumentException if mode is not supported
+     */
+    public List<CommitMetaData> getHistory(String fileName, String mode) {
+        // Check Git connection
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
-        if (Objects.equals(mode, VersionControlConstants.MODE_CHANNEL)) {
+        // Route to appropriate service based on mode
+        if (VersionControlConstants.MODE_CHANNEL.equals(mode)) {
             return channelService.getHistory(fileName);
         }
 
-        if (Objects.equals(mode, VersionControlConstants.MODE_CODE_TEMPLATE)) {
+        if (VersionControlConstants.MODE_CODE_TEMPLATE.equals(mode)) {
             return codeTemplateService.getHistory(fileName);
         }
 
-        throw new Exception("Mode (" + mode + ")" + "is not supported");
+        // Invalid mode - this shouldn't happen if servlet validated correctly
+        throw new IllegalArgumentException("Unsupported mode: " + mode + ". " + "Expected MODE_CHANNEL or MODE_CODE_TEMPLATE");
     }
 
-    public String getFileContentFromRepo(String fileName, String revision, String mode) throws Exception {
-        // Check connection first
+    /**
+     * Get file content from repository at specific revision
+     *
+     * @param fileName Channel ID or Code Template ID (validated by caller)
+     * @param revision Git revision/commit ID (validated by caller)
+     * @param mode     MODE_CHANNEL or MODE_CODE_TEMPLATE (validated by caller)
+     * @return File content as XML string
+     * @throws GitNotConnectedException if Git is not connected
+     * @throws IllegalArgumentException if mode is not supported
+     */
+    public String getFileContentFromRepo(String fileName, String revision, String mode) {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
-        if (Objects.equals(mode, VersionControlConstants.MODE_CHANNEL)) {
+        if (VersionControlConstants.MODE_CHANNEL.equals(mode)) {
             return channelService.getContent(fileName, revision);
         }
 
-        if (Objects.equals(mode, VersionControlConstants.MODE_CODE_TEMPLATE)) {
+        if (VersionControlConstants.MODE_CODE_TEMPLATE.equals(mode)) {
             return codeTemplateService.getContent(fileName, revision);
         }
 
-        throw new IllegalArgumentException("Unsupported repository mode: " + mode + ". Supported modes: " + VersionControlConstants.MODE_CHANNEL + ", " + VersionControlConstants.MODE_CODE_TEMPLATE);
+        throw new IllegalArgumentException("Unsupported mode: " + mode + ". " + "Expected MODE_CHANNEL or MODE_CODE_TEMPLATE");
     }
 
-    public List<RepoItemMetadata> loadChannelOnRepo() throws Exception {
-        // Check connection first
+    /**
+     * Load all channels metadata from repository
+     *
+     * @return List of channel metadata
+     * @throws GitNotConnectedException if Git is not connected
+     */
+    public List<RepoItemMetadata> loadChannelOnRepo() {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
         return channelService.loadMetadata();
     }
 
-    public String commitAndPushChannel(Channel channel, String message, User user) throws Exception {
-        // Check connection first
+    /**
+     * Commit and push channel to repository
+     *
+     * @param channel Channel object (validated by caller)
+     * @param message Commit message (validated by caller)
+     * @param user    User performing the commit (validated by caller)
+     * @return Commit result message
+     * @throws GitNotConnectedException if Git is not connected
+     */
+    public String commitAndPushChannel(Channel channel, String message, User user) {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
-        PersonIdent committer = getCommitter(user); // get committer
-
+        PersonIdent committer = getCommitter(user);
         return channelService.commitAndPush(channel, message, committer, true);
     }
 
-    public String removeChannel(Channel channel, String message, User user) throws Exception {
-        // Check connection first
+    /**
+     * Remove channel from repository
+     *
+     * @param channel Channel object (validated by caller)
+     * @param message Commit message (validated by caller)
+     * @param user    User performing the removal (validated by caller)
+     * @return Commit result message
+     * @throws GitNotConnectedException if Git is not connected
+     */
+    public String removeChannel(Channel channel, String message, User user) {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
-        PersonIdent committer = getCommitter(user); // get committer
-
+        PersonIdent committer = getCommitter(user);
         return channelService.remove(channel, message, committer, true);
     }
 
-    public List<RepoItemMetadata> loadCodeTemplateOnRepo() throws Exception {
-        // Check connection first
+    /**
+     * Load all code templates metadata from repository
+     *
+     * @return List of code template metadata
+     * @throws GitNotConnectedException if Git is not connected
+     */
+    public List<RepoItemMetadata> loadCodeTemplateOnRepo() {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
         return codeTemplateService.loadMetadata();
     }
 
-    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) throws Exception {
-        // Check connection first
+    /**
+     * Commit and push code template to repository
+     *
+     * @param template Code template object (validated by caller)
+     * @param message  Commit message (validated by caller)
+     * @param user     User performing the commit (validated by caller)
+     * @return Commit result message
+     * @throws GitNotConnectedException if Git is not connected
+     */
+    public String commitAndPushCodeTemplate(CodeTemplate template, String message, User user) {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
         PersonIdent committer = getCommitter(user);
         return codeTemplateService.commitAndPush(template, message, committer, true);
     }
 
-    public String removeCodeTemplate(CodeTemplate template, String message, User user) throws Exception {
-        // Check connection first
+    /**
+     * Remove code template from repository
+     *
+     * @param template Code template object (validated by caller)
+     * @param message  Commit message (validated by caller)
+     * @param user     User performing the removal (validated by caller)
+     * @return Commit result message
+     * @throws GitNotConnectedException if Git is not connected
+     */
+    public String removeCodeTemplate(CodeTemplate template, String message, User user) {
         if (!isGitConnected()) {
-            throw new GitNotConnectedException();
+            throw new GitNotConnectedException("Git repository is not connected");
         }
 
         PersonIdent committer = getCommitter(user);

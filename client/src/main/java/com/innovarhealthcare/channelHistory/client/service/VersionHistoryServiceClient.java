@@ -10,6 +10,7 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryErrorCodes;
 import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
@@ -34,7 +35,6 @@ public class VersionHistoryServiceClient {
             if (instance == null) {
                 instance = new VersionHistoryServiceClient();
             }
-
             return instance;
         }
     }
@@ -50,36 +50,36 @@ public class VersionHistoryServiceClient {
      * @throws ClientException if channel not found or Git error occurs
      */
     public List<CommitMetaData> loadChannelHistory(String channelId) throws ClientException {
-        if (StringUtils.isBlank(channelId)) {
-            throw new ClientException("Channel ID cannot be null or empty");
-        }
-
         try {
+            // 1. Make the call
             String jsonResponse = getServlet().getHistory(channelId, VersionControlConstants.MODE_CHANNEL);
             return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
         } catch (ClientException e) {
-            rethrowParsedClientError(e);
-            return null;
-
+            // 2. Rethrow ClientException with parsed ErrorResponse if available
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load channel history for ID: " + channelId, e);
+            // 3. JSON serialization or unexpected errors
+            throw new ClientException("Failed to load channel history", e);
         }
     }
 
+    /**
+     * Load channel list metadata from repository
+     *
+     * @return List of channel metadata (id, name, path, lastCommitId)
+     * @throws ClientException if Git operations fail
+     */
     public List<RepoItemMetadata> loadChannelListFromRepo() throws ClientException {
         try {
             // 1. Make the call
             String jsonResponse = getServlet().loadChannelOnRepo();
-            // Client receives
             return JsonUtils.fromJsonList(jsonResponse, RepoItemMetadata.class);
         } catch (ClientException e) {
             // 2. Rethrow ClientException with parsed ErrorResponse if available
-            rethrowParsedClientError(e);
-
-            return null;
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             // 3. JSON serialization or unexpected errors
-            throw new RuntimeException("Failed to get load channel on repo", e);
+            throw new ClientException("Failed to load channel list from repo: " + e.getMessage(), e);
         }
     }
 
@@ -93,13 +93,9 @@ public class VersionHistoryServiceClient {
      */
     public Channel loadChannelFromRepo(String channelId, String revision) throws ClientException {
         try {
-            // Get raw content (shared logic)
             String xmlContent = loadChannelRawContentFromRepo(channelId, revision);
-
-            // Deserialize to Channel
             Channel channel = ObjectXMLSerializer.getInstance().deserialize(xmlContent, Channel.class);
 
-            // Validate deserialized channel
             if (channel == null) {
                 throw new ClientException("Failed to deserialize channel content for ID: " + channelId);
             }
@@ -123,13 +119,9 @@ public class VersionHistoryServiceClient {
      */
     public ChannelWithRaw loadChannelWithRawFromRepo(String channelId, String revision) throws ClientException {
         try {
-            // Get raw content (shared logic)
             String xmlContent = loadChannelRawContentFromRepo(channelId, revision);
-
-            // Deserialize to Channel
             Channel channel = ObjectXMLSerializer.getInstance().deserialize(xmlContent, Channel.class);
 
-            // Validate deserialized channel
             if (channel == null) {
                 throw new ClientException("Failed to deserialize channel content for ID: " + channelId);
             }
@@ -140,7 +132,6 @@ public class VersionHistoryServiceClient {
                 throw new ClientException("Invalid channel content for ID: " + channelId + ". Error: " + errorMsg);
             }
 
-            // Return both channel and raw content
             return new ChannelWithRaw(channel, xmlContent);
 
         } catch (SerializerException e) {
@@ -157,46 +148,36 @@ public class VersionHistoryServiceClient {
         if (metadata == null) {
             throw new IllegalArgumentException("Metadata cannot be null");
         }
-
         return loadChannelFromRepo(metadata.getId(), metadata.getLastCommitId());
     }
 
     /**
      * Commit and push a channel to the repository
-     * Creates a new commit with the channel's current state and pushes to remote repository
      *
      * @param channel The channel object to commit
      * @param message User's commit message describing the changes
      * @param userId  The user ID performing the commit
      * @return ResponseUtil containing the operation result and commit information
-     * @throws ClientException          if channel is invalid, commit fails, or push operation fails
-     * @throws IllegalArgumentException if any required parameter is null or empty
+     * @throws ClientException if channel is invalid, commit fails, or push operation fails
      */
     public ResponseUtil commitAndPushChannel(Channel channel, String message, String userId) throws ClientException {
-        // Validate inputs
         if (channel == null) {
             throw new IllegalArgumentException("Channel cannot be null");
         }
-
         if (StringUtils.isBlank(message)) {
             throw new IllegalArgumentException("Commit message cannot be null or empty");
         }
-
         if (StringUtils.isBlank(userId)) {
             throw new IllegalArgumentException("User ID cannot be null or empty");
         }
 
         try {
             String jsonResponse = getServlet().commitAndPushChannel(channel, message, userId);
-
             return new ResponseUtil(jsonResponse);
-
         } catch (ClientException e) {
-            rethrowParsedClientError(e);
-            return null;
-
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to commit and push channel: " + channel.getId() + " by user: " + userId, e);
+            throw new ClientException("Failed to commit and push channel: " + e.getMessage(), e);
         }
     }
 
@@ -215,13 +196,10 @@ public class VersionHistoryServiceClient {
         try {
             String jsonResponse = getServlet().getHistory(codeTemplateId, VersionControlConstants.MODE_CODE_TEMPLATE);
             return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
-
         } catch (ClientException e) {
-            rethrowParsedClientError(e);
-            return null;
-
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load code template history for ID: " + codeTemplateId, e);
+            throw new ClientException("Failed to load code template history: " + e.getMessage(), e);
         }
     }
 
@@ -233,26 +211,17 @@ public class VersionHistoryServiceClient {
      */
     public List<RepoItemMetadata> loadCodeTemplateListFromRepo() throws ClientException {
         try {
-            // Make the call to servlet
             String jsonResponse = getServlet().loadCodeTemplateOnRepo();
-
-            // Parse JSON response to metadata list
             return JsonUtils.fromJsonList(jsonResponse, RepoItemMetadata.class);
-
         } catch (ClientException e) {
-            // Rethrow ClientException with parsed ErrorResponse if available
-            rethrowParsedClientError(e);
-            return null;
-
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
-            // JSON serialization or unexpected errors
-            throw new RuntimeException("Failed to load code template list from repo", e);
+            throw new ClientException("Failed to load code template list from repo: " + e.getMessage(), e);
         }
     }
 
     /**
      * Load code template from repository at specific revision
-     * Use this when you only need the CodeTemplate object for processing
      *
      * @param templateId Code template UUID
      * @param revision   Git revision (typically metadata.getLastCommitId())
@@ -261,31 +230,22 @@ public class VersionHistoryServiceClient {
      */
     public CodeTemplate loadCodeTemplateFromRepo(String templateId, String revision) throws ClientException {
         try {
-            // Get raw content (shared logic)
             String xmlContent = loadCodeTemplateRawContentFromRepo(templateId, revision);
-
-            // Deserialize XML to CodeTemplate object
             CodeTemplate template = ObjectXMLSerializer.getInstance().deserialize(xmlContent, CodeTemplate.class);
 
-            // Validate deserialized template
             if (template == null) {
                 throw new ClientException("Failed to deserialize code template content for ID: " + templateId);
             }
 
-            // Note: CodeTemplate doesn't have InvalidCodeTemplate like Channel has InvalidChannel
-            // So we just check for null
-
             return template;
 
         } catch (SerializerException e) {
-            // XML deserialization specific error
             throw new ClientException("Failed to deserialize code template XML for ID: " + templateId + ". " + e.getMessage(), e);
         }
     }
 
     /**
-     * Load code template with raw XML content from repository at specific revision
-     * Use this when you need both the CodeTemplate object and raw XML content (e.g., for diff comparison)
+     * Load code template with raw XML content from repository
      *
      * @param templateId Code template UUID
      * @param revision   Git revision (typically metadata.getLastCommitId())
@@ -294,22 +254,15 @@ public class VersionHistoryServiceClient {
      */
     public CodeTemplateWithRaw loadCodeTemplateWithRawFromRepo(String templateId, String revision) throws ClientException {
         try {
-            // Get raw content (shared logic)
             String xmlContent = loadCodeTemplateRawContentFromRepo(templateId, revision);
-
-            // Deserialize XML to CodeTemplate object
             CodeTemplate template = ObjectXMLSerializer.getInstance().deserialize(xmlContent, CodeTemplate.class);
 
-            // Validate deserialized template
             if (template == null) {
                 throw new ClientException("Failed to deserialize code template content for ID: " + templateId);
             }
 
-            // Return both template and raw content
             return new CodeTemplateWithRaw(template, xmlContent);
-
         } catch (SerializerException e) {
-            // XML deserialization specific error
             throw new ClientException("Failed to deserialize code template XML for ID: " + templateId + ". " + e.getMessage(), e);
         }
     }
@@ -318,23 +271,48 @@ public class VersionHistoryServiceClient {
      * Convenience method - load code template using metadata
      *
      * @param metadata Code template metadata from loadCodeTemplateListFromRepo()
-     * @return CodeTemplate object
-     * @throws ClientException if template not found or invalid
      */
     public CodeTemplate loadCodeTemplateFromRepo(RepoItemMetadata metadata) throws ClientException {
         if (metadata == null) {
             throw new IllegalArgumentException("Metadata cannot be null");
         }
-
         return loadCodeTemplateFromRepo(metadata.getId(), metadata.getLastCommitId());
     }
 
     /**
+     * Commit and push a code template to the repository
+     *
+     * @param codeTemplateId The code template ID (UUID) to commit
+     * @param message        User's commit message describing the changes
+     * @param userId         The user ID performing the commit
+     * @return ResponseUtil containing the operation result and commit information
+     * @throws ClientException if code template is invalid, commit fails, or push operation fails
+     */
+    public ResponseUtil commitAndPushCodeTemplate(String codeTemplateId, String message, String userId) throws ClientException {
+        if (StringUtils.isBlank(codeTemplateId)) {
+            throw new IllegalArgumentException("Code template ID cannot be null or empty");
+        }
+        if (StringUtils.isBlank(message)) {
+            throw new IllegalArgumentException("Commit message cannot be null or empty");
+        }
+        if (StringUtils.isBlank(userId)) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        try {
+            String jsonResponse = getServlet().commitAndPushCodeTemplate(codeTemplateId, message, userId);
+            return new ResponseUtil(jsonResponse);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to commit and push code template: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Private helper: Load raw XML content from repository
-     * This method is shared by both public methods to avoid code duplication
      */
     private String loadChannelRawContentFromRepo(String channelId, String revision) throws ClientException {
-        // Validate inputs
         if (StringUtils.isBlank(channelId)) {
             throw new ClientException("Channel ID cannot be null or empty");
         }
@@ -343,10 +321,8 @@ public class VersionHistoryServiceClient {
         }
 
         try {
-            // Get raw content from servlet
             String xmlContent = getServlet().getFileContentFromRepo(channelId, revision, VersionControlConstants.MODE_CHANNEL);
 
-            // Validate content returned
             if (StringUtils.isBlank(xmlContent)) {
                 throw new ClientException("Channel not found or content is empty: " + channelId);
             }
@@ -354,23 +330,16 @@ public class VersionHistoryServiceClient {
             return xmlContent;
 
         } catch (ClientException e) {
-            rethrowParsedClientError(e);
-            return null;
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
-            throw new ClientException("Failed to load channel from repository: channelId=" + channelId + ", revision=" + revision, e);
+            throw new ClientException("Failed to load channel from repository: " + e.getMessage(), e);
         }
     }
 
     /**
      * Private helper: Load raw XML content of code template from repository
-     *
-     * @param templateId Code template UUID
-     * @param revision   Git revision (typically metadata.getLastCommitId())
-     * @return Raw XML content as String
-     * @throws ClientException if template not found or Git error occurs
      */
     private String loadCodeTemplateRawContentFromRepo(String templateId, String revision) throws ClientException {
-        // Validate inputs
         if (StringUtils.isBlank(templateId)) {
             throw new ClientException("Code template ID cannot be null or empty");
         }
@@ -379,10 +348,8 @@ public class VersionHistoryServiceClient {
         }
 
         try {
-            // Get code template content (XML string) from servlet
             String xmlContent = getServlet().getFileContentFromRepo(templateId, revision, VersionControlConstants.MODE_CODE_TEMPLATE);
 
-            // Validate content returned
             if (StringUtils.isBlank(xmlContent)) {
                 throw new ClientException("Code template not found or content is empty: " + templateId);
             }
@@ -390,52 +357,9 @@ public class VersionHistoryServiceClient {
             return xmlContent;
 
         } catch (ClientException e) {
-            // Rethrow ClientException with parsed ErrorResponse if available
-            rethrowParsedClientError(e);
-            return null;  // Won't reach here due to rethrow
-
+            throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
-            // Unexpected errors
-            throw new ClientException("Failed to load code template from repository: templateId=" + templateId + ", revision=" + revision, e);
-        }
-    }
-
-    /**
-     * Commit and push a code template to the repository
-     * Creates a new commit with the code template's current state and pushes to remote repository
-     *
-     * @param codeTemplateId The code template ID (UUID) to commit
-     * @param message        User's commit message describing the changes
-     * @param userId         The user ID performing the commit
-     * @return ResponseUtil containing the operation result and commit information
-     * @throws ClientException          if code template is invalid, commit fails, or push operation fails
-     * @throws IllegalArgumentException if any required parameter is null or empty
-     */
-    public ResponseUtil commitAndPushCodeTemplate(String codeTemplateId, String message, String userId) throws ClientException {
-        // Validate inputs
-        if (StringUtils.isBlank(codeTemplateId)) {
-            throw new IllegalArgumentException("Code template ID cannot be null or empty");
-        }
-
-        if (StringUtils.isBlank(message)) {
-            throw new IllegalArgumentException("Commit message cannot be null or empty");
-        }
-
-        if (StringUtils.isBlank(userId)) {
-            throw new IllegalArgumentException("User ID cannot be null or empty");
-        }
-
-        try {
-            String jsonResponse = getServlet().commitAndPushCodeTemplate(codeTemplateId, message, userId);
-
-            return new ResponseUtil(jsonResponse);
-
-        } catch (ClientException e) {
-            rethrowParsedClientError(e);
-            return null;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to commit and push code template: " + codeTemplateId + " by user: " + userId, e);
+            throw new ClientException("Failed to load code template from repository: " + e.getMessage(), e);
         }
     }
 
@@ -444,32 +368,44 @@ public class VersionHistoryServiceClient {
         return client.getServlet(VersionHistoryServletInterface.class);
     }
 
-    private void rethrowParsedClientError(ClientException e) throws ClientException {
-        rethrowParsedClientError(e, true); // default to logging enabled
-    }
-
-    private void rethrowParsedClientError(ClientException e, boolean logError) throws ClientException {
+    /**
+     * Parse structured error response from server and rethrow as VersionHistoryClientException
+     *
+     * @param e        Original ClientException from server
+     * @param logError Whether to log the parsed error
+     * @return VersionHistoryClientException with parsed error details
+     */
+    private ClientException rethrowParsedClientError(ClientException e, boolean logError) {
         Throwable cause = e.getCause();
 
+        // Try to extract structured error from response entity
         if (cause instanceof EntityException) {
             String rawEntity = (String) ((EntityException) cause).getEntity();
 
             ErrorResponse error;
             try {
+                // Try to parse as structured ErrorResponse
                 error = JsonUtils.fromJson(rawEntity, ErrorResponse.class);
-                if (logError) {
-                    logger.error("Parsed API error: " + JsonUtils.toJson(error));
-                }
-            } catch (Exception parseError) {
-                if (logError) {
-                    logger.error("Failed to parse server error response: " + rawEntity, parseError);
-                }
-                error = new ErrorResponse("UNPARSEABLE_RESPONSE", "Failed to parse server error");
-            }
 
-            throw new VersionHistoryClientException(error, e);
+                return new VersionHistoryClientException(error, e);
+            } catch (Exception parseError) {
+                // Failed to parse - could be plain text error or different format
+                if (logError) {
+                    logger.error("Failed to parse server error response: {}", rawEntity, parseError);
+                }
+
+                // Create error response from raw text
+                error = new ErrorResponse(VersionHistoryErrorCodes.UNPARSEABLE_RESPONSE, rawEntity);
+
+                return new VersionHistoryClientException(error, e);
+            }
         }
 
-        throw e; // fallback if not structured
+        // No EntityException - return original
+        if (logError) {
+            logger.error("Unstructured client exception: {}", e.getMessage(), e);
+        }
+
+        return e;
     }
 }

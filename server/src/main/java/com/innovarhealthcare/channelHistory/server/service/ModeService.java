@@ -9,6 +9,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
+import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
+import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.CommitMessageUtil;
@@ -106,77 +108,78 @@ public abstract class ModeService<T> {
     /**
      * Load metadata list from repository
      */
-    public List<RepoItemMetadata> loadMetadata() throws Exception {
-        List<RepoItemMetadata> lst = new ArrayList<>();
-        Git git = this.gitService.git;
-        Repository repo = this.gitService.git.getRepository();
-        String path = getDirectory() + "/";
+    public List<RepoItemMetadata> loadMetadata() {
+        try {
+            List<RepoItemMetadata> lst = new ArrayList<>();
+            Git git = this.gitService.git;
+            Repository repo = this.gitService.git.getRepository();
+            String path = getDirectory() + "/";
 
-        ObjectId lastCommitId = repo.resolve(Constants.HEAD);
-        RevWalk revWalk = new RevWalk(repo);
-        RevCommit commit = revWalk.parseCommit(lastCommitId);
-        RevTree tree = commit.getTree();
+            ObjectId lastCommitId = repo.resolve(Constants.HEAD);
+            RevWalk revWalk = new RevWalk(repo);
+            RevCommit commit = revWalk.parseCommit(lastCommitId);
+            RevTree tree = commit.getTree();
 
-        TreeWalk treeWalk = new TreeWalk(repo);
-        treeWalk.addTree(tree);
-        treeWalk.setRecursive(false);
-        treeWalk.setFilter(PathFilter.create(path));
+            TreeWalk treeWalk = new TreeWalk(repo);
+            treeWalk.addTree(tree);
+            treeWalk.setRecursive(false);
+            treeWalk.setFilter(PathFilter.create(path));
 
-        while (treeWalk.next()) {
-            if (treeWalk.isSubtree()) {
-                treeWalk.enterSubtree();
-            } else {
-                try {
-                    String fileName = treeWalk.getNameString();
-                    String filePath = treeWalk.getPathString();
-                    String expectedId = fileName;
+            while (treeWalk.next()) {
+                if (treeWalk.isSubtree()) {
+                    treeWalk.enterSubtree();
+                } else {
+                    try {
+                        // Process individual file
+                        String fileName = treeWalk.getNameString();
+                        String filePath = treeWalk.getPathString();
+                        String expectedId = fileName;
 
-                    // Validate UUID
-                    if (!isValidUUID(expectedId)) {
-                        logger.debug("Skipping non-UUID filename: {}", filePath);
-                        continue;
+                        if (!isValidUUID(expectedId)) {
+                            logger.debug("Skipping non-UUID filename: {}", filePath);
+                            continue;
+                        }
+
+                        ObjectId objectId = treeWalk.getObjectId(0);
+                        ObjectLoader loader = repo.open(objectId);
+                        String content = new String(loader.getBytes(), StandardCharsets.UTF_8);
+
+                        T obj = deserializeAndVerify(content, filePath);
+                        if (obj == null) {
+                            continue;
+                        }
+
+                        String itemId = extractId(obj);
+                        String itemName = extractName(obj);
+
+                        if (itemId == null || itemId.isEmpty()) {
+                            logger.warn("Skipping {} with null/empty ID: {}", getTypeName(), filePath);
+                            continue;
+                        }
+
+                        if (!itemId.equals(expectedId)) {
+                            logger.warn("{} ID mismatch: filename='{}' but id='{}' in path: {}", getTypeName(), expectedId, itemId, filePath);
+                            continue;
+                        }
+
+                        Iterable<RevCommit> commits = git.log().addPath(filePath).call();
+                        String commitId = commits.iterator().next().getName();
+
+                        lst.add(new RepoItemMetadata(itemId, itemName != null ? itemName : itemId, filePath, commitId));
+
+                    } catch (Exception e) {
+                        // Log and continue - don't fail entire operation
+                        logger.error("Failed to process file: {}", treeWalk.getPathString(), e);
                     }
-
-                    // Load content
-                    ObjectId objectId = treeWalk.getObjectId(0);
-                    ObjectLoader loader = repo.open(objectId);
-                    String content = new String(loader.getBytes(), StandardCharsets.UTF_8);
-
-                    // Deserialize using subclass implementation
-                    T obj = deserializeAndVerify(content, filePath);
-                    if (obj == null) {
-                        continue;
-                    }
-
-                    // Extract ID and name using subclass implementation
-                    String itemId = extractId(obj);
-                    String itemName = extractName(obj);
-
-                    // Validate
-                    if (itemId == null || itemId.isEmpty()) {
-                        logger.warn("Skipping {} with null/empty ID: {}", getTypeName(), filePath);
-                        continue;
-                    }
-
-                    if (!itemId.equals(expectedId)) {
-                        logger.warn("{} ID mismatch: filename='{}' but id='{}' in path: {}", getTypeName(), expectedId, itemId, filePath);
-                        continue;
-                    }
-
-                    // Get commit
-                    Iterable<RevCommit> commits = git.log().addPath(filePath).call();
-                    String commitId = commits.iterator().next().getName();
-
-                    // Create metadata
-                    lst.add(new RepoItemMetadata(itemId, itemName != null ? itemName : itemId, filePath, commitId));
-
-                } catch (Exception e) {
-                    logger.error("Failed to process file: {}", treeWalk.getPathString(), e);
                 }
             }
-        }
 
-        return lst;
+            return lst;
+
+        } catch (IOException e) {
+            // Fatal error - can't access repository
+            throw new GitOperationException("Failed to load metadata from repository", e);
+        }
     }
 
     /**
@@ -195,19 +198,17 @@ public abstract class ModeService<T> {
 
         // Validate inputs
         if (object == null || extractId(object) == null || extractName(object) == null) {
-            return responseResultFail(response, "Object or its ID/name cannot be null.");
+            throw new IllegalArgumentException("Object or its ID/name cannot be null");
+        }
+        if (committer == null) {
+            throw new IllegalArgumentException("Committer cannot be null");
+        }
+        if (branch == null || branch.trim().isEmpty()) {
+            throw new GitOperationException("Branch cannot be empty");
         }
 
         if (message == null) {
             message = "";
-        }
-
-        if (committer == null) {
-            return responseResultFail(response, "Committer cannot be empty.");
-        }
-
-        if (branch == null || branch.trim().isEmpty()) {
-            return responseResultFail(response, "Branch cannot be empty.");
         }
 
         if (remoteRepoUrl == null || remoteRepoUrl.trim().isEmpty()) {
@@ -226,12 +227,12 @@ public abstract class ModeService<T> {
             // Verify current branch
             String currentBranch = git.getRepository().getBranch();
             if (!branch.equals(currentBranch)) {
-                return responseResultFail(response, "Current branch is " + currentBranch + ", expected " + branch);
+                throw new GitOperationException("Current branch is " + currentBranch + ", expected " + branch);
             }
 
             // Check repository state
             if (git.getRepository().resolve("HEAD") == null) {
-                return responseResultFail(response, "No commits in repository, cannot pull or push.");
+                throw new GitOperationException("No commits in repository, cannot pull or push");
             }
 
             // Check for remote changes
@@ -369,11 +370,11 @@ public abstract class ModeService<T> {
             }
 
         } catch (GitAPIException e) {
-            return responseResultFail(response, "Git error: " + e.getMessage());
+            throw new GitOperationException("Git error: " + e.getMessage(), e);
         } catch (IOException e) {
-            return responseResultFail(response, "IO error: " + e.getMessage());
+            throw new GitOperationException("I/O error: " + e.getMessage(), e);
         } catch (Exception e) {
-            return responseResultFail(response, "Unexpected error: " + e.getMessage());
+            throw new GitOperationException("Unexpected error: " + e.getMessage(), e);
         }
     }
 
@@ -545,36 +546,50 @@ public abstract class ModeService<T> {
 
     /**
      * Get content of a file at specific revision
+     *
+     * @param fileName File name (validated by caller)
+     * @param revision Git revision/commit ID (validated by caller)
+     * @return File content as string
+     * @throws GitFileNotFoundException if file not found at the specified revision
+     * @throws GitOperationException    if Git operation fails
      */
-    public String getContent(String fileName, String revision) throws Exception {
-        String content = null;
-        if (StringUtils.isBlank(fileName) || StringUtils.isBlank(revision)) {
-            return content;
-        }
-
+    public String getContent(String fileName, String revision) {
         Repository repo = this.gitService.git.getRepository();
         String path = getDirectory() + "/" + fileName;
 
         try (TreeWalk tw = new TreeWalk(repo)) {
+            // Resolve revision
             ObjectId rcid = repo.resolve(revision);
-            if (rcid != null) {
-                RevCommit rc = repo.parseCommit(rcid);
-
-                tw.setRecursive(true);
-                tw.setFilter(PathFilter.create(path));
-                tw.addTree(rc.getTree());
-
-                if (tw.next()) {
-                    ObjectLoader objLoader = repo.open(tw.getObjectId(0));
-                    byte[] bytes = objLoader.getBytes();
-                    content = new String(bytes, StandardCharsets.UTF_8);
-                }
+            if (rcid == null) {
+                throw new GitFileNotFoundException("Invalid revision: " + revision + " for file: " + fileName);
             }
-        } catch (Exception e) {
-            logger.debug("Failed to get content for file: {}, revision: {}", fileName, revision, e);
-        }
 
-        return content;
+            // Parse commit
+            RevCommit rc = repo.parseCommit(rcid);
+
+            // Walk tree to find file
+            tw.setRecursive(true);
+            tw.setFilter(PathFilter.create(path));
+            tw.addTree(rc.getTree());
+
+            // Check if file exists
+            if (!tw.next()) {
+                throw new GitFileNotFoundException("File not found: " + fileName + " at revision: " + revision);
+            }
+
+            // Load file content
+            ObjectLoader objLoader = repo.open(tw.getObjectId(0));
+            byte[] bytes = objLoader.getBytes();
+            return new String(bytes, StandardCharsets.UTF_8);
+
+        } catch (GitFileNotFoundException e) {
+            // Rethrow as-is
+            throw e;
+
+        } catch (IOException e) {
+            // Git I/O operation failed
+            throw new GitOperationException("Failed to get content for file: " + fileName + " at revision: " + revision, e);
+        }
     }
 
     // ========== Helper methods ==========

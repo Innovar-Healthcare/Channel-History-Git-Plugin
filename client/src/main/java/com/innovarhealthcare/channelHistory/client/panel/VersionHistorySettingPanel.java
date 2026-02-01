@@ -1,8 +1,18 @@
 package com.innovarhealthcare.channelHistory.client.panel;
 
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextPane;
+import javax.swing.SwingWorker;
 import javax.swing.border.TitledBorder;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Properties;
@@ -346,7 +356,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         final Properties serverProperties = new Properties();
 
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-
+            @Override
             public Void doInBackground() {
                 try {
                     Properties propertiesFromServer = plugin.getPropertiesFromServer();

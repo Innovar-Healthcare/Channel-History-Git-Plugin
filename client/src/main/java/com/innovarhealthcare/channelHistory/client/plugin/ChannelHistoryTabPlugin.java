@@ -5,7 +5,6 @@ import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthClientClass;
 import com.mirth.connect.client.ui.AbstractChannelTabPanel;
 import com.mirth.connect.plugins.ChannelTabPlugin;
-import lombok.SneakyThrows;
 
 @MirthClientClass
 public class ChannelHistoryTabPlugin extends ChannelTabPlugin {
@@ -16,7 +15,6 @@ public class ChannelHistoryTabPlugin extends ChannelTabPlugin {
         super(VersionControlConstants.PLUGIN_POINTNAME);
     }
 
-    @SneakyThrows
     @Override
     public void start() {
         tabPanel = new ChannelHistoryTabPanel(parent);

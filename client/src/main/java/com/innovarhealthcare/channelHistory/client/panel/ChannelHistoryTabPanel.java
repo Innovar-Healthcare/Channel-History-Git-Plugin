@@ -32,13 +32,13 @@ import java.util.concurrent.ExecutionException;
 
 import com.innovarhealthcare.channelHistory.client.dialog.DiffWindow;
 import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
+import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
@@ -60,7 +60,7 @@ import org.apache.logging.log4j.Logger;
  * @create 2025-04-30 10:00 AM
  */
 public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
-    private static Logger logger = LogManager.getLogger(ChannelHistoryTabPanel.class);
+    private static final Logger logger = LogManager.getLogger(ChannelHistoryTabPanel.class);
 
     private JPanel disablePanel;
     private JPanel actionPanel;
@@ -72,10 +72,9 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
     private JButton commitPushButton;
     private JButton pullButton;
 
-    private VersionHistoryServletInterface gitServlet;
     private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
 
-    private String cid;
+    private String currentChannelId;
 
     private JPopupMenu popupMenu;
 
@@ -94,29 +93,45 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         parent.addTask("importChannelFromRepo", "Import Channel From Repo", "Import Channel From Repo", "", new ImageIcon(Frame.class.getResource("images/report_go.png")), parent.channelPanel.channelTasks, parent.channelPanel.channelPopupMenu, this);
 
         versionHistoryProperties = new VersionHistoryProperties();
+
+        // Load version history properties in background
+        loadVersionHistoryProperties();
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        super.setVisible(visible);
+
+        if (visible) {
+            if (versionHistoryProperties.isEnableVersionHistory()) {
+                // Show enabled state
+                disablePanel.setVisible(false);
+                actionPanel.setVisible(true);
+                historyPanel.setVisible(true);
+
+                loadHistory(true);
+            } else {
+                disablePanel.setVisible(true);
+                actionPanel.setVisible(false);
+                historyPanel.setVisible(false);
+            }
+        }
     }
 
     @Override
     public void load(Channel channel) {
-        // load Version History Setting
-        // then store
+        if (channel == null || StringUtils.isBlank(channel.getId())) {
+            logger.warn("Cannot load history: invalid channel");
+            return;
+        }
+
+        currentChannelId = channel.getId();
+
+        // Load version history properties in background
         loadVersionHistoryProperties();
 
-        if (!versionHistoryProperties.isEnableVersionHistory()) {
-            disablePanel.setVisible(true);
-            actionPanel.setVisible(false);
-            historyPanel.setVisible(false);
-        } else {
-            disablePanel.setVisible(false);
-            actionPanel.setVisible(true);
-            historyPanel.setVisible(true);
-
-            commitPushButton.setVisible(!versionHistoryProperties.isEnableAutoCommit());
-
-            cid = channel.getId();
-
-            loadHistory(false);
-        }
+        // Load history - silent mode (no error popup)
+        loadHistory(false);
     }
 
     @Override
@@ -155,7 +170,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             message = versionHistoryProperties.getAutoCommitMsg();
         }
 
-        final String workingId = parent.startWorking("Commit & Push " + cid + " channel...");
+        final String workingId = parent.startWorking("Commit & Push " + currentChannelId + " channel...");
 
         String finalMessage = message;
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
@@ -250,7 +265,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         pullButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
-                loadHistory();
+                loadHistory(true);
             }
         });
 
@@ -281,7 +296,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
                 CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
                 CommitMetaData meta = model.getCommitMetaDataAt(row);
-                revert(cid, meta.getHash());
+                revert(currentChannelId, meta.getHash());
             }
         });
         popupMenu.add(revertRevision);
@@ -335,40 +350,24 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         add(disablePanel, "newline, growx, sx");
     }
 
-    private void loadVersionHistoryProperties() {
-        Properties properties;
-        try {
-            Client client = parent.mirthClient;
-            properties = client.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
-        } catch (ClientException e) {
-            properties = new Properties();
-        }
-
-        versionHistoryProperties.fromProperties(properties);
-    }
-
     public void importChannelFromRepo() {
-        // always load git setting first
-        loadVersionHistoryProperties();
-
-        if (versionHistoryProperties.isEnableVersionHistory()) {
-            new ImportChannelDialog(parent);
-        } else {
-            showError(VersionControlUtil.getAlertText());
-        }
+        new ImportChannelDialog(parent);
     }
 
-    private void loadHistory() {
-        loadHistory(true);
+    /**
+     * Load version history properties from server in background
+     */
+    private void loadVersionHistoryProperties() {
+        new LoadVersionHistoryPropertiesWorker().execute();
     }
 
     /**
      * Load git history in background thread
      *
-     * @param shouldNotifyOnComplete Whether to show success notification
+     * @param showErrorOnFailure Whether to show error
      */
-    private void loadHistory(boolean shouldNotifyOnComplete) {
-        new LoadGitHistoryWorker(shouldNotifyOnComplete).execute();
+    private void loadHistory(boolean showErrorOnFailure) {
+        new LoadGitHistoryWorker(showErrorOnFailure).execute();
     }
 
     private void showDiffLastChangeWindow() {
@@ -384,10 +383,10 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             Client client = parent.mirthClient;
             String currentUserName = client.getCurrentUser().getUsername();
 
-            Channel leftCh = client.getChannel(cid, false);
+            Channel leftCh = client.getChannel(currentChannelId, false);
             String left = ObjectXMLSerializer.getInstance().serialize(leftCh);
 
-            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(cid, lastChange.getHash());
+            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, lastChange.getHash());
 
             String leftLabel = leftCh.getName() + " - Current - Editing by " + currentUserName;
             String rightLabel = leftCh.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
@@ -408,8 +407,8 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
         try {
-            ChannelWithRaw left = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(cid, ri1.getHash());
-            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(cid, ri2.getHash());
+            ChannelWithRaw left = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, ri1.getHash());
+            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, ri2.getHash());
 
             Channel leftCh = left.getChannel();
             Channel rightCh = right.getChannel();
@@ -473,24 +472,64 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
     }
 
     /**
+     * Worker to load version history properties from server
+     */
+    private class LoadVersionHistoryPropertiesWorker extends SwingWorker<Properties, Void> {
+        @Override
+        protected Properties doInBackground() throws Exception {
+            Properties properties;
+            try {
+                Client client = parent.mirthClient;
+                properties = client.getPluginProperties(VersionControlConstants.PLUGIN_NAME);
+            } catch (ClientException e) {
+                logger.warn("Failed to load version history properties, using defaults", e);
+                properties = new Properties();
+            }
+
+            return properties;
+        }
+
+        @Override
+        protected void done() {
+            try {
+                Properties properties = get();
+                versionHistoryProperties.fromProperties(properties);
+            } catch (ExecutionException e) {
+                logger.error("Failed to load version history properties", e);
+                // Set default nếu load fail
+                versionHistoryProperties = new VersionHistoryProperties();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
      * SwingWorker to load commit history in background
      */
     private class LoadGitHistoryWorker extends SwingWorker<List<CommitMetaData>, Void> {
-        private final boolean shouldNotifyOnComplete;
+        private final boolean showErrorOnFailure;
+        private final String workingId;
 
-        LoadGitHistoryWorker(boolean shouldNotifyOnComplete) {
-            this.shouldNotifyOnComplete = shouldNotifyOnComplete;
+        LoadGitHistoryWorker(boolean showErrorOnFailure) {
+            this.showErrorOnFailure = showErrorOnFailure;
+            this.workingId = parent.startWorking("Loading channel history...");
+
+            setLoadingState(true);
         }
 
         @Override
         protected List<CommitMetaData> doInBackground() throws Exception {
             // Background thread - load history from server
-            logger.debug("Loading history for channel: {}", cid);
-            return VersionHistoryServiceClient.getInstance().loadChannelHistory(cid);
+            logger.debug("Loading history for channel: {}", currentChannelId);
+            return VersionHistoryServiceClient.getInstance().loadChannelHistory(currentChannelId);
         }
 
         @Override
         protected void done() {
+            parent.stopWorking(workingId);
+            setLoadingState(false);
+
             // EDT - update UI
             try {
                 List<CommitMetaData> revisions = get();
@@ -502,43 +541,41 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
                 // Get current channel commit ID
                 Client client = parent.mirthClient;
-                String commitId = VersionControlUtil.getChannelCommitId(client, cid);
+                String commitId = VersionControlUtil.getChannelCommitId(client, currentChannelId);
                 tblCommitMetaData.setHighlightValue(commitId);
 
-                // Check if there's a newer version on remote
-                boolean alertWarning = false;
+                // ALWAYS alert if from different server (both contexts)
                 if (!revisions.isEmpty()) {
-                    CommitMetaData latestCommit = revisions.get(0);
-                    boolean hasNewerVersion = (commitId != null) && !Objects.equals(latestCommit.getHash(), commitId);
-
-                    if (hasNewerVersion) {
-                        alertWarning = true;
-                        PlatformUI.MIRTH_FRAME.alertWarning(parent, "Remote repository contains a more recent version of this channel, are you sure you want to edit?");
+                    String currentServerId = PlatformUI.SERVER_ID;
+                    String lastCommitServerId = revisions.get(0).getServerId();
+                    boolean isDifferentServer = !Objects.equals(lastCommitServerId, currentServerId);
+                    // Alert if from different server
+                    if (isDifferentServer) {
+                        PlatformUI.MIRTH_FRAME.alertWarning(parent, "Last commit was made from a different server.\n\n" + "Please review the history before making changes.");
                     }
                 }
-
-                // Show success notification if requested and no warning shown
-                if (!alertWarning && shouldNotifyOnComplete) {
-                    showInformation("History refreshed!");
-                }
-
             } catch (ExecutionException e) {
-                logger.error("Failed to load channel history", e);
-
                 // Set empty model on error
                 tblCommitMetaData.setModel(new CommitMetaDataTableModel(new ArrayList<>()));
 
-                // Extract error message
+                // Only log for unexpected exceptions
                 Throwable cause = e.getCause();
-                String errorMsg = "Failed to load history from repository";
-
-                if (cause != null) {
-                    if (cause.getMessage() != null && !cause.getMessage().isEmpty()) {
-                        errorMsg = cause.getMessage();
-                    }
+                if (!(cause instanceof VersionHistoryClientException)) {
+                    logger.error("Failed to load channel history", e);
                 }
 
-                showError(errorMsg);
+                if (showErrorOnFailure) {
+                    // Extract and show error message
+                    String errorMsg;
+                    if (cause instanceof VersionHistoryClientException) {
+                        VersionHistoryClientException vhException = (VersionHistoryClientException) cause;
+                        errorMsg = vhException.getError().getMessage();
+                    } else {
+                        errorMsg = (cause != null && cause.getMessage() != null) ? cause.getMessage() : "An unexpected error occurred";
+                    }
+
+                    showError(errorMsg);
+                }
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -583,19 +620,39 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         }
     }
 
+    private ResponseUtil doCommitAndPushCurrentChannel(String message) throws ClientException {
+        Client client = parent.mirthClient;
+        Channel channel = client.getChannel(currentChannelId, false);
+        String userId = String.valueOf(client.getCurrentUser().getId());
+
+        return VersionHistoryServiceClient.getInstance().commitAndPushChannel(channel, message, userId);
+    }
+
+    /**
+     * Set loading state for the history panel
+     *
+     * @param loading true to show loading state, false to restore normal state
+     */
+    private void setLoadingState(boolean loading) {
+        // Disable/enable table
+        tblCommitMetaData.setEnabled(!loading);
+
+        // Disable/enable action buttons
+        differenceButton.setEnabled(!loading);
+        commitPushButton.setEnabled(!loading);
+        pullButton.setEnabled(!loading);
+
+        // Clear table when starting to load
+        if (loading) {
+            tblCommitMetaData.setModel(new CommitMetaDataTableModel(new ArrayList<>()));
+        }
+    }
+
     private void showInformation(String msg) {
         PlatformUI.MIRTH_FRAME.alertInformation(parent, msg);
     }
 
     private void showError(String msg) {
         PlatformUI.MIRTH_FRAME.alertError(parent, msg);
-    }
-
-    private ResponseUtil doCommitAndPushCurrentChannel(String message) throws ClientException {
-        Client client = parent.mirthClient;
-        Channel channel = client.getChannel(cid, false);
-        String userId = String.valueOf(client.getCurrentUser().getId());
-
-        return VersionHistoryServiceClient.getInstance().commitAndPushChannel(channel, message, userId);
     }
 }
