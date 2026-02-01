@@ -30,8 +30,8 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
-import com.innovarhealthcare.channelHistory.client.dialog.DiffWindow;
 import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
+import com.innovarhealthcare.channelHistory.client.dialog.VersionComparisonDialog;
 import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
@@ -388,12 +388,14 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
             ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, lastChange.getHash());
 
-            String leftLabel = leftCh.getName() + " - Current - Editing by " + currentUserName;
-            String rightLabel = leftCh.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
+            // Build VersionInfo objects
+            String channelName = leftCh.getName();
+            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createCurrent(channelName, currentUserName);
+            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(channelName, lastChange.getHash().substring(0, 7), lastChange.getCommitter(), new Date(lastChange.getTimestamp()));
 
-            DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, right.getChannel(), left, right.getRawContent(), parent);
-            dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
-            dw.setVisible(true);
+            // Create dialog
+            VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, leftCh, right.getChannel(), left, right.getRawContent(), parent);
+
         } catch (Exception e) {
             showError("Failed to show difference in channel");
         }
@@ -413,15 +415,19 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             Channel leftCh = left.getChannel();
             Channel rightCh = right.getChannel();
 
-            String labelPrefix = leftCh.getName();
-            String leftLabel = labelPrefix + " - Time: " + df.format(new Date(ri1.getTimestamp())) + " - Committed by " + ri1.getCommitter();
-            String rightLabel = labelPrefix + " - Time: " + df.format(new Date(ri2.getTimestamp())) + " - Committed by " + ri1.getCommitter();
+            // Build VersionInfo for left side
+            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCh.getName(), ri1.getHash().substring(0, 7),  // Short hash
+                    ri1.getCommitter(), new Date(ri1.getTimestamp()));
 
-            DiffWindow dw = DiffWindow.create("Channel Diff", leftLabel, rightLabel, leftCh, rightCh, left.getRawContent(), right.getRawContent(), parent);
-            dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
-            dw.setVisible(true);
+            // Build VersionInfo for right side
+            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightCh.getName(), ri2.getHash().substring(0, 7),  // Short hash
+                    ri2.getCommitter(), new Date(ri2.getTimestamp()));
+
+            // Create and show comparison dialog
+            VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, leftCh, rightCh, left.getRawContent(), right.getRawContent(), parent);
         } catch (Exception e) {
-            showError("Failed to show difference in channel");
+            logger.error("Failed to show version comparison", e);
+            showError("Cannot compare versions: " + e.getMessage());
         }
     }
 

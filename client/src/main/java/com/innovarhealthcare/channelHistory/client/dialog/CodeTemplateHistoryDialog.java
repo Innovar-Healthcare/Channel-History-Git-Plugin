@@ -235,44 +235,68 @@ public class CodeTemplateHistoryDialog extends JDialog {
             Client client = parent.mirthClient;
             String currentUserName = client.getCurrentUser().getUsername();
 
+            // Load current code template
             CodeTemplate leftCodeTemplate = client.getCodeTemplate(codeTemplateId);
             String left = ObjectXMLSerializer.getInstance().serialize(leftCodeTemplate);
 
+            // Load historical code template
             CodeTemplateWithRaw right = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, lastChange.getHash());
 
-            String leftLabel = leftCodeTemplate.getName() + " - Current - Editing by " + currentUserName;
-            String rightLabel = leftCodeTemplate.getName() + " - Time: " + df.format(new Date(lastChange.getTimestamp())) + " - Committed by " + lastChange.getCommitter();
+            // Build VersionInfo for current version
+            VersionComparisonDialog.VersionInfo currentVersion = VersionComparisonDialog.VersionInfo.createCurrent(leftCodeTemplate.getName(), currentUserName);
 
-            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, right.getCodeTemplate(), left, right.getRawContent(), this);
-            dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
-            dw.setVisible(true);
+            // Build VersionInfo for historical version
+            VersionComparisonDialog.VersionInfo historicalVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCodeTemplate.getName(), lastChange.getHash().substring(0, 7), lastChange.getCommitter(), new Date(lastChange.getTimestamp()));
+
+            // Create and show comparison dialog
+            VersionComparisonDialog.create("Code Template Version Comparison", currentVersion, historicalVersion, leftCodeTemplate, right.getCodeTemplate(), left, right.getRawContent(), this);
         } catch (Exception e) {
-            showError("Failed to show difference in code template");
+            logger.error("Failed to show code template comparison", e);
+            showError("Cannot compare versions: " + e.getMessage());
         }
     }
 
     private void showDiffWindow() {
         popupMenu.setVisible(false);
+
         int[] rows = tblCommitMetaData.getSelectedRows();
+
+        // Validate selection
+        if (rows.length != 2) {
+            showError("Please select exactly 2 versions to compare");
+            return;
+        }
+
         CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
         CommitMetaData ri1 = model.getCommitMetaDataAt(rows[0]);
         CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
+        if (ri1 == null || ri2 == null) {
+            showError("Invalid version selection");
+            return;
+        }
+
         try {
+            // Load versions
             CodeTemplateWithRaw left = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, ri1.getHash());
-            CodeTemplate leftCodeTemplate = left.getCodeTemplate();
             CodeTemplateWithRaw right = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, ri2.getHash());
+
+            CodeTemplate leftCodeTemplate = left.getCodeTemplate();
             CodeTemplate rightCodeTemplate = right.getCodeTemplate();
 
-            String labelPrefix = leftCodeTemplate.getName();
-            String leftLabel = labelPrefix + " Time: " + df.format(new Date(ri1.getTimestamp())) + " Committed by " + ri1.getCommitter();
-            String rightLabel = labelPrefix + " Time: " + df.format(new Date(ri2.getTimestamp())) + " Committed by " + ri1.getCommitter();
+            // Build VersionInfo for left side
+            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCodeTemplate.getName(), ri1.getHash().substring(0, 7),  // Short hash
+                    ri1.getCommitter(), new Date(ri1.getTimestamp()));
 
-            DiffWindow dw = DiffWindow.create("Code Template Diff", leftLabel, rightLabel, leftCodeTemplate, rightCodeTemplate, left.getRawContent(), right.getRawContent(), this);
-            dw.setSize(parent.getWidth() - 10, parent.getHeight() - 10);
-            dw.setVisible(true);
+            // Build VersionInfo for right side
+            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightCodeTemplate.getName(), ri2.getHash().substring(0, 7),  // Short hash
+                    ri2.getCommitter(), new Date(ri2.getTimestamp()));
+
+            // Create and show comparison dialog
+            VersionComparisonDialog.create("Code Template Version Comparison", leftVersion, rightVersion, leftCodeTemplate, rightCodeTemplate, left.getRawContent(), right.getRawContent(), this);
         } catch (Exception e) {
-            showError("Failed to show difference in code template");
+            logger.error("Failed to show code template comparison", e);
+            showError("Cannot compare versions: " + e.getMessage());
         }
     }
 
