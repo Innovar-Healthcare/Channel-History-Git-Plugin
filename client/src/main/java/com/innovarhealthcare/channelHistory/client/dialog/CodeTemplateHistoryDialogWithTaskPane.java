@@ -1,7 +1,9 @@
 package com.innovarhealthcare.channelHistory.client.dialog;
 
+import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
+import javax.swing.ImageIcon;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -15,11 +17,11 @@ import javax.swing.WindowConstants;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -31,7 +33,6 @@ import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
-import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
@@ -44,34 +45,33 @@ import net.miginfocom.swing.MigLayout;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jdesktop.swingx.JXTaskPane;
+import org.jdesktop.swingx.JXTaskPaneContainer;
 
 /**
- * @author Jim(Zi Min) Weng
- * @create 2024-05-07 8:46 AM
+ * Test version using JXTaskPane for menu panel (like Mirth Connect style)
  */
-public class CodeTemplateHistoryDialog extends JDialog {
-    private static Logger logger = LogManager.getLogger(CodeTemplateHistoryDialog.class);
+public class CodeTemplateHistoryDialogWithTaskPane extends JDialog {
+    private static Logger logger = LogManager.getLogger(CodeTemplateHistoryDialogWithTaskPane.class);
 
-    private JPanel actionPanel;
+    private JXTaskPaneContainer taskPaneContainer;
     private JPanel historyPanel;
 
-    private JButton differenceButton;
-    private JButton commitPushButton;
-    private JButton pullButton;
+    // Actions
+    private Action differenceAction;
+    private Action commitPushAction;
+    private Action pullAction;
+    private Action revertAction;
 
     private CommitMetaDataTable tblCommitMetaData;
     private JScrollPane historyScrollPane;
 
     private final String codeTemplateId;
-
     private JPopupMenu popupMenu;
-
-    private JMenuItem revertRevision;
-    private JMenuItem mnuShowDiff;
 
     private final Frame parent = PlatformUI.MIRTH_FRAME;
 
-    public CodeTemplateHistoryDialog(Window parent, String codeTemplateId) {
+    public CodeTemplateHistoryDialogWithTaskPane(Window parent, String codeTemplateId) {
         super(parent);
 
         this.codeTemplateId = codeTemplateId;
@@ -88,36 +88,90 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     private void initComponents() {
-        // Action
-        actionPanel = new JPanel();
-        actionPanel.setBackground(this.getBackground());
-        actionPanel.setBorder(BorderFactory.createTitledBorder("Action"));
+        // Create task pane container
+        taskPaneContainer = new JXTaskPaneContainer();
 
-        differenceButton = new JButton("Diff");
-        differenceButton.addActionListener(new ActionListener() {
+        // Setup background painters (MC style)
+        setupBackgroundPainters();
+
+        // Add border without title to match History panel style
+        taskPaneContainer.setBorder(BorderFactory.createEtchedBorder());
+
+        // Create Version History task pane
+        JXTaskPane actionsPane = new JXTaskPane();
+
+        actionsPane.setTitle("Version History");
+        actionsPane.setName("Version History");
+        actionsPane.setFocusable(false);
+
+        // Create actions in order: Diff, Commit & Push, Pull, Revert
+        // Using MC standard icons
+        differenceAction = new AbstractAction("Diff") {
             @Override
-            public void actionPerformed(ActionEvent evt) {
-                showDiffLastChangeWindow();
+            public void actionPerformed(ActionEvent e) {
+                int selectedCount = tblCommitMetaData.getSelectedRowCount();
+                if (selectedCount == 1) {
+                    showDiffLastChangeWindow();
+                } else if (selectedCount == 2) {
+                    showDiffWindow();
+                }
             }
-        });
+        };
+        differenceAction.setEnabled(false);
+        differenceAction.putValue(Action.SHORT_DESCRIPTION, "Compare versions (1 row: vs current, 2 rows: compare each other)");
+        differenceAction.putValue(Action.SMALL_ICON, new ImageIcon(Frame.class.getResource("images/application_view_detail.png")));
 
-        commitPushButton = new JButton("Commit & Push");
-        commitPushButton.addActionListener(new ActionListener() {
+        commitPushAction = new AbstractAction("Commit & Push") {
             @Override
-            public void actionPerformed(ActionEvent evt) {
+            public void actionPerformed(ActionEvent e) {
                 commitThenPush();
             }
-        });
+        };
+        commitPushAction.putValue(Action.SHORT_DESCRIPTION, "Save changes and push to repository");
+        commitPushAction.putValue(Action.SMALL_ICON, new ImageIcon(Frame.class.getResource("images/accept.png")));
 
-        pullButton = new JButton("Pull");
-        pullButton.addActionListener(new ActionListener() {
+        pullAction = new AbstractAction("Pull") {
             @Override
-            public void actionPerformed(ActionEvent evt) {
+            public void actionPerformed(ActionEvent e) {
                 loadHistory(true);
             }
-        });
+        };
+        pullAction.putValue(Action.SHORT_DESCRIPTION, "Pull latest changes from repository");
+        pullAction.putValue(Action.SMALL_ICON, new ImageIcon(Frame.class.getResource("images/arrow_refresh.png")));
 
-        // History
+        revertAction = new AbstractAction("Revert") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int row = tblCommitMetaData.getSelectedRow();
+                if (row >= 0) {
+                    CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+                    CommitMetaData meta = model.getCommitMetaDataAt(row);
+                    revert(codeTemplateId, meta.getHash());
+                }
+            }
+        };
+        revertAction.setEnabled(false);
+        revertAction.putValue(Action.SHORT_DESCRIPTION, "Revert code template to selected revision");
+        revertAction.putValue(Action.SMALL_ICON, new ImageIcon(Frame.class.getResource("images/arrow_undo.png")));
+
+        // Add actions to task pane in specified order
+        actionsPane.add(differenceAction);
+        actionsPane.add(commitPushAction);
+        actionsPane.add(pullAction);
+        actionsPane.add(revertAction);
+
+        // Add task pane to container
+        taskPaneContainer.add(actionsPane);
+
+        // Create popup menu with same actions and same order as task pane (MC pattern)
+        // This popup will show on right-click in the history table
+        popupMenu = new JPopupMenu();
+        popupMenu.add(new JMenuItem(differenceAction));
+        popupMenu.add(new JMenuItem(commitPushAction));
+        popupMenu.add(new JMenuItem(pullAction));
+        popupMenu.add(new JMenuItem(revertAction));
+
+        // History panel
         historyPanel = new JPanel();
         historyPanel.setBackground(this.getBackground());
         historyPanel.setBorder(BorderFactory.createTitledBorder("History"));
@@ -126,8 +180,8 @@ public class CodeTemplateHistoryDialog extends JDialog {
         tblCommitMetaData.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                if (!e.getValueIsAdjusting()) { // Avoid duplicate events
-                    differenceButton.setEnabled(tblCommitMetaData.getSelectedRowCount() == 1);
+                if (!e.getValueIsAdjusting()) {
+                    updateActionStates();
                 }
             }
         });
@@ -135,54 +189,72 @@ public class CodeTemplateHistoryDialog extends JDialog {
         tblCommitMetaData.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                handlePopupEvent(e);
+                checkForPopup(e);
             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                handlePopupEvent(e);
+                checkForPopup(e);
             }
 
-            public void handlePopupEvent(MouseEvent e) {
+            private void checkForPopup(MouseEvent e) {
                 if (e.isPopupTrigger()) {
-                    revertRevision.setVisible(tblCommitMetaData.getSelectedRowCount() == 1);
-                    mnuShowDiff.setVisible(tblCommitMetaData.getSelectedRowCount() == 2);
+                    // Select row under mouse if not already selected
+                    int row = tblCommitMetaData.rowAtPoint(e.getPoint());
+                    if (row >= 0 && !tblCommitMetaData.isRowSelected(row)) {
+                        tblCommitMetaData.setRowSelectionInterval(row, row);
+                    }
 
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                    // Show popup menu
+                    showPopupMenu(e);
                 }
             }
         });
+
         historyScrollPane = new JScrollPane(tblCommitMetaData);
+    }
 
-        popupMenu = new JPopupMenu();
+    /**
+     * Show popup menu with context-aware item visibility (MC pattern)
+     */
+    private void showPopupMenu(MouseEvent e) {
+        int selectedCount = tblCommitMetaData.getSelectedRowCount();
 
-        revertRevision = new JMenuItem("Revert to revision");
-        revertRevision.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int row = tblCommitMetaData.getSelectedRow();
+        // Update menu item visibility and enabled state based on selection
+        for (Component comp : popupMenu.getComponents()) {
+            if (comp instanceof JMenuItem) {
+                JMenuItem item = (JMenuItem) comp;
+                Action action = item.getAction();
 
-                CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
-                CommitMetaData meta = model.getCommitMetaDataAt(row);
-                revert(codeTemplateId, meta.getHash());
+                if (action == differenceAction) {
+                    // Diff: 1 row (vs current) or 2 rows (compare each other)
+                    boolean canDiff = (selectedCount == 1 || selectedCount == 2);
+                    item.setVisible(canDiff);
+                    item.setEnabled(canDiff);
+                } else if (action == commitPushAction) {
+                    // Commit & Push: always visible and enabled
+                    item.setVisible(true);
+                    item.setEnabled(true);
+                } else if (action == pullAction) {
+                    // Pull: always visible and enabled
+                    item.setVisible(true);
+                    item.setEnabled(true);
+                } else if (action == revertAction) {
+                    // Revert: only 1 row
+                    item.setVisible(selectedCount == 1);
+                    item.setEnabled(selectedCount == 1);
+                }
             }
-        });
-        popupMenu.add(revertRevision);
+        }
 
-        mnuShowDiff = new JMenuItem("Show Diff");
-        mnuShowDiff.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                showDiffWindow();
-            }
-        });
-        popupMenu.add(mnuShowDiff);
+        popupMenu.show(e.getComponent(), e.getX(), e.getY());
     }
 
     private void initLayout() {
-        setLayout(new MigLayout("insets 12, novisualpadding, hidemode 3, fill", "", "[][][][grow]"));
+        setLayout(new MigLayout("insets 12, novisualpadding, hidemode 3, fill", "[180!]3[grow]", // 180px for task pane, gap 3px (tighter), rest grows
+                "[grow]"));
 
-        setTitle("Code Template History");
+        setTitle("Code Template History (TaskPane Version)");
         setPreferredSize(new Dimension(1200, 700));
         Dimension dlgSize = getPreferredSize();
         Dimension frmSize = parent.getSize();
@@ -194,21 +266,44 @@ public class CodeTemplateHistoryDialog extends JDialog {
             setLocation((frmSize.width - dlgSize.width) / 2 + loc.x, (frmSize.height - dlgSize.height) / 2 + loc.y);
         }
 
-        actionPanel.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill, gap 6", "[]12[]12[][grow]"));
-        actionPanel.add(differenceButton, "newline, w 108!");
-        actionPanel.add(commitPushButton, "w 108!");
-        actionPanel.add(pullButton, "w 108!");
+        // Wrap task pane in panel to add padding/margin like History panel
+        JPanel taskPaneWrapper = new JPanel();
+        taskPaneWrapper.setBackground(this.getBackground());
+        taskPaneWrapper.setBorder(BorderFactory.createTitledBorder("Action"));
+        taskPaneWrapper.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill", "[grow]", "[grow]"));
+        taskPaneWrapper.add(taskPaneContainer, "grow, push");
 
-        historyPanel.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill, gap 6", "[grow][]"));
-        historyPanel.add(historyScrollPane, "sy, grow");
+        // Add task pane wrapper on the left
+        add(taskPaneWrapper, "growy, spany");
 
-        add(actionPanel, "growx, sx");
-        add(historyPanel, "newline, grow, pushx");
+        // History panel on the right
+        historyPanel.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill", "[grow]", "[grow]"));
+        historyPanel.add(historyScrollPane, "grow, push");
+
+        add(historyPanel, "grow, push");
+    }
+
+    /**
+     * Setup background painters for task pane container (MC style)
+     */
+    private void setupBackgroundPainters() {
+        // Remove background painter - use default/transparent background
+//        taskPaneContainer.setOpaque(false);
+        taskPaneContainer.setBackground(this.getBackground());
+    }
+
+    private void updateActionStates() {
+        int selectedCount = tblCommitMetaData.getSelectedRowCount();
+
+        // Diff: enabled for 1 or 2 rows
+        differenceAction.setEnabled(selectedCount == 1 || selectedCount == 2);
+
+        // Revert: only for 1 row
+        revertAction.setEnabled(selectedCount == 1);
     }
 
     public void load() {
-        commitPushButton.setVisible(VersionControlUtil.isAutoCommitDisable(parent.mirthClient));
-
+        // Commit & Push is always enabled (not dependent on auto-commit setting)
         this.loadHistory(false);
     }
 
@@ -251,8 +346,6 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     private void showDiffWindow() {
-        popupMenu.setVisible(false);
-
         int[] rows = tblCommitMetaData.getSelectedRows();
 
         // Validate selection
@@ -279,12 +372,10 @@ public class CodeTemplateHistoryDialog extends JDialog {
             CodeTemplate rightCodeTemplate = right.getCodeTemplate();
 
             // Build VersionInfo for left side
-            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCodeTemplate.getName(), ri1.getHash().substring(0, 7),  // Short hash
-                    ri1.getCommitter(), new Date(ri1.getTimestamp()));
+            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCodeTemplate.getName(), ri1.getHash().substring(0, 7), ri1.getCommitter(), new Date(ri1.getTimestamp()));
 
             // Build VersionInfo for right side
-            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightCodeTemplate.getName(), ri2.getHash().substring(0, 7),  // Short hash
-                    ri2.getCommitter(), new Date(ri2.getTimestamp()));
+            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightCodeTemplate.getName(), ri2.getHash().substring(0, 7), ri2.getCommitter(), new Date(ri2.getTimestamp()));
 
             // Create and show comparison dialog
             VersionComparisonDialog.create("Code Template Version Comparison", leftVersion, rightVersion, leftCodeTemplate, rightCodeTemplate, left.getRawContent(), right.getRawContent(), this);
@@ -305,7 +396,6 @@ public class CodeTemplateHistoryDialog extends JDialog {
 
                 if (client.updateCodeTemplate(codeTemplate, true)) {
                     showInformation("Successfully Reverted Code Template");
-
                     parent.codeTemplatePanel.doRefreshCodeTemplates();
                 }
             } catch (ClientException e) {
@@ -315,7 +405,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
     }
 
     private void commitThenPush() {
-        JTextArea textArea = new JTextArea(5, 30); // 5 rows, 30 columns
+        JTextArea textArea = new JTextArea(5, 30);
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
         JScrollPane scrollPane = new JScrollPane(textArea);
@@ -359,6 +449,9 @@ public class CodeTemplateHistoryDialog extends JDialog {
                 // Update table model
                 CommitMetaDataTableModel model = new CommitMetaDataTableModel(revisions);
                 tblCommitMetaData.setModel(model);
+
+                // Update action states
+                updateActionStates();
 
                 // Show success notification if requested
                 if (shouldNotifyOnComplete) {

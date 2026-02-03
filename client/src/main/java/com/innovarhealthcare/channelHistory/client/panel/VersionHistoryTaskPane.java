@@ -403,6 +403,35 @@ public class VersionHistoryTaskPane {
     }
 
     /**
+     * Shows tasks for Code Template Edit view (editing code templates)
+     * Shows History and Import tasks for code template version control
+     *
+     * @param historyHandler Handler for history action
+     * @param importHandler  Handler for import action
+     */
+    public void showForCodeTemplateEdit(Runnable historyHandler, Runnable importHandler) {
+        if (historyHandler == null || importHandler == null) {
+            throw new IllegalArgumentException("All handlers must be non-null");
+        }
+
+        // Set handlers
+        this.historyHandler = historyHandler;
+        this.importHandler = importHandler;
+
+        // Hide most tasks
+        setTaskVisible(diffTaskIndex, false);
+        setTaskVisible(commitPushTaskIndex, false);
+        setTaskVisible(pullTaskIndex, false);
+        setTaskVisible(revertTaskIndex, false);
+
+        // Show History and Import
+        setTaskVisible(historyTaskIndex, true);
+        setTaskVisible(importTaskIndex, true);
+
+        show();
+    }
+
+    /**
      * Helper to set visibility of a single task
      *
      * @param taskIndex The index of the task
