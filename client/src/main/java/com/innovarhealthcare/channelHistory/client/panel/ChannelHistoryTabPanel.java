@@ -1,9 +1,7 @@
 package com.innovarhealthcare.channelHistory.client.panel;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -16,12 +14,8 @@ import javax.swing.event.ListSelectionListener;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -29,7 +23,6 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
-import com.innovarhealthcare.channelHistory.client.dialog.ImportChannelDialog;
 import com.innovarhealthcare.channelHistory.client.dialog.VersionComparisonDialog;
 import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
@@ -62,23 +55,10 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
     private static final Logger logger = LogManager.getLogger(ChannelHistoryTabPanel.class);
 
     private JPanel disablePanel;
-    private JPanel actionPanel;
     private JPanel historyPanel;
     private JScrollPane historyScrollPane;
-
     private CommitMetaDataTable tblCommitMetaData;
-    private JButton differenceButton;
-    private JButton commitPushButton;
-    private JButton pullButton;
-
-    private static final DateFormat df = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
-
     private String currentChannelId;
-
-    private JPopupMenu popupMenu;
-
-    private JMenuItem revertRevision;
-    private JMenuItem mnuShowDiff;
 
     private final Frame parent;
     private VersionHistoryProperties versionHistoryProperties;
@@ -103,13 +83,11 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             if (versionHistoryProperties.isEnableVersionHistory()) {
                 // Show enabled state
                 disablePanel.setVisible(false);
-                actionPanel.setVisible(true);
                 historyPanel.setVisible(true);
 
                 loadHistory(true);
             } else {
                 disablePanel.setVisible(true);
-                actionPanel.setVisible(false);
                 historyPanel.setVisible(false);
             }
             // @formatter:off
@@ -248,35 +226,6 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         disablePanel.setBackground(this.getBackground());
         disablePanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(0, 0, 0, 0, new Color(204, 204, 204)), VersionControlUtil.getAlertText(), TitledBorder.DEFAULT_JUSTIFICATION, 1, new Font("Tahoma", 1, 15)));
 
-        // Action
-        actionPanel = new JPanel();
-        actionPanel.setBackground(this.getBackground());
-        actionPanel.setBorder(BorderFactory.createTitledBorder("Action"));
-
-        differenceButton = new JButton("Diff");
-        differenceButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                showDiffWindow();
-            }
-        });
-
-        commitPushButton = new JButton("Commit & Push");
-        commitPushButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                commitThenPushAction();
-            }
-        });
-
-        pullButton = new JButton("Pull");
-        pullButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                loadHistory(true);
-            }
-        });
-
         // History
         historyPanel = new JPanel();
         historyPanel.setBackground(this.getBackground());
@@ -287,79 +236,62 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             @Override
             public void valueChanged(ListSelectionEvent e) {
                 if (!e.getValueIsAdjusting()) { // Avoid duplicate events
-                    differenceButton.setEnabled(tblCommitMetaData.getSelectedRowCount() == 1);
                 }
             }
         });
 
-        historyScrollPane = new JScrollPane(tblCommitMetaData);
-
-        popupMenu = new JPopupMenu();
-
-        revertRevision = new JMenuItem("Revert to revision");
-        revertRevision.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int row = tblCommitMetaData.getSelectedRow();
-
-                CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
-                CommitMetaData meta = model.getCommitMetaDataAt(row);
-                revert(currentChannelId, meta.getHash());
-            }
-        });
-        popupMenu.add(revertRevision);
-
-        mnuShowDiff = new JMenuItem("Show Diff");
-        mnuShowDiff.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                showDiffWindow();
-            }
-        });
-        popupMenu.add(mnuShowDiff);
-
+        // Add to TABLE - covers all table area
         tblCommitMetaData.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                handlePopupEvent(e);
+                if (e.isPopupTrigger()) {
+                    handlePopup(e);
+                }
             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                handlePopupEvent(e);
-            }
-
-            public void handlePopupEvent(MouseEvent e) {
                 if (e.isPopupTrigger()) {
-                    revertRevision.setVisible(tblCommitMetaData.getSelectedRowCount() == 1);
-                    mnuShowDiff.setVisible(tblCommitMetaData.getSelectedRowCount() == 2);
-
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                    handlePopup(e);
                 }
             }
+
+            private void handlePopup(MouseEvent e) {
+                // Select row if clicked on a row
+                int row = tblCommitMetaData.rowAtPoint(e.getPoint());
+                if (row >= 0 && !tblCommitMetaData.isRowSelected(row)) {
+                    tblCommitMetaData.setRowSelectionInterval(row, row);
+                }
+
+                // Show popup at click position
+                JPopupMenu popup = VersionHistoryTaskPane.getInstance().getPopupMenu();
+                System.out.println("Popup item count: " + popup.getComponentCount());
+                popup.show(e.getComponent(), e.getX(), e.getY());
+
+
+            }
         });
+
+        historyScrollPane = new JScrollPane(tblCommitMetaData);
     }
 
+    /**
+     * Initializes the panel layout.
+     * Note: Action buttons removed - now using Version History task pane instead.
+     */
     private void initLayout() {
-        setLayout(new MigLayout("insets 12, novisualpadding, hidemode 3, fill", "", "[][][][grow]"));
+        setLayout(new MigLayout("insets 12, novisualpadding, hidemode 3, fill", "", "[][grow][]"));
 
-        actionPanel.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill, gap 6", "[]12[]12[][grow]"));
-        actionPanel.add(differenceButton, "newline, w 108!");
-        actionPanel.add(commitPushButton, "w 108!");
-        actionPanel.add(pullButton, "w 108!");
-
+        // History panel - shows commit history table
         historyPanel.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill, gap 6", "[grow][]"));
         historyPanel.add(historyScrollPane, "sy, grow");
 
+        // Disable panel - for any disable/enable controls if needed
         disablePanel.setLayout(new MigLayout("insets 0 10 10 10, novisualpadding, hidemode 3, fill, gap 6", "[]12[]12[][grow]"));
 
-        add(actionPanel, "growx, sx");
+        // Layout components (removed actionPanel line)
         add(historyPanel, "newline, grow, pushx");
         add(disablePanel, "newline, growx, sx");
-    }
-
-    public void importChannelFromRepo() {
-        new ImportChannelDialog(parent);
     }
 
     /**
@@ -721,9 +653,6 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         tblCommitMetaData.setEnabled(!loading);
 
         // Disable/enable action buttons
-        differenceButton.setEnabled(!loading);
-        commitPushButton.setEnabled(!loading);
-        pullButton.setEnabled(!loading);
 
         // Clear table when starting to load
         if (loading) {

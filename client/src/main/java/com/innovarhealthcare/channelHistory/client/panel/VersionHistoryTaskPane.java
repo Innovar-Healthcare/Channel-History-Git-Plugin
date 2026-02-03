@@ -89,8 +89,8 @@ public class VersionHistoryTaskPane {
         taskPane = new JXTaskPane();
         popupMenu = new JPopupMenu();
 
-        taskPane.setTitle("Version History");
-        taskPane.setName("Version History");
+        taskPane.setTitle("Version History Tasks");
+        taskPane.setName("Version History Tasks");
         taskPane.setFocusable(false);
 
         addTasks();
@@ -105,19 +105,19 @@ public class VersionHistoryTaskPane {
         Frame parent = getFrame();
 
         // Diff task
-        diffTaskIndex = parent.addTask(TASK_DIFF, "Diff", "Compare current channel with repository version", "", new ImageIcon(Frame.class.getResource("images/disk.png")), taskPane, popupMenu, this);
+        diffTaskIndex = parent.addTask(TASK_DIFF, "Diff", "Compare current channel with repository version", "", new ImageIcon(Frame.class.getResource("images/application_view_detail.png")), taskPane, popupMenu, this);
 
         // Commit & Push task
         commitPushTaskIndex = parent.addTask(TASK_COMMIT_PUSH, "Commit & Push", "Save changes and push to repository", "", new ImageIcon(Frame.class.getResource("images/accept.png")), taskPane, popupMenu, this);
 
         // Pull task
-        pullTaskIndex = parent.addTask(TASK_PULL, "Pull", "Pull latest changes from repository", "", new ImageIcon(Frame.class.getResource("images/add.png")), taskPane, popupMenu, this);
+        pullTaskIndex = parent.addTask(TASK_PULL, "Pull", "Pull latest changes from repository", "", new ImageIcon(Frame.class.getResource("images/arrow_refresh.png")), taskPane, popupMenu, this);
 
         // Revert task
         revertTaskIndex = parent.addTask(TASK_REVERT, "Revert", "Revert channel to selected version", "", new ImageIcon(Frame.class.getResource("images/arrow_undo.png")), taskPane, popupMenu, this);
 
         // History task
-        historyTaskIndex = parent.addTask(TASK_HISTORY, "History", "View channel version history", "", new ImageIcon(Frame.class.getResource("images/wrench.png")), taskPane, popupMenu, this);
+        historyTaskIndex = parent.addTask(TASK_HISTORY, "History", "View channel version history", "", new ImageIcon(Frame.class.getResource("images/arrow_refresh.png")), taskPane, popupMenu, this);
 
         // Import from Repo task
         importTaskIndex = parent.addTask(TASK_IMPORT, "Import", "Import channel from repository", "", new ImageIcon(Frame.class.getResource("images/report_go.png")), taskPane, popupMenu, this);
