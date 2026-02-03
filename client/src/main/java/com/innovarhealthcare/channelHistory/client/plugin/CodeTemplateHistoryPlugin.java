@@ -1,7 +1,7 @@
 package com.innovarhealthcare.channelHistory.client.plugin;
 
 
-import javax.swing.*;
+import javax.swing.ImageIcon;
 import java.util.Collections;
 import java.util.Properties;
 
@@ -35,9 +35,11 @@ public class CodeTemplateHistoryPlugin extends ClientPlugin {
 
     @Override
     public void start() {
-        addViewHistoryAction();
+//        addViewHistoryAction();
+//
+//        addImportCodeTemplateAction();
 
-        addImportCodeTemplateAction();
+//        createTasks();
     }
 
     @Override

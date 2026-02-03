@@ -1,7 +1,6 @@
 package com.innovarhealthcare.channelHistory.client.panel;
 
 import javax.swing.BorderFactory;
-import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -90,8 +89,6 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         initComponents();
         initLayout();
 
-        parent.addTask("importChannelFromRepo", "Import Channel From Repo", "Import Channel From Repo", "", new ImageIcon(Frame.class.getResource("images/report_go.png")), parent.channelPanel.channelTasks, parent.channelPanel.channelPopupMenu, this);
-
         versionHistoryProperties = new VersionHistoryProperties();
 
         // Load version history properties in background
@@ -115,6 +112,17 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
                 actionPanel.setVisible(false);
                 historyPanel.setVisible(false);
             }
+            // @formatter:off
+            VersionHistoryTaskPane.getInstance().showForChannelEdit(
+                    this::showDiffWindow,
+                    this::commitThenPushAction,
+                    () -> loadHistory(true),
+                    this::revertAction);
+            // @formatter:on
+
+            VersionHistoryTaskPane.getInstance().show();
+        } else {
+            VersionHistoryTaskPane.getInstance().hide();
         }
     }
 
@@ -249,7 +257,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         differenceButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
-                showDiffLastChangeWindow();
+                showDiffWindow();
             }
         });
 
@@ -370,66 +378,135 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         new LoadGitHistoryWorker(showErrorOnFailure).execute();
     }
 
-    private void showDiffLastChangeWindow() {
-        CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
-        CommitMetaData lastChange = model.getCommitMetaDataAt(tblCommitMetaData.getSelectedRow());
+    /**
+     * Reverts the current channel to a selected historical version.
+     * <p>
+     * Validates that exactly one version is selected from the history table,
+     * then performs the revert operation after user confirmation.
+     *
+     * @see #revert(String, String)
+     */
+    private void revertAction() {
+        int[] selectedRows = tblCommitMetaData.getSelectedRows();
 
-        if (lastChange == null) {
-            showError("No channel revision selected");
+        // Validate selection - must select exactly one version
+        if (selectedRows.length == 0) {
+            showError("Please select a version to revert to");
             return;
         }
 
-        try {
-            Client client = parent.mirthClient;
-            String currentUserName = client.getCurrentUser().getUsername();
-
-            Channel leftCh = client.getChannel(currentChannelId, false);
-            String left = ObjectXMLSerializer.getInstance().serialize(leftCh);
-
-            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, lastChange.getHash());
-
-            // Build VersionInfo objects
-            String channelName = leftCh.getName();
-            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createCurrent(channelName, currentUserName);
-            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(channelName, lastChange.getHash().substring(0, 7), lastChange.getCommitter(), new Date(lastChange.getTimestamp()));
-
-            // Create dialog
-            VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, leftCh, right.getChannel(), left, right.getRawContent(), parent);
-
-        } catch (Exception e) {
-            showError("Failed to show difference in channel");
+        if (selectedRows.length > 1) {
+            showError("Please select only one version to revert to");
+            return;
         }
+
+        // Get selected version metadata
+        CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
+        CommitMetaData selectedVersion = model.getCommitMetaDataAt(selectedRows[0]);
+
+        if (selectedVersion == null) {
+            showError("Invalid version selected");
+            return;
+        }
+
+        // Perform revert operation
+        revert(currentChannelId, selectedVersion.getHash());
     }
 
+    /**
+     * Shows diff window based on selected rows
+     * - 0 rows: Show error
+     * - 1 row: Compare current channel with selected version
+     * - 2 rows: Compare two selected versions
+     * - 3+ rows: Show error
+     */
     private void showDiffWindow() {
-        popupMenu.setVisible(false);
-        int[] rows = tblCommitMetaData.getSelectedRows();
+        int[] selectedRows = tblCommitMetaData.getSelectedRows();
+
+        // Validate selection
+        if (selectedRows.length == 0) {
+            showError("Please select at least one version to compare");
+            return;
+        }
+
+        if (selectedRows.length > 2) {
+            showError("Please select maximum 2 versions to compare");
+            return;
+        }
+
         CommitMetaDataTableModel model = (CommitMetaDataTableModel) tblCommitMetaData.getModel();
-        CommitMetaData ri1 = model.getCommitMetaDataAt(rows[0]);
-        CommitMetaData ri2 = model.getCommitMetaDataAt(rows[1]);
 
         try {
-            ChannelWithRaw left = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, ri1.getHash());
-            ChannelWithRaw right = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, ri2.getHash());
-
-            Channel leftCh = left.getChannel();
-            Channel rightCh = right.getChannel();
-
-            // Build VersionInfo for left side
-            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCh.getName(), ri1.getHash().substring(0, 7),  // Short hash
-                    ri1.getCommitter(), new Date(ri1.getTimestamp()));
-
-            // Build VersionInfo for right side
-            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightCh.getName(), ri2.getHash().substring(0, 7),  // Short hash
-                    ri2.getCommitter(), new Date(ri2.getTimestamp()));
-
-            // Create and show comparison dialog
-            VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, leftCh, rightCh, left.getRawContent(), right.getRawContent(), parent);
+            if (selectedRows.length == 1) {
+                // Compare current channel with selected version
+                showDiffWithCurrent(model.getCommitMetaDataAt(selectedRows[0]));
+            } else {
+                // Compare two selected versions
+                showDiffBetweenVersions(model.getCommitMetaDataAt(selectedRows[0]), model.getCommitMetaDataAt(selectedRows[1]));
+            }
         } catch (Exception e) {
             logger.error("Failed to show version comparison", e);
             showError("Cannot compare versions: " + e.getMessage());
         }
     }
+
+    /**
+     * Compare current channel with a historical version
+     */
+    private void showDiffWithCurrent(CommitMetaData historicalVersion) throws Exception {
+        if (historicalVersion == null) {
+            showError("Invalid version selected");
+            return;
+        }
+
+        Client client = parent.mirthClient;
+        String currentUserName = client.getCurrentUser().getUsername();
+
+        // Get current channel (left side)
+        Channel currentChannel = client.getChannel(currentChannelId, false);
+        String currentXml = ObjectXMLSerializer.getInstance().serialize(currentChannel);
+
+        // Get historical version (right side)
+        ChannelWithRaw historicalData = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, historicalVersion.getHash());
+
+        // Build VersionInfo objects
+        String channelName = currentChannel.getName();
+
+        VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createCurrent(channelName, currentUserName);
+
+        VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(channelName, historicalVersion.getHash().substring(0, 7), historicalVersion.getCommitter(), new Date(historicalVersion.getTimestamp()));
+
+        // Show comparison dialog
+        VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, currentChannel, historicalData.getChannel(), currentXml, historicalData.getRawContent(), parent);
+    }
+
+    /**
+     * Compare two historical versions
+     */
+    private void showDiffBetweenVersions(CommitMetaData version1, CommitMetaData version2) throws Exception {
+        if (version1 == null || version2 == null) {
+            showError("Invalid versions selected");
+            return;
+        }
+
+        // Load both versions from repository
+        ChannelWithRaw leftData = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, version1.getHash());
+
+        ChannelWithRaw rightData = VersionHistoryServiceClient.getInstance().loadChannelWithRawFromRepo(currentChannelId, version2.getHash());
+
+        Channel leftChannel = leftData.getChannel();
+        Channel rightChannel = rightData.getChannel();
+
+        // Build VersionInfo for left side
+        VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftChannel.getName(), version1.getHash().substring(0, 7), version1.getCommitter(), new Date(version1.getTimestamp()));
+
+        // Build VersionInfo for right side
+        VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightChannel.getName(), version2.getHash().substring(0, 7), version2.getCommitter(), new Date(version2.getTimestamp()));
+
+        // Show comparison dialog
+        VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, leftChannel, rightChannel, leftData.getRawContent(), rightData.getRawContent(), parent);
+    }
+
 
     private void revert(String channelId, String rev) {
         int option = JOptionPane.showConfirmDialog(parent, "Would you like to revert channel to this revision?", "Select an Option", JOptionPane.YES_NO_OPTION);
