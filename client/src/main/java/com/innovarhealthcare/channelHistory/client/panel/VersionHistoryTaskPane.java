@@ -89,8 +89,8 @@ public class VersionHistoryTaskPane {
         taskPane = new JXTaskPane();
         popupMenu = new JPopupMenu();
 
-        taskPane.setTitle("Version History Tasks");
-        taskPane.setName("Version History Tasks");
+        taskPane.setTitle("Version History");
+        taskPane.setName("Version History");
         taskPane.setFocusable(false);
 
         addTasks();

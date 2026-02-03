@@ -9,11 +9,11 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingWorker;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -73,35 +73,19 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
         // Load version history properties in background
         loadVersionHistoryProperties();
-    }
 
-    @Override
-    public void setVisible(boolean visible) {
-        super.setVisible(visible);
-
-        if (visible) {
-            if (versionHistoryProperties.isEnableVersionHistory()) {
-                // Show enabled state
-                disablePanel.setVisible(false);
-                historyPanel.setVisible(true);
-
-                loadHistory(true);
-            } else {
-                disablePanel.setVisible(true);
-                historyPanel.setVisible(false);
+        // Setup visibility listener
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                onPanelShown();
             }
-            // @formatter:off
-            VersionHistoryTaskPane.getInstance().showForChannelEdit(
-                    this::showDiffWindow,
-                    this::commitThenPushAction,
-                    () -> loadHistory(true),
-                    this::revertAction);
-            // @formatter:on
 
-            VersionHistoryTaskPane.getInstance().show();
-        } else {
-            VersionHistoryTaskPane.getInstance().hide();
-        }
+            @Override
+            public void componentHidden(ComponentEvent e) {
+                onPanelHidden();
+            }
+        });
     }
 
     @Override
@@ -232,15 +216,6 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         historyPanel.setBorder(BorderFactory.createTitledBorder("History"));
 
         tblCommitMetaData = new CommitMetaDataTable();
-        tblCommitMetaData.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                if (!e.getValueIsAdjusting()) { // Avoid duplicate events
-                }
-            }
-        });
-
-        // Add to TABLE - covers all table area
         tblCommitMetaData.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -265,10 +240,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
                 // Show popup at click position
                 JPopupMenu popup = VersionHistoryTaskPane.getInstance().getPopupMenu();
-                System.out.println("Popup item count: " + popup.getComponentCount());
                 popup.show(e.getComponent(), e.getX(), e.getY());
-
-
             }
         });
 
@@ -292,6 +264,48 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         // Layout components (removed actionPanel line)
         add(historyPanel, "newline, grow, pushx");
         add(disablePanel, "newline, growx, sx");
+    }
+
+    /**
+     * Called when panel becomes visible
+     */
+    private void onPanelShown() {
+        if (versionHistoryProperties.isEnableVersionHistory()) {
+            // Show enabled state
+            disablePanel.setVisible(false);
+            historyPanel.setVisible(true);
+
+            loadHistory(true);
+        } else {
+            // Show disabled state
+            disablePanel.setVisible(true);
+            historyPanel.setVisible(false);
+        }
+
+        // Register handlers with VersionHistoryTaskPane
+        // @formatter:off
+        VersionHistoryTaskPane.getInstance().showForChannelEdit(
+                this::showDiffWindow,
+                this::commitThenPushAction,
+                () -> loadHistory(true),
+                this::revertAction
+        );
+        // @formatter:on
+
+        // Show task pane
+        VersionHistoryTaskPane.getInstance().show();
+
+        // Always show Summary Tab Tasks while this panel selected
+        parent.setVisibleTasks(parent.channelEditTasks, parent.channelEditPopupMenu, 1, 13, false);
+        parent.setVisibleTasks(parent.channelEditTasks, parent.channelEditPopupMenu, 15, 15, false);
+    }
+
+    /**
+     * Called when panel becomes hidden
+     */
+    private void onPanelHidden() {
+        // Hide version history task pane
+        VersionHistoryTaskPane.getInstance().hide();
     }
 
     /**
