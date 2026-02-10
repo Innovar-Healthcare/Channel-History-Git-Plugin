@@ -29,6 +29,7 @@
     <properties>
         <swagger.version>2.1.11</swagger.version>
         <javax.version>2.1.1</javax.version>
+        <jersey-media-multipart.version>2.35</jersey-media-multipart.version>
     </properties>
 
     <artifactId>shared</artifactId>
@@ -46,6 +47,11 @@
             <version>${javax.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-multipart</artifactId>
+            <version>${jersey-media-multipart.version}</version>
+        </dependency>
     </dependencies>
 
 

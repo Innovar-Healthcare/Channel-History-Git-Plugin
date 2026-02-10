@@ -2,7 +2,7 @@ package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
-import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
+import com.innovarhealthcare.channelHistory.server.service.GitRepositoryServiceLegacy;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
@@ -42,7 +42,7 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
     @Override
     public void remove(CodeTemplate ct, ServerEventContext sec) {
         GitRepositoryController controller = GitRepositoryController.getInstance();
-        GitRepositoryService gitService = controller.getService();
+        GitRepositoryServiceLegacy gitService = controller.getService();
         VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
 
         if (!controller.isEnable()) {
@@ -94,7 +94,7 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
     public void save(CodeTemplate ct, ServerEventContext sec) {
         // Check Git configuration
         GitRepositoryController controller = GitRepositoryController.getInstance();
-        GitRepositoryService gitService = controller.getService();
+        GitRepositoryServiceLegacy gitService = controller.getService();
         VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
 
         if (!controller.isEnable()) {

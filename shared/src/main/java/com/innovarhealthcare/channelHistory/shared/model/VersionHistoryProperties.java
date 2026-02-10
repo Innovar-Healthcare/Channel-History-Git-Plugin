@@ -35,60 +35,47 @@ public class VersionHistoryProperties {
     public Properties toProperties() {
         Properties properties = new Properties();
 
+        // Boolean properties - always safe
         properties.setProperty(VERSION_HISTORY_ENABLE, String.valueOf(enableVersionHistory));
         properties.setProperty(VERSION_HISTORY_AUTO_COMMIT_ENABLE, String.valueOf(enableAutoCommit));
         properties.setProperty(VERSION_HISTORY_AUTO_COMMIT_PROMPT, String.valueOf(enableAutoCommitPrompt));
-        properties.setProperty(VERSION_HISTORY_AUTO_COMMIT_MSG, autoCommitMsg);
         properties.setProperty(VERSION_HISTORY_SYNC_DELETE, String.valueOf(enableSyncDelete));
 
-        properties.setProperty(VERSION_HISTORY_REMOTE_REPO_URL, gitSettings.getRemoteRepositoryUrl());
-        properties.setProperty(VERSION_HISTORY_REMOTE_BRANCH, gitSettings.getBranchName());
-        properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY, gitSettings.getSshPrivateKey());
+        // String property - handle null
+        properties.setProperty(VERSION_HISTORY_AUTO_COMMIT_MSG, autoCommitMsg != null ? autoCommitMsg : "");
+
+        // Git settings - handle null safely
+        if (gitSettings != null) {
+            properties.setProperty(VERSION_HISTORY_REMOTE_REPO_URL, gitSettings.getRemoteRepositoryUrl() != null ? gitSettings.getRemoteRepositoryUrl() : "");
+
+            properties.setProperty(VERSION_HISTORY_REMOTE_BRANCH, gitSettings.getBranchName() != null ? gitSettings.getBranchName() : "");
+
+            properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY, gitSettings.getSshPrivateKey() != null ? gitSettings.getSshPrivateKey() : "");
+        } else {
+            // GitSettings is null - set empty defaults
+            properties.setProperty(VERSION_HISTORY_REMOTE_REPO_URL, "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_BRANCH, "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY, "");
+        }
 
         return properties;
     }
 
     public void fromProperties(Properties properties) {
-        enableVersionHistory = false;
-        if (properties.getProperty(VERSION_HISTORY_ENABLE) != null && !properties.getProperty(VERSION_HISTORY_ENABLE).equals("")) {
-            enableVersionHistory = Boolean.parseBoolean(properties.getProperty(VERSION_HISTORY_ENABLE));
-        }
 
-        enableAutoCommit = false;
-        if (properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_ENABLE) != null && !properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_ENABLE).equals("")) {
-            enableAutoCommit = Boolean.parseBoolean(properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_ENABLE));
-        }
+        // Boolean properties with defaults
+        enableVersionHistory = getBooleanProperty(properties, VERSION_HISTORY_ENABLE, false);
+        enableAutoCommit = getBooleanProperty(properties, VERSION_HISTORY_AUTO_COMMIT_ENABLE, false);
+        enableAutoCommitPrompt = getBooleanProperty(properties, VERSION_HISTORY_AUTO_COMMIT_PROMPT, false);
+        enableSyncDelete = getBooleanProperty(properties, VERSION_HISTORY_SYNC_DELETE, false);
 
-        enableAutoCommitPrompt = false;
-        if (properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_PROMPT) != null && !properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_PROMPT).equals("")) {
-            enableAutoCommitPrompt = Boolean.parseBoolean(properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_PROMPT));
-        }
+        // String properties
+        autoCommitMsg = getStringProperty(properties, VERSION_HISTORY_AUTO_COMMIT_MSG, "");
+        String remoteRepositoryUrl = getStringProperty(properties, VERSION_HISTORY_REMOTE_REPO_URL, "");
+        String branchName = getStringProperty(properties, VERSION_HISTORY_REMOTE_BRANCH, "");
+        String sshPrivateKey = getStringProperty(properties, VERSION_HISTORY_REMOTE_SSH_KEY, "");
 
-        enableSyncDelete = false;
-        if (properties.getProperty(VERSION_HISTORY_SYNC_DELETE) != null && !properties.getProperty(VERSION_HISTORY_SYNC_DELETE).equals("")) {
-            enableSyncDelete = Boolean.parseBoolean(properties.getProperty(VERSION_HISTORY_SYNC_DELETE));
-        }
-
-        autoCommitMsg = "";
-        if (properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_MSG) != null && !properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_MSG).equals("")) {
-            autoCommitMsg = properties.getProperty(VERSION_HISTORY_AUTO_COMMIT_MSG);
-        }
-
-        String remoteRepositoryUrl = "";
-        if (properties.getProperty(VERSION_HISTORY_REMOTE_REPO_URL) != null && !properties.getProperty(VERSION_HISTORY_REMOTE_REPO_URL).equals("")) {
-            remoteRepositoryUrl = properties.getProperty(VERSION_HISTORY_REMOTE_REPO_URL);
-        }
-
-        String branchName = "";
-        if (properties.getProperty(VERSION_HISTORY_REMOTE_BRANCH) != null && !properties.getProperty(VERSION_HISTORY_REMOTE_BRANCH).equals("")) {
-            branchName = properties.getProperty(VERSION_HISTORY_REMOTE_BRANCH);
-        }
-
-        String sshPrivateKey = "";
-        if (properties.getProperty(VERSION_HISTORY_REMOTE_SSH_KEY) != null && !properties.getProperty(VERSION_HISTORY_REMOTE_SSH_KEY).equals("")) {
-            sshPrivateKey = properties.getProperty(VERSION_HISTORY_REMOTE_SSH_KEY);
-        }
-
+        // Create GitSettings
         gitSettings = new GitSettings(remoteRepositoryUrl, branchName, sshPrivateKey);
     }
 
@@ -138,5 +125,27 @@ public class VersionHistoryProperties {
 
     public void setGitSettings(GitSettings gitSettings) {
         this.gitSettings = gitSettings;
+    }
+
+    /**
+     * Helper: Get boolean property with default
+     */
+    private boolean getBooleanProperty(Properties props, String key, boolean defaultValue) {
+        String value = props.getProperty(key);
+        if (value == null || value.trim().isEmpty()) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * Helper: Get string property with default
+     */
+    private String getStringProperty(Properties props, String key, String defaultValue) {
+        String value = props.getProperty(key);
+        if (value == null || value.trim().isEmpty()) {
+            return defaultValue;
+        }
+        return value.trim();
     }
 }

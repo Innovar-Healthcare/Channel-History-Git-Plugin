@@ -33,7 +33,6 @@ import com.innovarhealthcare.channelHistory.client.service.VersionHistoryService
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
-import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -389,7 +388,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
     /**
      * SwingWorker to commit and push code template to repository
      */
-    private class CommitThenPushCodeTemplateWorker extends SwingWorker<ResponseUtil, Void> {
+    private class CommitThenPushCodeTemplateWorker extends SwingWorker<String, Void> {
         private final String message;
 
         CommitThenPushCodeTemplateWorker(String message) {
@@ -397,7 +396,7 @@ public class CodeTemplateHistoryDialog extends JDialog {
         }
 
         @Override
-        protected ResponseUtil doInBackground() throws Exception {
+        protected String doInBackground() throws Exception {
             Client client = parent.mirthClient;
             String userId = String.valueOf(client.getCurrentUser().getId());
 
@@ -409,19 +408,16 @@ public class CodeTemplateHistoryDialog extends JDialog {
         @Override
         protected void done() {
             try {
-                ResponseUtil response = get();
+                String operationDetails = get();
 
-                if (response.isSuccess()) {
-                    showInformation(response.getMessage());
+                // Success - show success message
+                showInformation("Code template committed successfully");
 
-                    // Reload history in background
-                    loadHistory(false);
+                // Optional: Log operation details for debugging
+                logger.debug("Commit details: {}", operationDetails);
 
-                } else {
-                    showError("Commit failed: " + response.getOperationDetails());
-                    logger.error("Commit failed: {}", response.getOperationDetails());
-                }
-
+                // Reload history in background
+                loadHistory(false);
             } catch (ExecutionException e) {
                 logger.error("Failed to commit code template", e);
 

@@ -2,7 +2,7 @@ package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
-import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
+import com.innovarhealthcare.channelHistory.server.service.GitRepositoryServiceLegacy;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
@@ -45,7 +45,7 @@ public class ChannelVersionPlugin implements ChannelPlugin {
     @Override
     public void remove(Channel channel, ServerEventContext sec) {
         GitRepositoryController controller = GitRepositoryController.getInstance();
-        GitRepositoryService gitService = controller.getService();
+        GitRepositoryServiceLegacy gitService = controller.getService();
         VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
 
         if (!controller.isEnable()) {

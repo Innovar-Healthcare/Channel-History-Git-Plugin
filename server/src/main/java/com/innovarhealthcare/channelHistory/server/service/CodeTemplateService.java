@@ -2,7 +2,6 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -14,7 +13,7 @@ public class CodeTemplateService extends ModeService<CodeTemplate> {
     private static final String DIRECTORY = "codetemplates";
     private static final String TYPE_NAME = "Code Template";
 
-    public CodeTemplateService(GitRepositoryService gitService) {
+    public CodeTemplateService(GitRepositoryServiceLegacy gitService) {
         super(gitService);
     }
 

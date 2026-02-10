@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.shared.util;
 
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
+import com.mirth.connect.model.codetemplates.CodeTemplateLibrary;
 
 /**
  * Utility class for creating and parsing commit messages
@@ -203,9 +204,19 @@ public class CommitMessageUtil {
         if (object instanceof Channel) {
             return "Channel";
         }
+
         if (object instanceof CodeTemplate) {
             return "Code Template";
         }
+
+        if (object instanceof CodeTemplateLibrary) {
+            return "Library";
+        }
+
+        if (object instanceof BatchLibraries) {
+            return "Batch Libraries";
+        }
+
         return "Object";
     }
 
@@ -216,9 +227,37 @@ public class CommitMessageUtil {
         if (object instanceof Channel) {
             return ((Channel) object).getName();
         }
+
         if (object instanceof CodeTemplate) {
             return ((CodeTemplate) object).getName();
         }
+
+        if (object instanceof CodeTemplateLibrary) {
+            return ((CodeTemplateLibrary) object).getName();
+        }
+
+        if (object instanceof BatchLibraries) {
+            return ((BatchLibraries) object).getNames();
+        }
+
         return "Unknown";
+    }
+
+    // ==================== Batch Libraries Support ====================
+
+    /**
+     * Wrapper class to represent batch of libraries for commit message formatting.
+     * Used internally by CommitMessageUtil.
+     */
+    public static class BatchLibraries {
+        private final String names;
+
+        public BatchLibraries(String names) {
+            this.names = names;
+        }
+
+        public String getNames() {
+            return names;
+        }
     }
 }

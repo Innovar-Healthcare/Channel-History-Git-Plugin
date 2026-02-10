@@ -1,6 +1,7 @@
 package com.innovarhealthcare.channelHistory.server.exception;
 
-public class GitOperationException extends RuntimeException {
+public class GitOperationException extends Exception {
+
     public GitOperationException(String message) {
         super(message);
     }

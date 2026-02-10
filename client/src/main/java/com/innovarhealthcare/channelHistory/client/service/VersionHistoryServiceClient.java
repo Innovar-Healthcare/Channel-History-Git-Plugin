@@ -12,7 +12,6 @@ import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServ
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryErrorCodes;
 import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
-import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.core.EntityException;
@@ -72,7 +71,7 @@ public class VersionHistoryServiceClient {
     public List<RepoItemMetadata> loadChannelListFromRepo() throws ClientException {
         try {
             // 1. Make the call
-            String jsonResponse = getServlet().loadChannelOnRepo();
+            String jsonResponse = getServlet().loadChannelsMetadata();
             return JsonUtils.fromJsonList(jsonResponse, RepoItemMetadata.class);
         } catch (ClientException e) {
             // 2. Rethrow ClientException with parsed ErrorResponse if available
@@ -157,10 +156,10 @@ public class VersionHistoryServiceClient {
      * @param channel The channel object to commit
      * @param message User's commit message describing the changes
      * @param userId  The user ID performing the commit
-     * @return ResponseUtil containing the operation result and commit information
+     * @return String containing the operation result and commit information
      * @throws ClientException if channel is invalid, commit fails, or push operation fails
      */
-    public ResponseUtil commitAndPushChannel(Channel channel, String message, String userId) throws ClientException {
+    public String commitAndPushChannel(Channel channel, String message, String userId) throws ClientException {
         if (channel == null) {
             throw new IllegalArgumentException("Channel cannot be null");
         }
@@ -172,8 +171,7 @@ public class VersionHistoryServiceClient {
         }
 
         try {
-            String jsonResponse = getServlet().commitAndPushChannel(channel, message, userId);
-            return new ResponseUtil(jsonResponse);
+            return getServlet().commitAndPushChannel(channel, message, userId);
         } catch (ClientException e) {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
@@ -211,7 +209,7 @@ public class VersionHistoryServiceClient {
      */
     public List<RepoItemMetadata> loadCodeTemplateListFromRepo() throws ClientException {
         try {
-            String jsonResponse = getServlet().loadCodeTemplateOnRepo();
+            String jsonResponse = getServlet().loadCodeTemplatesMetadata();
             return JsonUtils.fromJsonList(jsonResponse, RepoItemMetadata.class);
         } catch (ClientException e) {
             throw rethrowParsedClientError(e, true);
@@ -285,10 +283,10 @@ public class VersionHistoryServiceClient {
      * @param codeTemplateId The code template ID (UUID) to commit
      * @param message        User's commit message describing the changes
      * @param userId         The user ID performing the commit
-     * @return ResponseUtil containing the operation result and commit information
+     * @return String containing the operation result and commit information
      * @throws ClientException if code template is invalid, commit fails, or push operation fails
      */
-    public ResponseUtil commitAndPushCodeTemplate(String codeTemplateId, String message, String userId) throws ClientException {
+    public String commitAndPushCodeTemplate(String codeTemplateId, String message, String userId) throws ClientException {
         if (StringUtils.isBlank(codeTemplateId)) {
             throw new IllegalArgumentException("Code template ID cannot be null or empty");
         }
@@ -300,8 +298,7 @@ public class VersionHistoryServiceClient {
         }
 
         try {
-            String jsonResponse = getServlet().commitAndPushCodeTemplate(codeTemplateId, message, userId);
-            return new ResponseUtil(jsonResponse);
+            return getServlet().commitAndPushCodeTemplate(codeTemplateId, message, userId);
         } catch (ClientException e) {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
@@ -321,7 +318,7 @@ public class VersionHistoryServiceClient {
         }
 
         try {
-            String xmlContent = getServlet().getFileContentFromRepo(channelId, revision, VersionControlConstants.MODE_CHANNEL);
+            String xmlContent = getServlet().getContentAtRevision(channelId, revision, VersionControlConstants.MODE_CHANNEL);
 
             if (StringUtils.isBlank(xmlContent)) {
                 throw new ClientException("Channel not found or content is empty: " + channelId);
@@ -348,7 +345,7 @@ public class VersionHistoryServiceClient {
         }
 
         try {
-            String xmlContent = getServlet().getFileContentFromRepo(templateId, revision, VersionControlConstants.MODE_CODE_TEMPLATE);
+            String xmlContent = getServlet().getContentAtRevision(templateId, revision, VersionControlConstants.MODE_CODE_TEMPLATE);
 
             if (StringUtils.isBlank(xmlContent)) {
                 throw new ClientException("Code template not found or content is empty: " + templateId);

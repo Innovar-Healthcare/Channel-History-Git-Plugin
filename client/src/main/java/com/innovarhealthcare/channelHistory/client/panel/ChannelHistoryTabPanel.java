@@ -29,11 +29,13 @@ import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
+import com.innovarhealthcare.channelHistory.client.taskpanel.ChannelHistoryContext;
+import com.innovarhealthcare.channelHistory.client.taskpanel.ChannelHistoryOperations;
+import com.innovarhealthcare.channelHistory.client.taskpanel.VersionHistoryTaskPane;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
-import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.AbstractChannelTabPanel;
@@ -167,15 +169,12 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
 
                 // Try to commit
                 try {
-                    ResponseUtil response = doCommitAndPushCurrentChannel(finalMessage);
+                    String operationDetails = doCommitAndPushCurrentChannel(finalMessage);
 
-                    if (!response.isSuccess()) {
-                        errorMessage = "Failed to commit channel:\n" + response.getOperationDetails();
-                        logger.error("Commit failed: {}", response.getOperationDetails());
-                    } else {
-                        logger.info("Commit successful");
-                    }
+                    logger.info("Channel committed successfully");
 
+                    // Optional: Log operation details for debugging
+                    logger.debug("Commit details: {}", operationDetails);
                 } catch (Exception e) {
                     errorMessage = "Failed to commit channel:\n" + e.getMessage();
                     logger.error("Commit exception", e);
@@ -282,30 +281,50 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
             historyPanel.setVisible(false);
         }
 
-        // Register handlers with VersionHistoryTaskPane
-        // @formatter:off
-        VersionHistoryTaskPane.getInstance().showForChannelEdit(
-                this::showDiffWindow,
-                this::commitThenPushAction,
-                () -> loadHistory(true),
-                this::revertAction
-        );
-        // @formatter:on
-
-        // Show task pane
-        VersionHistoryTaskPane.getInstance().show();
-
         // Always show Summary Tab Tasks while this panel selected
         parent.setVisibleTasks(parent.channelEditTasks, parent.channelEditPopupMenu, 1, 13, false);
         parent.setVisibleTasks(parent.channelEditTasks, parent.channelEditPopupMenu, 15, 15, false);
+
+        showVersionHistoryTaskPane();
     }
 
     /**
      * Called when panel becomes hidden
      */
     private void onPanelHidden() {
-        // Hide version history task pane
-        VersionHistoryTaskPane.getInstance().hide();
+        hideVersionHistoryTaskPane();
+    }
+
+    /**
+     * Shows version history task pane with channel edit context.
+     * Creates operations from this panel's methods and sets the appropriate context.
+     */
+    private void showVersionHistoryTaskPane() {
+        if (!VersionHistoryTaskPane.isInitialized()) {
+            return;
+        }
+
+        // Create operations adapter wrapping this panel's methods
+        ChannelHistoryOperations operations = new ChannelHistoryOperations(this::showDiffWindow,           // Diff action
+                this::commitThenPushAction,     // Commit & Push action
+                () -> loadHistory(true),        // Pull/Reload action
+                this::revertAction              // Revert action
+        );
+
+        // Create channel edit context
+        ChannelHistoryContext context = new ChannelHistoryContext(operations);
+
+        // Set context on task pane (this shows it and configures buttons)
+        VersionHistoryTaskPane.getInstance().setContext(context);
+    }
+
+    /**
+     * Hides version history task pane by setting context to null
+     */
+    private void hideVersionHistoryTaskPane() {
+        if (VersionHistoryTaskPane.isInitialized()) {
+            VersionHistoryTaskPane.getInstance().setContext(null);
+        }
     }
 
     /**
@@ -613,7 +632,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         }
     }
 
-    private class CommitThenPushChannelWorker extends SwingWorker<ResponseUtil, Void> {
+    private class CommitThenPushChannelWorker extends SwingWorker<String, Void> {
         private final String message;
 
         CommitThenPushChannelWorker(String message) {
@@ -621,22 +640,20 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         }
 
         @Override
-        protected ResponseUtil doInBackground() throws Exception {
+        protected String doInBackground() throws Exception {
             return doCommitAndPushCurrentChannel(message);
         }
 
         @Override
         protected void done() {
             try {
-                ResponseUtil response = get();
+                String operationDetails = get();
 
-                if (response.isSuccess()) {
-                    showInformation(response.getMessage());
-                    // Refresh history
-                    loadHistory(false);
-                } else {
-                    showError("Commit failed: " + response.getOperationDetails());
-                }
+                // Success - show success message
+                showInformation("Channel committed successfully");
+
+                // Optional: Log operation details for debugging
+                logger.debug("Commit details: {}", operationDetails);
 
             } catch (ExecutionException e) {
                 logger.error("Commit failed", e);
@@ -649,7 +666,7 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         }
     }
 
-    private ResponseUtil doCommitAndPushCurrentChannel(String message) throws ClientException {
+    private String doCommitAndPushCurrentChannel(String message) throws ClientException {
         Client client = parent.mirthClient;
         Channel channel = client.getChannel(currentChannelId, false);
         String userId = String.valueOf(client.getCurrentUser().getId());
@@ -681,4 +698,44 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
     private void showError(String msg) {
         PlatformUI.MIRTH_FRAME.alertError(parent, msg);
     }
+
+
+    // ADD THESE PUBLIC GETTERS (for ContextManager to access actions)
+    // ========================================
+
+//    /**
+//     * Gets the action for showing diff window
+//     *
+//     * @return Runnable that shows diff window
+//     */
+//    public Runnable getDiffAction() {
+//        return this::showDiffWindow;
+//    }
+//
+//    /**
+//     * Gets the action for commit and push
+//     *
+//     * @return Runnable that commits and pushes changes
+//     */
+//    public Runnable getCommitPushAction() {
+//        return this::commitThenPushAction;
+//    }
+//
+//    /**
+//     * Gets the action for pulling/reloading history
+//     *
+//     * @return Runnable that reloads history
+//     */
+//    public Runnable getPullAction() {
+//        return () -> loadHistory(true);
+//    }
+//
+//    /**
+//     * Gets the action for reverting to selected version
+//     *
+//     * @return Runnable that reverts to selected version
+//     */
+//    public Runnable getRevertAction() {
+//        return this::revertAction;
+//    }
 }

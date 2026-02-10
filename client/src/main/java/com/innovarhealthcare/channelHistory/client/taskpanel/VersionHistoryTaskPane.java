@@ -1,15 +1,22 @@
-package com.innovarhealthcare.channelHistory.client.panel;
+package com.innovarhealthcare.channelHistory.client.taskpanel;
 
 import javax.swing.ImageIcon;
 import javax.swing.JPopupMenu;
 import java.awt.Component;
 import java.awt.Container;
+import java.util.Set;
 
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
 import org.jdesktop.swingx.JXTaskPane;
 import org.jdesktop.swingx.JXTaskPaneContainer;
 
+
+/**
+ * Task pane for Version History functionality.
+ * Displays context-specific tasks on the left panel based on which view is active.
+ * Uses Context pattern to delegate behavior.
+ */
 public class VersionHistoryTaskPane {
 
     private static VersionHistoryTaskPane instance;
@@ -17,12 +24,7 @@ public class VersionHistoryTaskPane {
     private JXTaskPane taskPane;
     private JPopupMenu popupMenu;
 
-    Runnable diffHandler;
-    Runnable commitPushHandler;
-    Runnable pullHandler;
-    Runnable importHandler;
-    Runnable revertHandler;
-    Runnable historyHandler;
+    private TaskPaneContext currentContext;
 
     // Store task indices
     private int diffTaskIndex = -1;
@@ -31,6 +33,7 @@ public class VersionHistoryTaskPane {
     private int importTaskIndex = -1;
     private int revertTaskIndex = -1;
     private int historyTaskIndex = -1;
+    private int saveLibrariesTaskIndex = -1;
 
     // Task action constants
     public static final String TASK_DIFF = "doVersionHistoryDiff";
@@ -39,6 +42,7 @@ public class VersionHistoryTaskPane {
     public static final String TASK_IMPORT = "doVersionHistoryImport";
     public static final String TASK_REVERT = "doVersionHistoryRevert";
     public static final String TASK_HISTORY = "doVersionHistoryHistory";
+    public static final String TASK_SAVE_LIBRARIES = "doVersionHistorySaveLibraries";
 
     /**
      * Private constructor for singleton pattern
@@ -121,6 +125,9 @@ public class VersionHistoryTaskPane {
 
         // Import from Repo task
         importTaskIndex = parent.addTask(TASK_IMPORT, "Import", "Import channel from repository", "", new ImageIcon(Frame.class.getResource("images/report_go.png")), taskPane, popupMenu, this);
+
+        // Save Libraries task
+        saveLibrariesTaskIndex = parent.addTask(TASK_SAVE_LIBRARIES, "Save Libraries", "Save library structure to repository", "", new ImageIcon(Frame.class.getResource("images/disk.png")), taskPane, popupMenu, this);
     }
 
     /**
@@ -226,209 +233,38 @@ public class VersionHistoryTaskPane {
         }
     }
 
-    // ========== MC Core Callback Methods ==========
+    // ========== Context Management ==========
 
     /**
-     * Called by MC Core when Diff task is clicked
-     * Delegates to the registered diff handler
-     */
-    public void doVersionHistoryDiff() {
-        if (diffHandler != null) {
-            diffHandler.run();
-        }
-    }
-
-    /**
-     * Called by MC Core when Commit & Push task is clicked
-     * Delegates to the registered commit/push handler
-     */
-    public void doVersionHistoryCommitPush() {
-        if (commitPushHandler != null) {
-            commitPushHandler.run();
-        }
-    }
-
-    /**
-     * Called by MC Core when Pull task is clicked
-     * Delegates to the registered pull handler
-     */
-    public void doVersionHistoryPull() {
-        if (pullHandler != null) {
-            pullHandler.run();
-        }
-    }
-
-    /**
-     * Called by MC Core when Revert task is clicked
-     * Delegates to the registered revert handler
-     */
-    public void doVersionHistoryRevert() {
-        if (revertHandler != null) {
-            revertHandler.run();
-        }
-    }
-
-    /**
-     * Called by MC Core when History task is clicked
-     * Delegates to the registered history handler
-     */
-    public void doVersionHistoryHistory() {
-        if (historyHandler != null) {
-            historyHandler.run();
-        }
-    }
-
-    /**
-     * Called by MC Core when Import task is clicked
-     * Delegates to the registered import handler
-     */
-    public void doVersionHistoryImport() {
-        if (importHandler != null) {
-            importHandler.run();
-        }
-    }
-
-    // ========== Handler Setters ==========
-
-    /**
-     * Set handler for Diff action
-     */
-    public void setDiffHandler(Runnable handler) {
-        this.diffHandler = handler;
-    }
-
-    /**
-     * Set handler for Commit & Push action
-     */
-    public void setCommitPushHandler(Runnable handler) {
-        this.commitPushHandler = handler;
-    }
-
-    /**
-     * Set handler for Pull action
-     */
-    public void setPullHandler(Runnable handler) {
-        this.pullHandler = handler;
-    }
-
-    /**
-     * Set handler for Revert action
-     */
-    public void setRevertHandler(Runnable handler) {
-        this.revertHandler = handler;
-    }
-
-    /**
-     * Set handler for History action
-     */
-    public void setHistoryHandler(Runnable handler) {
-        this.historyHandler = handler;
-    }
-
-    /**
-     * Set handler for Import action
-     */
-    public void setImportHandler(Runnable handler) {
-        this.importHandler = handler;
-    }
-
-    /**
-     * Clear all handlers
-     */
-    public void clearHandlers() {
-        this.diffHandler = null;
-        this.commitPushHandler = null;
-        this.pullHandler = null;
-        this.revertHandler = null;
-        this.historyHandler = null;
-        this.importHandler = null;
-    }
-
-    // ========== View-based visibility methods ==========
-
-    /**
-     * Shows tasks for Channel Panel view (viewing channels list)
-     * Only shows Import task - allows importing channels from repository
+     * Sets the current context for the task pane.
+     * This determines which tasks are visible and how they behave.
      *
-     * @param importHandler Handler for import action
+     * @param context The context to activate, or null to hide the pane
      */
-    public void showForChannelPanel(Runnable importHandler) {
-        if (importHandler == null) {
-            throw new IllegalArgumentException("Import handler cannot be null");
+    public void setContext(TaskPaneContext context) {
+        this.currentContext = context;
+
+        if (context != null) {
+            updateVisibility(context.getVisibleTasks());
+            show();
+        } else {
+            hide();
         }
-
-        // Set the import handler
-        this.importHandler = importHandler;
-
-        // Hide all tasks first
-        setTaskVisible(diffTaskIndex, false);
-        setTaskVisible(commitPushTaskIndex, false);
-        setTaskVisible(pullTaskIndex, false);
-        setTaskVisible(revertTaskIndex, false);
-        setTaskVisible(historyTaskIndex, false);
-
-        // Show only Import
-        setTaskVisible(importTaskIndex, true);
     }
 
     /**
-     * Shows tasks for Channel Edit view (editing a channel)
-     * Shows Diff, Commit & Push, Pull, Revert, and History tasks for channel version control
+     * Updates task visibility based on context's visible tasks
      *
-     * @param diffHandler       Handler for diff action
-     * @param commitPushHandler Handler for commit & push action
-     * @param pullHandler       Handler for pull action
-     * @param revertHandler     Handler for revert action
+     * @param visibleTasks Set of task action names that should be visible
      */
-    public void showForChannelEdit(Runnable diffHandler, Runnable commitPushHandler, Runnable pullHandler, Runnable revertHandler) {
-        if (diffHandler == null || commitPushHandler == null || pullHandler == null || revertHandler == null) {
-            throw new IllegalArgumentException("All handlers must be non-null");
-        }
-
-        // Set all handlers
-        this.diffHandler = diffHandler;
-        this.commitPushHandler = commitPushHandler;
-        this.pullHandler = pullHandler;
-        this.revertHandler = revertHandler;
-
-        // Show Diff, Commit & Push, Pull, Revert, History
-        setTaskVisible(diffTaskIndex, true);
-        setTaskVisible(commitPushTaskIndex, true);
-        setTaskVisible(pullTaskIndex, true);
-        setTaskVisible(revertTaskIndex, true);
-
-        // Hide Import
-        setTaskVisible(historyTaskIndex, false);
-        setTaskVisible(importTaskIndex, false);
-    }
-
-    /**
-     * Shows tasks for Code Template Edit view (editing code templates)
-     * Shows History and Import tasks for code template version control
-     *
-     * @param historyHandler Handler for history action
-     * @param importHandler  Handler for import action
-     */
-    public void showForCodeTemplateEdit(Runnable historyHandler, Runnable importHandler) {
-        if (historyHandler == null || importHandler == null) {
-            throw new IllegalArgumentException("All handlers must be non-null");
-        }
-
-        // Set handlers
-        this.historyHandler = historyHandler;
-        this.importHandler = importHandler;
-
-        // Hide most tasks
-        setTaskVisible(diffTaskIndex, false);
-        setTaskVisible(commitPushTaskIndex, false);
-        setTaskVisible(pullTaskIndex, false);
-        setTaskVisible(revertTaskIndex, false);
-
-        // Show History and Import
-        setTaskVisible(historyTaskIndex, true);
-        setTaskVisible(importTaskIndex, true);
-
-        show();
+    private void updateVisibility(Set<String> visibleTasks) {
+        setTaskVisible(diffTaskIndex, visibleTasks.contains(TASK_DIFF));
+        setTaskVisible(commitPushTaskIndex, visibleTasks.contains(TASK_COMMIT_PUSH));
+        setTaskVisible(pullTaskIndex, visibleTasks.contains(TASK_PULL));
+        setTaskVisible(revertTaskIndex, visibleTasks.contains(TASK_REVERT));
+        setTaskVisible(historyTaskIndex, visibleTasks.contains(TASK_HISTORY));
+        setTaskVisible(importTaskIndex, visibleTasks.contains(TASK_IMPORT));
+        setTaskVisible(saveLibrariesTaskIndex, visibleTasks.contains(TASK_SAVE_LIBRARIES));
     }
 
     /**
@@ -445,9 +281,111 @@ public class VersionHistoryTaskPane {
         parent.setVisibleTasks(taskPane, popupMenu, taskIndex, taskIndex, visible);
     }
 
+    // ========== MC Core Callback Methods ==========
+
     /**
-     * Resets the singleton instance (cleanup)
-     * Should be called when plugin is stopped
+     * Called by MC Core when Diff task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistoryDiff() {
+        if (currentContext != null) {
+            try {
+                currentContext.onDiff();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error executing diff: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called by MC Core when Commit & Push task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistoryCommitPush() {
+        if (currentContext != null) {
+            try {
+                currentContext.onCommitPush();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error executing commit & push: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called by MC Core when Pull task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistoryPull() {
+        if (currentContext != null) {
+            try {
+                currentContext.onPull();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error executing pull: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called by MC Core when Revert task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistoryRevert() {
+        if (currentContext != null) {
+            try {
+                currentContext.onRevert();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error executing revert: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called by MC Core when History task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistoryHistory() {
+        if (currentContext != null) {
+            try {
+                currentContext.onHistory();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error showing history: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called by MC Core when Import task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistoryImport() {
+        if (currentContext != null) {
+            try {
+                currentContext.onImport();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error importing: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Called by MC Core when Save Libraries task is clicked.
+     * Delegates to the current context.
+     */
+    public void doVersionHistorySaveLibraries() {
+        if (currentContext != null) {
+            try {
+                currentContext.onSaveLibraries();
+            } catch (Exception e) {
+                getFrame().alertError(getFrame(), "Error saving libraries: " + e.getMessage());
+            }
+        }
+    }
+
+    // ========== Cleanup ==========
+
+    /**
+     * Resets the singleton instance (cleanup).
+     * Should be called when plugin is stopped.
      */
     public static synchronized void reset() {
         if (instance != null) {

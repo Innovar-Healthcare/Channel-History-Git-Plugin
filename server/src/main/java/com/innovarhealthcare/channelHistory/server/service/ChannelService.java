@@ -1,16 +1,15 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
+import java.util.Properties;
+
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 import com.mirth.connect.server.controllers.ControllerFactory;
 import com.mirth.connect.server.controllers.ExtensionController;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.Properties;
 
 /**
  * Service for managing Channel objects in Git repository
@@ -21,7 +20,7 @@ public class ChannelService extends ModeService<Channel> {
     private static final String DIRECTORY = "channels";
     private static final String TYPE_NAME = "Channel";
 
-    public ChannelService(GitRepositoryService gitService) {
+    public ChannelService(GitRepositoryServiceLegacy gitService) {
         super(gitService);
     }
 

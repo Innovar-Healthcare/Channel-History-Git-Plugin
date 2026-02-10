@@ -56,9 +56,9 @@ import org.slf4j.LoggerFactory;
 public abstract class ModeService<T> {
     private static final Logger logger = LoggerFactory.getLogger(ModeService.class);
     private static final ConfigurationController configurationController = ControllerFactory.getFactory().createConfigurationController();
-    protected final GitRepositoryService gitService;
+    protected final GitRepositoryServiceLegacy gitService;
 
-    public ModeService(GitRepositoryService gitService) {
+    public ModeService(GitRepositoryServiceLegacy gitService) {
         this.gitService = gitService;
     }
 
@@ -178,7 +178,8 @@ public abstract class ModeService<T> {
 
         } catch (IOException e) {
             // Fatal error - can't access repository
-            throw new GitOperationException("Failed to load metadata from repository", e);
+            //throw new GitOperationException("Failed to load metadata from repository", e);
+            return new ArrayList<>();
         }
     }
 
@@ -204,7 +205,7 @@ public abstract class ModeService<T> {
             throw new IllegalArgumentException("Committer cannot be null");
         }
         if (branch == null || branch.trim().isEmpty()) {
-            throw new GitOperationException("Branch cannot be empty");
+            throw new IllegalArgumentException("Branch cannot be empty");
         }
 
         if (message == null) {
@@ -370,11 +371,11 @@ public abstract class ModeService<T> {
             }
 
         } catch (GitAPIException e) {
-            throw new GitOperationException("Git error: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Git error: " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new GitOperationException("I/O error: " + e.getMessage(), e);
+            throw new IllegalArgumentException("I/O error: " + e.getMessage(), e);
         } catch (Exception e) {
-            throw new GitOperationException("Unexpected error: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Unexpected error: " + e.getMessage(), e);
         }
     }
 
@@ -588,7 +589,7 @@ public abstract class ModeService<T> {
 
         } catch (IOException e) {
             // Git I/O operation failed
-            throw new GitOperationException("Failed to get content for file: " + fileName + " at revision: " + revision, e);
+            throw new IllegalArgumentException("Failed to get content for file: " + fileName + " at revision: " + revision, e);
         }
     }
 
