@@ -1,5 +1,6 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
@@ -10,6 +11,8 @@ import com.innovarhealthcare.channelHistory.server.repository.ChannelRepository;
 import com.innovarhealthcare.channelHistory.server.repository.CodeTemplateRepository;
 import com.innovarhealthcare.channelHistory.server.repository.LibraryRepository;
 import com.innovarhealthcare.channelHistory.server.util.GitCommitterHelper;
+import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
+import com.innovarhealthcare.channelHistory.shared.dto.response.LibraryMetadata;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.mirth.connect.model.Channel;
@@ -260,6 +263,52 @@ public class VersionHistoryService {
 
         logger.info("Loaded {} code template metadata items", metadata.size());
         return metadata;
+    }
+
+    public LibrariesAndTemplatesResponse loadLibrariesAndTemplateMetadata() throws GitNotConnectedException {
+        logger.info("loadLibrariesAndTemplateMetadata called");
+
+        // Check Git availability
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        // Load all libraries (full objects needed for codeTemplateIds)
+        LibraryRepository libRepository = gitRepositoryService.getLibraryRepository();
+        List<CodeTemplateLibrary> libraries = libRepository.loadAll();
+        logger.debug("Loaded {} libraries", libraries.size());
+
+        // Convert libraries to metadata (extract only necessary fields)
+        List<LibraryMetadata> libraryMetadata = new ArrayList<>();
+        for (CodeTemplateLibrary library : libraries) {
+            List<String> templateIds = new ArrayList<>();
+
+            // Extract code template IDs from library
+            if (library.getCodeTemplates() != null) {
+                for (CodeTemplate template : library.getCodeTemplates()) {
+                    if (template != null && template.getId() != null) {
+                        templateIds.add(template.getId());
+                    }
+                }
+            }
+
+            libraryMetadata.add(new LibraryMetadata(library.getId(), library.getName(), templateIds));
+        }
+        logger.debug("Converted {} libraries to metadata", libraryMetadata.size());
+
+        // Load code template metadata
+        CodeTemplateRepository repository = gitRepositoryService.getCodeTemplateRepository();
+        List<RepoItemMetadata> templateMetadata = repository.loadMetadata();
+        logger.debug("Loaded {} template metadata items", templateMetadata.size());
+
+        // Create and return response
+        LibrariesAndTemplatesResponse response = new LibrariesAndTemplatesResponse(libraryMetadata, templateMetadata);
+
+        logger.info("Successfully loaded {} libraries and {} templates metadata", libraryMetadata.size(), templateMetadata.size());
+
+        return response;
     }
 
     /**

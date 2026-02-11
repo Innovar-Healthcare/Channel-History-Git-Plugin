@@ -118,8 +118,7 @@ public class GitOperations {
                     byte[] content = loader.getBytes();
 
                     // Get last commit for this file
-                    Iterable<RevCommit> commits = git.log().addPath(filePath).call();
-                    String commitId = commits.iterator().hasNext() ? commits.iterator().next().getName() : lastCommitId.getName();
+                    String commitId = lastCommitId.getName();
 
                     files.add(new CommittedFile(fileName, filePath, content, commitId));
 

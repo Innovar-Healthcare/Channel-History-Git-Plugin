@@ -17,6 +17,7 @@ import com.innovarhealthcare.channelHistory.server.exception.VersionHistoryApiEx
 import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
+import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
@@ -347,6 +348,25 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
             // Unexpected error - 500 Internal Server Error
             logger.error("Unexpected error saving code template", e);
             throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to save libraries: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String loadLibrariesAndTemplateMetadata() {
+        try {
+            LibrariesAndTemplatesResponse response = getService().loadLibrariesAndTemplateMetadata();
+            return JsonUtils.toJson(response);
+
+        } catch (GitNotConnectedException e) {
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Unable to load libraries and template metadata.");
+
+        } catch (VersionHistoryApiException e) {
+            // Already a VersionHistoryApiException, rethrow as-is
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error loading libraries and template metadata", e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to load libraries and template metadata: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 

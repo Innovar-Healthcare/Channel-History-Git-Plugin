@@ -7,6 +7,7 @@ import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
+import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
@@ -197,6 +198,24 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to save and push libraries: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Load libraries and code template metadata from repository
+     * Returns both library information and template metadata for client-side grouping
+     *
+     * @return LibrariesAndTemplatesResponse containing libraries and template metadata
+     * @throws ClientException if Git operations fail
+     */
+    public LibrariesAndTemplatesResponse loadLibrariesAndTemplateMetadata() throws ClientException {
+        try {
+            String jsonResponse = getServlet().loadLibrariesAndTemplateMetadata();
+            return JsonUtils.fromJson(jsonResponse, LibrariesAndTemplatesResponse.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to load libraries and template metadata: " + e.getMessage(), e);
         }
     }
 

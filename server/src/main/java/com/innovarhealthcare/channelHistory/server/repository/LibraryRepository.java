@@ -3,6 +3,7 @@ package com.innovarhealthcare.channelHistory.server.repository;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
 import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
@@ -69,6 +70,80 @@ public class LibraryRepository extends BaseRepository<CodeTemplateLibrary> {
     @Override
     public String getTypeName() {
         return TYPE_NAME;
+    }
+
+    /**
+     * Loads all libraries from Git repository
+     * <p>
+     * WARNING: This loads FULL library objects (deserialize all XML files)
+     * Only use this when you need complete library data including codeTemplateIds
+     * For lightweight access (id, name only), use loadMetadata() instead
+     * <p>
+     * This method is safe because:
+     * - Libraries are typically few in number (10-20)
+     * - Library XML files are small
+     * <p>
+     * DO NOT implement similar method for Channel/CodeTemplate repositories
+     * as they may contain thousands of items
+     *
+     * @return List of all libraries
+     * @throws GitAPIException if Git operations fail
+     * @throws IOException     if file operations fail
+     */
+    public List<CodeTemplateLibrary> loadAll() {
+        logger.debug("Loading all libraries (full objects)");
+
+        try {
+            // Get all committed files
+            List<GitOperations.CommittedFile> files = gitOps.readCommittedFiles(getDirectory());
+            List<CodeTemplateLibrary> libraries = new ArrayList<>();
+
+            // Log all files
+            for (int i = 0; i < files.size(); i++) {
+                logger.info("  File[{}]: {}", i, files.get(i).getFilePath());
+            }
+
+            for (GitOperations.CommittedFile file : files) {
+                try {
+                    String fileName = file.getFileName();
+                    String filePath = file.getFilePath();
+
+                    // Validate UUID filename
+                    if (!isValidUUID(fileName)) {
+                        logger.debug("Skipping non-UUID filename: {}", filePath);
+                        continue;
+                    }
+
+                    // Deserialize library
+                    String content = file.getContentAsString();
+                    CodeTemplateLibrary library = deserializeAndVerify(content, filePath);
+
+                    if (library == null) {
+                        logger.warn("Failed to deserialize library: {}", filePath);
+                        continue;
+                    }
+
+                    // Validate ID matches filename
+                    if (!library.getId().equals(fileName)) {
+                        logger.warn("Library ID mismatch: filename='{}' but id='{}' in path: {}", fileName, library.getId(), filePath);
+                        continue;
+                    }
+
+                    libraries.add(library);
+
+                } catch (Exception e) {
+                    logger.error("Failed to load library from file: {}", file.getFilePath(), e);
+                    // Continue loading other libraries
+                }
+            }
+
+            logger.info("Loaded {} libraries from repository", libraries.size());
+            return libraries;
+
+        } catch (GitAPIException | IOException e) {
+            logger.error("Failed to load libraries from repository", e);
+            return new ArrayList<>();  // ← Return empty, không throw
+        }
     }
 
     /**
@@ -233,5 +308,20 @@ public class LibraryRepository extends BaseRepository<CodeTemplateLibrary> {
         }
 
         return names.toString();
+    }
+
+    /**
+     * Validates if string is a valid UUID format
+     */
+    private boolean isValidUUID(String str) {
+        if (str == null) {
+            return false;
+        }
+        try {
+            UUID.fromString(str);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

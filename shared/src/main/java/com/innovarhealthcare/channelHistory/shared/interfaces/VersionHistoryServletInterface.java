@@ -141,6 +141,26 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
     @MirthOperation(name = "commitAndPushCodeTemplate", display = "commit and push code template", permission = Permissions.CHANNELS_VIEW, type = Operation.ExecuteType.SYNC, auditable = false)
     public String commitAndPushCodeTemplate(@Param("codeTemplateId") @Parameter(description = "code template id", required = true) @QueryParam("codeTemplateId") String codeTemplateId, @Param("message") @Parameter(description = "message", required = true) @QueryParam("message") String message, @Param("userId") @Parameter(description = "user id", required = true) @QueryParam("userId") String userId) throws ClientException;
 
+
+    @GET
+    @Path("/libraries_and_templates")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Load libraries and code template metadata",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "loadLibrariesAndTemplateMetadata",
+            display = "Load libraries and code template metadata",
+            permission = Permissions.CODE_TEMPLATES_VIEW,
+            auditable = false
+    )
+    public String loadLibrariesAndTemplateMetadata() throws ClientException;
+
+
     @POST
     @Path("/saveLibraries")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
