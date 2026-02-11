@@ -20,6 +20,7 @@ import com.mirth.connect.donkey.util.xstream.SerializerException;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.InvalidChannel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
+import com.mirth.connect.model.codetemplates.CodeTemplateLibrary;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -176,6 +177,26 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to commit and push channel: " + e.getMessage(), e);
+        }
+    }
+
+    public String saveLibraries(List<CodeTemplateLibrary> libraries, String message, String userId) throws ClientException {
+        if (libraries == null) {
+            throw new IllegalArgumentException("libraries cannot be null");
+        }
+        if (StringUtils.isBlank(message)) {
+            throw new IllegalArgumentException("Commit message cannot be null or empty");
+        }
+        if (StringUtils.isBlank(userId)) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        try {
+            return getServlet().saveLibraries(libraries, message, userId);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to save and push libraries: " + e.getMessage(), e);
         }
     }
 

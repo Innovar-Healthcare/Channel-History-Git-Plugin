@@ -698,44 +698,4 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
     private void showError(String msg) {
         PlatformUI.MIRTH_FRAME.alertError(parent, msg);
     }
-
-
-    // ADD THESE PUBLIC GETTERS (for ContextManager to access actions)
-    // ========================================
-
-//    /**
-//     * Gets the action for showing diff window
-//     *
-//     * @return Runnable that shows diff window
-//     */
-//    public Runnable getDiffAction() {
-//        return this::showDiffWindow;
-//    }
-//
-//    /**
-//     * Gets the action for commit and push
-//     *
-//     * @return Runnable that commits and pushes changes
-//     */
-//    public Runnable getCommitPushAction() {
-//        return this::commitThenPushAction;
-//    }
-//
-//    /**
-//     * Gets the action for pulling/reloading history
-//     *
-//     * @return Runnable that reloads history
-//     */
-//    public Runnable getPullAction() {
-//        return () -> loadHistory(true);
-//    }
-//
-//    /**
-//     * Gets the action for reverting to selected version
-//     *
-//     * @return Runnable that reverts to selected version
-//     */
-//    public Runnable getRevertAction() {
-//        return this::revertAction;
-//    }
 }

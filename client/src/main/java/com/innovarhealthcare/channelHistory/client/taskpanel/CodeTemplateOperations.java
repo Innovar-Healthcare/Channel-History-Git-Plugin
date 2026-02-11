@@ -1,13 +1,9 @@
 package com.innovarhealthcare.channelHistory.client.taskpanel;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import com.innovarhealthcare.channelHistory.client.dialog.CodeTemplateHistoryDialogWithTaskPane;
 import com.innovarhealthcare.channelHistory.client.dialog.ImportCodeTemplateDialog;
+import com.innovarhealthcare.channelHistory.client.dialog.SaveLibrariesDialog;
 import com.mirth.connect.client.ui.Frame;
-import com.mirth.connect.model.codetemplates.CodeTemplateLibrary;
 
 /**
  * Business operations for Code Template context.
@@ -49,10 +45,13 @@ public class CodeTemplateOperations {
      * Saves libraries to repository
      */
     public void saveLibraries() {
-        Map<String, CodeTemplateLibrary> codeTemplateLibraries = parent.codeTemplatePanel.getCachedCodeTemplateLibraries();
-        List<CodeTemplateLibrary> libraries = new ArrayList<>(codeTemplateLibraries.values());
+        // Validate - ensure no unsaved changes
+        if (parent.isSaveEnabled()) {
+            parent.alertWarning(parent, "The libraries/code templates have been modified.\n You must save them before you can commit to remote repository.");
+            return;
+        }
 
-        // TODO: Implement actual save logic
-        parent.alertError(parent, "Not implemented yet");
+        // Show dialog - it handles everything (input, processing, result)
+        new SaveLibrariesDialog(parent);
     }
 }
