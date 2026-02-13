@@ -21,23 +21,30 @@ public class CodeTemplateOperations {
      * Shows code template history dialog
      */
     public void showHistory() {
-        // Check if there are unsaved changes
-        if (!parent.codeTemplatePanel.changesHaveBeenMade() || parent.codeTemplatePanel.promptSave(true)) {
-
-            String codeTemplateId = parent.codeTemplatePanel.getCurrentSelectedId();
-
-            if (codeTemplateId != null) {
-                new CodeTemplateHistoryDialogWithTaskPane(parent, codeTemplateId);
-            } else {
-                parent.alertError(parent, "No library/code template selected");
-            }
+        if (parent.isSaveEnabled()) {
+            parent.alertWarning(parent, "Please save your changes before viewing history.");
+            return;
         }
+
+        String codeTemplateId = parent.codeTemplatePanel.getCurrentSelectedId();
+
+        if (codeTemplateId == null) {
+            parent.alertError(parent, "No library/code template selected.");
+            return;
+        }
+
+        new CodeTemplateHistoryDialogWithTaskPane(parent, codeTemplateId);
     }
 
     /**
      * Shows import code template dialog
      */
     public void importTemplate() {
+        if (parent.isSaveEnabled()) {
+            parent.alertWarning(parent, "Please save your changes before importing.");
+            return;
+        }
+
         new ImportCodeTemplateDialog(parent);
     }
 
@@ -47,7 +54,7 @@ public class CodeTemplateOperations {
     public void saveLibraries() {
         // Validate - ensure no unsaved changes
         if (parent.isSaveEnabled()) {
-            parent.alertWarning(parent, "The libraries/code templates have been modified.\n You must save them before you can commit to remote repository.");
+            parent.alertWarning(parent, "Please save your changes before commit libraries to remote repository.");
             return;
         }
 

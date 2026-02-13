@@ -14,6 +14,8 @@ import com.innovarhealthcare.channelHistory.server.file.FileOperations;
 import com.innovarhealthcare.channelHistory.server.git.GitOperations;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.util.CommitMessageUtil;
+import com.mirth.connect.server.controllers.ControllerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -436,16 +438,9 @@ public abstract class BaseRepository<T> implements Repository<T> {
      * Builds commit message for an entity
      */
     protected String buildCommitMessage(T entity, String userMessage) {
-        StringBuilder sb = new StringBuilder();
+        // Get server name
+        String serverName = ControllerFactory.getFactory().createConfigurationController().getServerName();
 
-        sb.append("Save ").append(getTypeName().toLowerCase()).append(" '").append(extractName(entity)).append("'");
-
-        if (userMessage != null && !userMessage.trim().isEmpty()) {
-            sb.append(": ").append(userMessage);
-        }
-
-        sb.append("\n\nID: ").append(extractId(entity));
-
-        return sb.toString();
+        return CommitMessageUtil.create(entity, userMessage, serverId, serverName);
     }
 }

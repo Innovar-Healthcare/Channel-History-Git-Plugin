@@ -287,7 +287,6 @@ public class CodeTemplateHistoryDialogWithTaskPane extends JDialog {
      */
     private void setupBackgroundPainters() {
         // Remove background painter - use default/transparent background
-//        taskPaneContainer.setOpaque(false);
         taskPaneContainer.setBackground(this.getBackground());
     }
 
@@ -490,12 +489,7 @@ public class CodeTemplateHistoryDialogWithTaskPane extends JDialog {
 
         @Override
         protected String doInBackground() throws Exception {
-            Client client = parent.mirthClient;
-            String userId = String.valueOf(client.getCurrentUser().getId());
-
-            logger.debug("Committing code template: {} by user: {}", codeTemplateId, userId);
-
-            return VersionHistoryServiceClient.getInstance().commitAndPushCodeTemplate(codeTemplateId, message, userId);
+            return doCommitAndPushCodeTemplate(message);
         }
 
         @Override
@@ -512,18 +506,23 @@ public class CodeTemplateHistoryDialogWithTaskPane extends JDialog {
                 // Reload history in background
                 loadHistory(false);
             } catch (ExecutionException e) {
-                logger.error("Failed to commit code template", e);
-
-                Throwable cause = e.getCause();
-                String errorMsg = cause != null && cause.getMessage() != null ? cause.getMessage() : "Failed to commit and push code template to repository";
-
-                showError(errorMsg);
+                logger.error("Commit failed", e);
+                showError("Error: " + e.getCause().getMessage());
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logger.warn("Commit operation was interrupted");
+                showError("Operation cancelled");
             }
         }
+    }
+
+    private String doCommitAndPushCodeTemplate(String message) throws ClientException {
+        Client client = parent.mirthClient;
+        String userId = String.valueOf(client.getCurrentUser().getId());
+
+        logger.debug("Committing code template: {} by user: {}", codeTemplateId, userId);
+
+        return VersionHistoryServiceClient.getInstance().commitAndPushCodeTemplate(codeTemplateId, message, userId);
     }
 
     private void showInformation(String msg) {
