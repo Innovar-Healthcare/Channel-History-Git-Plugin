@@ -3,12 +3,14 @@ package com.innovarhealthcare.channelHistory.client.dialog;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
@@ -22,7 +24,7 @@ import javax.swing.tree.TreeSelectionModel;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.Insets;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -38,7 +40,6 @@ import com.innovarhealthcare.channelHistory.client.service.VersionHistoryService
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibraryMetadata;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
-import com.innovarhealthcare.channelHistory.shared.util.JsonUtils;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -64,10 +65,11 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     private JScrollPane treeScrollPane;
     private JTextField searchField;
     private JButton clearSearchButton;
+    private JButton selectAllButton;
+    private JButton deselectAllButton;
     private JButton okButton;
     private JButton cancelButton;
-    private JProgressBar loadingBar;
-    private JLabel loadingLabel;
+    private JLabel selectionCountLabel;
 
     // Data
     private Map<String, CodeTemplateLibrary> codeTemplateLibraries;
@@ -77,8 +79,6 @@ public class ImportCodeTemplateDialog extends MirthDialog {
 
     // State
     private boolean loading = false;
-    private boolean hasTemplates = false;
-
     private final Frame parent;
 
     public ImportCodeTemplateDialog(Frame parent) {
@@ -106,34 +106,41 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         setBackground(UIConstants.BACKGROUND_COLOR);
         getContentPane().setBackground(getBackground());
 
-        // Create tree with loading message
+        // Create tree
         DefaultMutableTreeNode loadingNode = new DefaultMutableTreeNode("Loading...");
         codeTemplateTree = new JTree(loadingNode);
         codeTemplateTree.setRootVisible(false);
         codeTemplateTree.setShowsRootHandles(true);
         codeTemplateTree.setCellRenderer(new CodeTemplateTreeCellRenderer());
-        codeTemplateTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        codeTemplateTree.getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
+        codeTemplateTree.addTreeSelectionListener(e -> updateSelectionCount());
 
         treeScrollPane = new JScrollPane(codeTemplateTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        treeScrollPane.setPreferredSize(new Dimension(650, 400));
+        treeScrollPane.setPreferredSize(new Dimension(550, 400));
 
         // Search field
         searchField = new JTextField();
-        searchField.setPreferredSize(new Dimension(100, 25));
         searchField.getDocument().addDocumentListener(new SimpleDoc(this::applyFilter));
 
-        clearSearchButton = new JButton("X");
-        clearSearchButton.setMargin(new Insets(2, 8, 2, 8));
+        clearSearchButton = new JButton("");
+        clearSearchButton.setIcon(UIConstants.ICON_X);
+        clearSearchButton.setToolTipText("Clear");
         clearSearchButton.addActionListener(e -> {
             searchField.setText("");
             applyFilter();
             searchField.requestFocusInWindow();
         });
 
-        // Loading indicator
-        loadingLabel = new JLabel("Loading libraries and code templates…");
-        loadingBar = new JProgressBar();
-        loadingBar.setIndeterminate(true);
+        // Selection buttons
+        selectAllButton = new JButton("Select All");
+        selectAllButton.addActionListener(e -> selectAllTemplates());
+
+        deselectAllButton = new JButton("Deselect All");
+        deselectAllButton.addActionListener(e -> codeTemplateTree.clearSelection());
+
+        // ✅ Selection counter
+        selectionCountLabel = new JLabel("0 selected");
+        selectionCountLabel.setForeground(Color.GRAY);
 
         // Buttons
         okButton = new JButton("Import");
@@ -145,44 +152,86 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     }
 
     private void initLayout() {
-        setLayout(new MigLayout("insets 8, novisualpadding, hidemode 3, fillx", "[pref][grow,fill][pref]", "[] [grow] []"));
+        setLayout(new MigLayout("insets 8, novisualpadding, hidemode 3, fill", "[pref][grow][pref][pref][pref]", "[][grow][]"));
 
-        // Search row
-        add(new JLabel("Search:"), "cell 0 0, alignx left");
-        add(searchField, "cell 1 0, growx, pushx, split 2");
-        add(clearSearchButton, "gapleft 0, wrap");
+        // Row 1
+        add(new JLabel("Search:"));
+        add(searchField, "growx, pushx");
+        add(clearSearchButton);
+        add(selectAllButton, "w 100!");
+        add(deselectAllButton, "w 100!, wrap");
 
-        // Tree
-        add(treeScrollPane, "cell 0 1 3 1, grow, push, wrap");
+        // Row 2
+        add(treeScrollPane, "span 5, grow, push, wrap");
 
-        // Left side (progress + text)
-        add(loadingBar, "cell 0 2, alignx left");
-        add(loadingLabel, "cell 0 2, gapleft 8, alignx left");
-
-        // Right side (buttons)
-        add(okButton, "cell 2 2, split 2, alignx right, w 120!");
-        add(cancelButton, "w 70!");
+        // Row 3
+        add(selectionCountLabel, "span 3, growx, pushx");
+        add(okButton, "w 100!");
+        add(cancelButton, "w 100!");
     }
 
     // ========== Loading State Management ==========
-
     private void enterLoadingState() {
         loading = true;
+        selectionCountLabel.setText("⏳ Loading templates...");
+        selectionCountLabel.setForeground(Color.GRAY);
         okButton.setEnabled(false);
-        setLoadingVisible(true);
+        selectAllButton.setEnabled(false);
+        deselectAllButton.setEnabled(false);
     }
 
     private void exitLoadingState() {
         loading = false;
-        setLoadingVisible(false);
-        okButton.setEnabled(hasTemplates);
+        selectAllButton.setEnabled(true);
+        deselectAllButton.setEnabled(true);
+        updateSelectionCount();  // This will update label and enable okButton if needed
     }
 
-    private void setLoadingVisible(boolean visible) {
-        loadingBar.setVisible(visible);
-        loadingLabel.setVisible(visible);
-        revalidate();
-        repaint();
+    private void updateSelectionCount() {
+        // Don't update if still loading
+        if (loading) {
+            return;
+        }
+
+        TreePath[] paths = codeTemplateTree.getSelectionPaths();
+
+        if (paths == null || paths.length == 0) {
+            selectionCountLabel.setText("0 selected");
+            okButton.setEnabled(false);
+            return;
+        }
+
+        // Count only template nodes
+        int count = 0;
+        for (TreePath path : paths) {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+            if (node.getUserObject() instanceof TemplateTreeNode) {
+                count++;
+            }
+        }
+
+        selectionCountLabel.setText(count + " selected");
+        okButton.setEnabled(count > 0);
+    }
+
+    private void selectAllTemplates() {
+        List<TreePath> paths = new ArrayList<>();
+
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) codeTemplateTree.getModel().getRoot();
+
+        // Traverse all nodes
+        for (int i = 0; i < root.getChildCount(); i++) {
+            DefaultMutableTreeNode libraryNode = (DefaultMutableTreeNode) root.getChildAt(i);
+
+            // Add all template children
+            for (int j = 0; j < libraryNode.getChildCount(); j++) {
+                DefaultMutableTreeNode templateNode = (DefaultMutableTreeNode) libraryNode.getChildAt(j);
+                paths.add(new TreePath(templateNode.getPath()));
+            }
+        }
+
+        // Select all paths
+        codeTemplateTree.setSelectionPaths(paths.toArray(new TreePath[0]));
     }
 
     // ========== Background Worker ==========
@@ -198,21 +247,22 @@ public class ImportCodeTemplateDialog extends MirthDialog {
             try {
                 LibrariesAndTemplatesResponse response = get();
 
-                System.out.println("Response JSON: " + JsonUtils.toJson(response));
-
                 librariesMetadata = response.getLibraries();
                 templatesMetadata = response.getTemplates();
 
                 buildTreeModel();
                 applyFilter();
 
-                hasTemplates = !templatesMetadata.isEmpty();
                 exitLoadingState();
-
             } catch (Exception ex) {
-                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load libraries and code templates from repository: " + (ex.getMessage() != null ? ex.getMessage() : "Unknown error"));
+                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load libraries and code templates from repository.\n" + (ex.getMessage() != null ? ex.getMessage() : "Unknown error"));
+
+                loading = false;
+                selectionCountLabel.setText("Failed to load");
+                selectionCountLabel.setForeground(Color.RED);
                 okButton.setEnabled(false);
-                setLoadingVisible(false);
+                selectAllButton.setEnabled(false);
+                deselectAllButton.setEnabled(false);
             }
         }
     }
@@ -356,79 +406,129 @@ public class ImportCodeTemplateDialog extends MirthDialog {
     // ========== Import Action ==========
 
     private void onOkImport(ActionEvent evt) {
-        TreePath selectedPath = codeTemplateTree.getSelectionPath();
+        TreePath[] selectedPaths = codeTemplateTree.getSelectionPaths();
 
-        if (selectedPath == null) {
-            PlatformUI.MIRTH_FRAME.alertInformation(parent, "Please select a code template to import!");
+        if (selectedPaths == null || selectedPaths.length == 0) {
+            PlatformUI.MIRTH_FRAME.alertInformation(parent, "Please select at least one code template to import!");
             return;
         }
 
-        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) selectedPath.getLastPathComponent();
-        Object userObject = selectedNode.getUserObject();
-
-        // Must select a template node, not a library node
-        if (!(userObject instanceof TemplateTreeNode)) {
-            PlatformUI.MIRTH_FRAME.alertInformation(parent, "Please select a code template (not a library) to import!");
-            return;
-        }
-
-        TemplateTreeNode templateNode = (TemplateTreeNode) userObject;
-        RepoItemMetadata metadata = templateNode.metadata;
-
-        // Choose a library to import into
-        CodeTemplateLibrary selectedLib = promptForLibrarySelectionByIndex();
-        if (selectedLib == null) {
-            return;
-        }
-
-        try {
-            // Load full code template content from repository
-            CodeTemplate template = VersionHistoryServiceClient.getInstance().loadCodeTemplateFromRepo(metadata);
-
-            if (template == null) {
-                PlatformUI.MIRTH_FRAME.alertError(parent, "Failed to load code template content");
-                return;
+        // Collect selected templates
+        List<TemplateTreeNode> selectedTemplates = new ArrayList<>();
+        for (TreePath path : selectedPaths) {
+            DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
+            Object userObject = selectedNode.getUserObject();
+            if (userObject instanceof TemplateTreeNode) {
+                selectedTemplates.add((TemplateTreeNode) userObject);
             }
+        }
 
-            if (doAddCodeTemplate(template, selectedLib)) {
-                dispose();
-                parent.codeTemplatePanel.doRefreshCodeTemplates();
-            }
-        } catch (ClientException e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
+        if (selectedTemplates.isEmpty()) {
+            PlatformUI.MIRTH_FRAME.alertInformation(parent, "Please select code templates (not libraries) to import!");
+            return;
+        }
+
+        // Create simple import dialog
+        ImportDialog importDialog = new ImportDialog(new ArrayList<>(codeTemplateLibraries.values()), selectedTemplates.size());
+
+        // Set import callback
+        importDialog.setImportCallback(() -> {
+            CodeTemplateLibrary selectedLib = importDialog.getSelectedLibrary();
+
+            SwingWorker<ImportResult, String> worker = new SwingWorker<ImportResult, String>() {
+                @Override
+                protected ImportResult doInBackground() throws Exception {
+                    int successCount = 0;
+                    int failCount = 0;
+                    List<String> errors = new ArrayList<>();
+
+                    int total = selectedTemplates.size();
+                    publish("Importing " + total + " template(s) into: " + selectedLib.getName());
+                    publish("─".repeat(60));
+
+                    for (int i = 0; i < total; i++) {
+                        TemplateTreeNode templateNode = selectedTemplates.get(i);
+                        RepoItemMetadata metadata = templateNode.metadata;
+
+                        importDialog.setProgress(i + 1, total);
+                        publish(String.format("[%d/%d] %s", i + 1, total, metadata.getName()));
+
+                        try {
+                            CodeTemplate template = VersionHistoryServiceClient.getInstance().loadCodeTemplateFromRepo(metadata);
+
+                            if (template == null) {
+                                failCount++;
+                                errors.add(metadata.getName() + ": Could not load content");
+                                publish("  ❌ Failed: Could not load content");
+                                continue;
+                            }
+
+                            String error = doAddCodeTemplate(template, selectedLib);
+                            if (error == null) {
+                                successCount++;
+                                publish("  ✅ Imported");
+                            } else {
+                                failCount++;
+                                errors.add(metadata.getName() + ": " + error);
+                                publish("  ❌ " + error);
+                            }
+                        } catch (Exception e) {
+                            failCount++;
+                            String msg = e.getMessage() != null ? e.getMessage() : "Unknown error";
+                            errors.add(metadata.getName() + ": " + msg);
+                            publish("  ❌ " + msg);
+                        }
+
+                        Thread.sleep(100);
+                    }
+
+                    return new ImportResult(successCount, failCount, errors);
+                }
+
+                @Override
+                protected void process(List<String> chunks) {
+                    for (String msg : chunks) {
+                        importDialog.appendLog(msg);
+                    }
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        ImportResult result = get();
+
+                        importDialog.appendLog("─".repeat(60));
+                        importDialog.complete(result.failCount > 0, result.successCount, result.failCount);
+
+                        if (result.successCount > 0) {
+                            importDialog.setRefreshNeeded(true);
+                        }
+                    } catch (Exception e) {
+                        importDialog.appendLog("❌ Import failed: " + e.getMessage());
+                        importDialog.complete(true, 0, selectedTemplates.size());
+                    }
+                }
+            };
+
+            worker.execute();
+        });
+
+        importDialog.setVisible(true);
+
+        if (importDialog.isRefreshNeeded()) {
+            parent.codeTemplatePanel.doRefreshCodeTemplates();
+            dispose();
         }
     }
 
     /**
-     * Shows a modal combo (sorted by name) and returns the actual library object (id-safe).
+     * Add code template to library
+     *
+     * @param template        Template to add
+     * @param selectedLibrary Target library
+     * @return null if success, error message if failed
      */
-    private CodeTemplateLibrary promptForLibrarySelectionByIndex() {
-        if (codeTemplateLibraries == null || codeTemplateLibraries.isEmpty()) {
-            PlatformUI.MIRTH_FRAME.alertError(parent, "No Code Template Libraries available.");
-            return null;
-        }
-
-        // Stable list used for both display and selection → index maps directly to object
-        List<CodeTemplateLibrary> libs = new ArrayList<>(codeTemplateLibraries.values());
-        libs.sort(Comparator.comparing(l -> {
-            String n = l.getName();
-            return n == null ? "" : n.toLowerCase();
-        }));
-
-        String[] names = libs.stream().map(l -> l.getName() == null ? "(unnamed)" : l.getName()).toArray(String[]::new);
-
-        JComboBox<String> combo = new JComboBox<>(names);
-        int result = JOptionPane.showConfirmDialog(this, combo, "Choose Library to Import Into", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
-
-        if (result == JOptionPane.OK_OPTION) {
-            int idx = combo.getSelectedIndex();
-            return (idx >= 0 && idx < libs.size()) ? libs.get(idx) : null;
-        }
-
-        return null;
-    }
-
-    private boolean doAddCodeTemplate(CodeTemplate template, CodeTemplateLibrary selectedLibrary) throws ClientException {
+    private String doAddCodeTemplate(CodeTemplate template, CodeTemplateLibrary selectedLibrary) {
         try {
             Client client = parent.mirthClient;
 
@@ -436,8 +536,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
             CodeTemplate idTemplateMatch = getTemplateById(templateId);
 
             if (idTemplateMatch != null) {
-                PlatformUI.MIRTH_FRAME.alertError(parent, "Template \"" + template.getName() + "\" (ID: " + templateId + ") already exists.");
-                return false;
+                return "Template already exists";
             }
 
             Map<String, CodeTemplateLibrary> libraryMap = new HashMap<>();
@@ -485,7 +584,6 @@ public class ImportCodeTemplateDialog extends MirthDialog {
 
             CodeTemplateLibrarySaveResult updateSummary = client.updateLibrariesAndTemplates(new ArrayList<>(libraryMap.values()), new HashSet<>(), new ArrayList<>(codeTemplateMap.values()), new HashSet<>(), true);
 
-            String message = "";
             if (!updateSummary.isOverrideNeeded()) {
                 if (updateSummary.isLibrariesSuccess()) {
                     List<CodeTemplate> failedCodeTemplates = new ArrayList<>();
@@ -501,28 +599,24 @@ public class ImportCodeTemplateDialog extends MirthDialog {
                     }
 
                     if (failedCodeTemplates.isEmpty()) {
-                        // Successfully imported code template
-                        return true;
+                        return null;
                     }
 
                     if (firstCause != null) {
-                        message = firstCause.getMessage();
+                        return firstCause.getMessage();
                     } else {
-                        message = "unknown error";
+                        return "Unknown error";
                     }
-                    PlatformUI.MIRTH_FRAME.alertError(parent, message);
                 } else {
-                    PlatformUI.MIRTH_FRAME.alertError(parent, updateSummary.getLibrariesCause().getMessage());
+                    return updateSummary.getLibrariesCause().getMessage();
                 }
             } else {
-                message = "One or more code templates or libraries is outdated " + "(use the \"overwrite\" option to import them anyway).";
-                PlatformUI.MIRTH_FRAME.alertError(parent, message);
+                return "One or more code templates or libraries is outdated";
             }
-        } catch (Exception e) {
-            PlatformUI.MIRTH_FRAME.alertThrowable(PlatformUI.MIRTH_FRAME, e);
-        }
 
-        return false;
+        } catch (Exception e) {
+            return e.getMessage() != null ? e.getMessage() : "Unknown error";
+        }
     }
 
     /**
@@ -619,7 +713,7 @@ public class ImportCodeTemplateDialog extends MirthDialog {
                     TemplateTreeNode tempNode = (TemplateTreeNode) userObject;
                     setIcon(templateIcon);
 
-                    // ✅ Show name with shortened ID
+                    // Show name with shortened ID
                     String displayText = tempNode.metadata.getName();
                     String id = tempNode.metadata.getId();
 
@@ -660,6 +754,191 @@ public class ImportCodeTemplateDialog extends MirthDialog {
         @Override
         public void changedUpdate(DocumentEvent e) {
             r.run();
+        }
+    }
+
+    /**
+     * Result class for import operation
+     */
+    private static class ImportResult {
+        final int successCount;
+        final int failCount;
+        final List<String> errors;
+
+        ImportResult(int successCount, int failCount, List<String> errors) {
+            this.successCount = successCount;
+            this.failCount = failCount;
+            this.errors = errors;
+        }
+    }
+
+    /**
+     * Simple import dialog: confirmation + library selection + progress + result
+     */
+    private class ImportDialog extends JDialog {
+
+        private JLabel messageLabel;
+        private JLabel libraryLabel;
+        private JComboBox<String> libraryComboBox;
+        private JProgressBar progressBar;
+        private JTextArea logArea;
+        private JScrollPane logScrollPane;
+        private JButton importButton;
+        private JButton closeButton;
+
+        private final List<CodeTemplateLibrary> libraries;
+        private CodeTemplateLibrary selectedLibrary;
+        private boolean refreshNeeded = false;
+        private boolean importing = false;
+
+        private List<CodeTemplateLibrary> sortedLibs;
+        private Runnable importCallback;
+
+        public ImportDialog(List<CodeTemplateLibrary> libraries, int templateCount) {
+            super(ImportCodeTemplateDialog.this, "Import Code Templates", true);
+            this.libraries = libraries;
+
+            initComponents(templateCount);
+            initLayout();
+
+            setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+            pack();
+            setLocationRelativeTo(ImportCodeTemplateDialog.this);
+        }
+
+        private void initComponents(int templateCount) {
+            messageLabel = new JLabel(String.format("<html><b>Import %d code template%s?</b></html>", templateCount, templateCount > 1 ? "s" : ""));
+
+            libraryLabel = new JLabel("Select library:");
+
+            sortedLibs = new ArrayList<>(libraries);
+            sortedLibs.sort(Comparator.comparing(l -> {
+                String n = l.getName();
+                return n == null ? "" : n.toLowerCase();
+            }));
+
+            String[] libraryNames = sortedLibs.stream().map(l -> l.getName() == null ? "(unnamed)" : l.getName()).toArray(String[]::new);
+
+            libraryComboBox = new JComboBox<>(libraryNames);
+            progressBar = new JProgressBar(0, templateCount);
+            progressBar.setStringPainted(true);
+            progressBar.setVisible(false);
+
+            logArea = new JTextArea(12, 50);
+            logArea.setEditable(false);
+            logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+            logArea.setBackground(new Color(250, 250, 250));
+
+            logScrollPane = new JScrollPane(logArea);
+            logScrollPane.setVisible(false);
+
+            importButton = new JButton("Import");
+            importButton.addActionListener(e -> {
+                int idx = libraryComboBox.getSelectedIndex();
+                if (idx >= 0 && idx < sortedLibs.size()) {
+                    selectedLibrary = sortedLibs.get(idx);
+                    startImport();
+                }
+            });
+
+            closeButton = new JButton("Cancel");
+            closeButton.addActionListener(e -> {
+                if (!importing) {
+                    dispose();
+                }
+            });
+        }
+
+        private void initLayout() {
+            setLayout(new MigLayout("insets 16, hidemode 3, fill", "[pref][grow, fill]", "[]10[]8[]10[grow]12[]"));
+
+            // Row 1: message
+            add(messageLabel, "span 2, wrap");
+
+            // Row 2: library select
+            add(libraryLabel, "ay 0.5");
+            add(libraryComboBox, "growx, pushx, wmin 280, wrap");
+
+            // Row 3: progress (hidden initially)
+            add(progressBar, "span 2, growx, pushx, wrap");
+
+            // Row 4: log (hidden initially)
+            add(logScrollPane, "span 2, grow, push, wmin 520, hmin 220, wrap");
+
+            // Row 5: buttons (right aligned)
+            add(importButton, "span 2, split 2, right, w 110!");
+            add(closeButton, "w 110!");
+        }
+
+        private void startImport() {
+            importing = true;
+
+            messageLabel.setText("<html><b>Importing templates...</b></html>");
+
+            libraryLabel.setVisible(false);
+            libraryComboBox.setVisible(false);
+
+            progressBar.setVisible(true);
+            logScrollPane.setVisible(true);
+
+            importButton.setEnabled(false);
+            closeButton.setText("Close");
+            closeButton.setEnabled(false);
+
+            pack();
+
+            if (importCallback != null) {
+                importCallback.run();
+            }
+        }
+
+        public void appendLog(String message) {
+            SwingUtilities.invokeLater(() -> {
+                logArea.append(message + "\n");
+                logArea.setCaretPosition(logArea.getDocument().getLength());
+            });
+        }
+
+        public void setProgress(int current, int total) {
+            SwingUtilities.invokeLater(() -> {
+                progressBar.setMaximum(total);
+                progressBar.setValue(current);
+                progressBar.setString(String.format("%d / %d", current, total));
+            });
+        }
+
+        public void complete(boolean hasErrors, int successCount, int failCount) {
+            SwingUtilities.invokeLater(() -> {
+                importing = false;
+
+                progressBar.setValue(progressBar.getMaximum());
+
+                if (hasErrors) {
+                    messageLabel.setText(String.format("<html><b style='color: #CC6600;'>\u26A0 Import completed: %d succeeded, %d failed</b></html>", successCount, failCount));
+                } else {
+                    messageLabel.setText(String.format("<html><b style='color: #008000;'>\u2713 Import completed successfully (%d templates)</b></html>", successCount));
+                }
+
+                closeButton.setEnabled(true);
+                closeButton.requestFocusInWindow();
+                pack();
+            });
+        }
+
+        public void setImportCallback(Runnable callback) {
+            this.importCallback = callback;
+        }
+
+        public CodeTemplateLibrary getSelectedLibrary() {
+            return selectedLibrary;
+        }
+
+        public void setRefreshNeeded(boolean needed) {
+            this.refreshNeeded = needed;
+        }
+
+        public boolean isRefreshNeeded() {
+            return refreshNeeded;
         }
     }
 }

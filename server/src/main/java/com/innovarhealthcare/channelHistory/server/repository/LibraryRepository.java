@@ -99,6 +99,7 @@ public class LibraryRepository extends BaseRepository<CodeTemplateLibrary> {
             List<CodeTemplateLibrary> libraries = new ArrayList<>();
 
             // Log all files
+            // thai: debug why??????
             for (int i = 0; i < files.size(); i++) {
                 logger.info("  File[{}]: {}", i, files.get(i).getFilePath());
             }
