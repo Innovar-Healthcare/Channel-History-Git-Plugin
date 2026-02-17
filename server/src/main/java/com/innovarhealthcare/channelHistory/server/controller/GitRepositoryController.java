@@ -6,6 +6,7 @@ import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryExcept
 import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
 import com.innovarhealthcare.channelHistory.server.service.GitRepositoryServiceLegacy;
 import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,7 +21,7 @@ public class GitRepositoryController {
 
     private GitRepositoryService gitService;
     private VersionHistoryService versionHistoryService;
-    private Properties properties;
+    private VersionHistoryProperties versionHistoryProperties;  // Mutable
 
     private static GitRepositoryController instance;
 
@@ -43,11 +44,11 @@ public class GitRepositoryController {
 
         try {
             // Store config
-            this.properties = properties;
+            this.versionHistoryProperties = new VersionHistoryProperties(properties);
 
             // Create service objects
-            this.gitService = new GitRepositoryService();
-            this.versionHistoryService = new VersionHistoryService(gitService);
+            this.gitService = new GitRepositoryService(versionHistoryProperties);
+            this.versionHistoryService = new VersionHistoryService(gitService, versionHistoryProperties);
 
             logger.info("Plugin initialized (services created)");
 
@@ -66,7 +67,7 @@ public class GitRepositoryController {
 
         try {
             // Start Git infrastructure (may take time)
-            gitService.startGit(properties);
+            gitService.startGit();
 
             // Log Git status
             if (gitService.isGitAvailable()) {
@@ -103,9 +104,9 @@ public class GitRepositoryController {
         try {
             gitService.stopGit();
 
-            this.properties = newProperties;
+            versionHistoryProperties.fromProperties(newProperties);
 
-            gitService.startGit(newProperties);
+            gitService.startGit();
 
             if (gitService.isGitAvailable()) {
                 logger.info("✅ Git started successfully and is AVAILABLE");
@@ -121,15 +122,13 @@ public class GitRepositoryController {
     }
 
     public boolean isEnable() {
-        return service.isEnable();
+        return versionHistoryProperties.isEnableVersionHistory();
     }
 
     public boolean isGitConnected() {
-        return service.isGitConnected();
-    }
-
-    public boolean isAutoCommit() {
-        return service.isAutoCommit();
+        // thai fix later
+        return true;
+        //return service.isGitConnected();
     }
 
     public GitRepositoryServiceLegacy getService() {
@@ -147,6 +146,4 @@ public class GitRepositoryController {
             throw new GitRepositoryException(e);
         }
     }
-
-
 }

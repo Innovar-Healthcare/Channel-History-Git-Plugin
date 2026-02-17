@@ -2,7 +2,6 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
 import com.innovarhealthcare.channelHistory.server.file.FileOperations;
@@ -66,7 +65,9 @@ public class GitRepositoryService {
     private String gitUnavailableReason;
 
     // ========== Configuration ==========
-    private VersionHistoryProperties properties;
+    // Hold reference
+    private VersionHistoryProperties versionHistoryProperties;
+
     private File repositoryDirectory;
     private String serverId;
     private ObjectXMLSerializer serializer;
@@ -81,10 +82,11 @@ public class GitRepositoryService {
      * Creates a new GitRepositoryService.
      * Must call startGit() before using.
      */
-    public GitRepositoryService() {
+    public GitRepositoryService(VersionHistoryProperties versionHistoryProperties) {
         this.started = false;
         this.gitAvailable = false;
         this.gitUnavailableReason = "Git not initialized";
+        this.versionHistoryProperties = versionHistoryProperties;
     }
 
     // ========== Lifecycle Methods ==========
@@ -93,24 +95,13 @@ public class GitRepositoryService {
      * Starts Git infrastructure with configuration.
      * Does NOT throw exception if Git unavailable - sets flag instead.
      *
-     * @param props Configuration properties
      * @throws Exception only for critical initialization errors (not Git-specific)
      */
-    public synchronized void startGit(Properties props) throws Exception {
+    public synchronized void startGit() throws Exception {
         logger.info("Starting Git infrastructure...");
 
-        if (props == null) {
-            throw new IllegalArgumentException("Properties cannot be null");
-        }
-
-        // Initialize VersionHistoryProperties
-        if (this.properties == null) {
-            this.properties = new VersionHistoryProperties();
-        }
-        this.properties.fromProperties(props);
-
         // Check if enabled
-        if (!this.properties.isEnableVersionHistory()) {
+        if (!this.versionHistoryProperties.isEnableVersionHistory()) {
             logger.warn("Version history is disabled in configuration");
             this.gitAvailable = false;
             this.gitUnavailableReason = "Version history is disabled";
@@ -304,16 +295,16 @@ public class GitRepositoryService {
     private void validateConfiguration() {
         logger.debug("Validating configuration...");
 
-        if (properties.getGitSettings() == null) {
+        if (versionHistoryProperties.getGitSettings() == null) {
             throw new IllegalStateException("Git settings not configured");
         }
 
-        String remoteUrl = properties.getGitSettings().getRemoteRepositoryUrl();
+        String remoteUrl = versionHistoryProperties.getGitSettings().getRemoteRepositoryUrl();
         if (remoteUrl == null || remoteUrl.trim().isEmpty()) {
             throw new IllegalStateException("Remote repository URL is not configured");
         }
 
-        String branch = properties.getGitSettings().getBranchName();
+        String branch = versionHistoryProperties.getGitSettings().getBranchName();
         if (branch == null || branch.trim().isEmpty()) {
             throw new IllegalStateException("Branch name is not configured");
         }
@@ -327,7 +318,7 @@ public class GitRepositoryService {
     private void createSshSessionFactory() {
         logger.debug("Creating SSH session factory...");
 
-        final String sshPrivateKey = properties.getGitSettings().getSshPrivateKey();
+        final String sshPrivateKey = versionHistoryProperties.getGitSettings().getSshPrivateKey();
 
         if (sshPrivateKey == null || sshPrivateKey.trim().isEmpty()) {
             logger.warn("No SSH private key configured, using default");
@@ -417,8 +408,8 @@ public class GitRepositoryService {
     private void cloneFromRemote() throws Exception {
         logger.info("No local repository found, cloning from remote...");
 
-        String remoteUrl = properties.getGitSettings().getRemoteRepositoryUrl();
-        String branch = properties.getGitSettings().getBranchName();
+        String remoteUrl = versionHistoryProperties.getGitSettings().getRemoteRepositoryUrl();
+        String branch = versionHistoryProperties.getGitSettings().getBranchName();
 
         logger.info("Cloning from: {}", remoteUrl);
         logger.info("Branch: {}", branch);
@@ -436,7 +427,7 @@ public class GitRepositoryService {
         logger.info("Pulling latest changes from remote...");
 
         try {
-            PullResult result = git.pull().setRemote("origin").setRemoteBranchName(properties.getGitSettings().getBranchName()).setTransportConfigCallback(this::configureSsh).call();
+            PullResult result = git.pull().setRemote("origin").setRemoteBranchName(versionHistoryProperties.getGitSettings().getBranchName()).setTransportConfigCallback(this::configureSsh).call();
 
             if (result.isSuccessful()) {
                 logger.info("Successfully pulled latest changes");
@@ -457,7 +448,7 @@ public class GitRepositoryService {
     private void createOperations() {
         logger.debug("Creating operations...");
 
-        gitOperations = new GitOperations(git, properties.getGitSettings().getBranchName(), sshSessionFactory);
+        gitOperations = new GitOperations(git, versionHistoryProperties.getGitSettings().getBranchName(), sshSessionFactory);
 
         fileOperations = new FileOperations(repositoryDirectory, serializer);
 

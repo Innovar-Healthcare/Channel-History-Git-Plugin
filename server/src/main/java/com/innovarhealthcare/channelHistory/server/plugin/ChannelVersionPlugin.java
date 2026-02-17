@@ -2,10 +2,8 @@ package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
-import com.innovarhealthcare.channelHistory.server.service.GitRepositoryServiceLegacy;
+import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
-import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthServerClass;
 import com.mirth.connect.client.core.ControllerException;
 import com.mirth.connect.model.Channel;
@@ -23,7 +21,7 @@ import org.apache.logging.log4j.Logger;
 
 @MirthServerClass
 public class ChannelVersionPlugin implements ChannelPlugin {
-    private static final Logger logger = LogManager.getLogger(ChannelVersionPlugin.class);
+    private final Logger logger = LogManager.getLogger(ChannelVersionPlugin.class);
 
     @Override
     public String getPluginPointName() {
@@ -44,22 +42,15 @@ public class ChannelVersionPlugin implements ChannelPlugin {
 
     @Override
     public void remove(Channel channel, ServerEventContext sec) {
-        GitRepositoryController controller = GitRepositoryController.getInstance();
-        GitRepositoryServiceLegacy gitService = controller.getService();
-        VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
+        VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
 
-        if (!controller.isEnable()) {
-            logger.debug("Git repository is disabled, skipping remove.");
-            return;
-        }
-
-        if (!controller.isGitConnected()) {
-            logger.debug("Git repository is not connected, skipping remove.");
-            return;
-        }
-
-        if (!versionHistoryProperties.isEnableSyncDelete()) {
+        if (!service.isEnableSyncDelete()) {
             logger.debug("Sync Delete is disabled.");
+            return;
+        }
+
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
             return;
         }
 
@@ -68,20 +59,17 @@ public class ChannelVersionPlugin implements ChannelPlugin {
         try {
             user = ControllerFactory.getFactory().createUserController().getUser(sec.getUserId(), null);
             if (user == null) {
-                logger.error("Failed to retrieve user for ID: " + sec.getUserId());
+                logger.error("Failed to retrieve user for ID: {}", sec.getUserId());
                 return;
             }
         } catch (ControllerException e) {
-            logger.error("Failed to retrieve user for ID: " + sec.getUserId() + ". Error: " + e.getMessage());
+            logger.error("User not found: {}. Exception: {}", sec.getUserId(), e.getMessage());
             return;
         }
 
+
         try {
-            String response = gitService.removeChannel(channel, "Remove Channel", user);
-            ResponseUtil responseUtil = new ResponseUtil(response);
-            if (!responseUtil.isSuccess()) {
-                logger.error(responseUtil.getOperationDetails());
-            }
+            service.deleteChannelAndPush(channel, "Remove Channel", user);
         } catch (GitNotConnectedException e) {
             logger.warn("Git repository not connected", e);
         } catch (Exception e) {

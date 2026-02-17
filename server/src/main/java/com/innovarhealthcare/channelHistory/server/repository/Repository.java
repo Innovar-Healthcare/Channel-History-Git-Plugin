@@ -66,6 +66,8 @@ public interface Repository<T> {
      */
     boolean delete(String id) throws IOException;
 
+    String deleteAndPush(String id, String message, PersonIdent committer, boolean forcePush) throws GitPushFailedException, GitOperationException;
+
     /**
      * Lists all entities in this repository
      *

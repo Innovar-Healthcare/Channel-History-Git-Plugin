@@ -2,10 +2,10 @@ package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
-import com.innovarhealthcare.channelHistory.server.service.GitRepositoryServiceLegacy;
+import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
+import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
+import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
-import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
-import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthServerClass;
 import com.mirth.connect.client.core.ControllerException;
 import com.mirth.connect.model.ServerEventContext;
@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 @MirthServerClass
 public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
-    private static Logger logger = LogManager.getLogger(CodeTemplateVersionPlugin.class);
+    private static final Logger logger = LogManager.getLogger(CodeTemplateVersionPlugin.class);
 
     @Override
     public String getPluginPointName() {
@@ -41,22 +41,15 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
 
     @Override
     public void remove(CodeTemplate ct, ServerEventContext sec) {
-        GitRepositoryController controller = GitRepositoryController.getInstance();
-        GitRepositoryServiceLegacy gitService = controller.getService();
-        VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
+        VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
 
-        if (!controller.isEnable()) {
-            logger.debug("Git repository is disabled, skipping remove.");
-            return;
-        }
-
-        if (!controller.isGitConnected()) {
-            logger.debug("Git repository is not connected, skipping remove.");
-            return;
-        }
-
-        if (!versionHistoryProperties.isEnableSyncDelete()) {
+        if (!service.isEnableSyncDelete()) {
             logger.debug("Sync Delete is disabled.");
+            return;
+        }
+
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
             return;
         }
 
@@ -65,20 +58,16 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
         try {
             user = ControllerFactory.getFactory().createUserController().getUser(sec.getUserId(), null);
             if (user == null) {
-                logger.error("Failed to retrieve user for ID: " + sec.getUserId());
+                logger.error("Failed to retrieve user for ID: {}", sec.getUserId());
                 return;
             }
         } catch (ControllerException e) {
-            logger.error("Failed to retrieve user for ID: " + sec.getUserId() + ". Error: " + e.getMessage());
+            logger.error("User not found: {}. Exception: {}", sec.getUserId(), e.getMessage());
             return;
         }
 
         try {
-            String response = gitService.removeCodeTemplate(ct, "Remove Code Template", user);
-            ResponseUtil responseUtil = new ResponseUtil(response);
-            if (!responseUtil.isSuccess()) {
-                logger.error(responseUtil.getOperationDetails());
-            }
+            service.deleteCodeTemplateAndPush(ct, "Remove Code Template", user);
         } catch (GitNotConnectedException e) {
             logger.warn("Git repository not connected", e);
         } catch (Exception e) {
@@ -93,22 +82,15 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
     @Override
     public void save(CodeTemplate ct, ServerEventContext sec) {
         // Check Git configuration
-        GitRepositoryController controller = GitRepositoryController.getInstance();
-        GitRepositoryServiceLegacy gitService = controller.getService();
-        VersionHistoryProperties versionHistoryProperties = gitService.getVersionHistoryProperties();
+        VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
 
-        if (!controller.isEnable()) {
-            logger.debug("Git repository is disabled, skipping auto-commit.");
-            return;
-        }
-
-        if (!controller.isGitConnected()) {
-            logger.debug("Git repository is not connected, skipping auto-commit.");
-            return;
-        }
-
-        if (!controller.isAutoCommit()) {
+        if (!service.isAutoCommitEnabled()) {
             logger.debug("Auto-commit is disabled, skipping auto-commit.");
+            return;
+        }
+
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
             return;
         }
 
@@ -117,27 +99,33 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
         try {
             user = ControllerFactory.getFactory().createUserController().getUser(sec.getUserId(), null);
             if (user == null) {
-                logger.error("Failed to retrieve user for ID: " + sec.getUserId());
+                logger.error("User not found: {}", sec.getUserId());
                 return;
             }
         } catch (ControllerException e) {
-            logger.error("Failed to retrieve user for ID: " + sec.getUserId() + ". Error: " + e.getMessage());
+            logger.error("User not found: {}. Exception: {}", sec.getUserId(), e.getMessage());
             return;
         }
 
         // Commit and push
         try {
-            String message = versionHistoryProperties.getAutoCommitMsg();
-            String result = gitService.commitAndPushCodeTemplate(ct, message, user);
-
-            ResponseUtil responseUtil = new ResponseUtil(result);
-            if (!responseUtil.isSuccess()) {
-                logger.error(responseUtil.getOperationDetails());
-            }
+            // Auto Commit: message = ""
+            service.saveCodeTemplateAndPush(ct, "", user);
         } catch (GitNotConnectedException e) {
-            logger.warn("Git repository not connected", e);
+            // Git not available - 503 Service Unavailable
+            logger.error("Git not connected: {}", e.getMessage());
+        } catch (GitPushFailedException e) {
+            // Push failed - 409 Conflict
+            logger.error("Push failed: {}", e.getMessage());
+        } catch (GitOperationException e) {
+            // Other Git operations failed - 500 Internal Server Error
+            logger.error("Git operation failed: {}", e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            // Validation failed (from Service layer) - 400 Bad Request
+            logger.error("Validation failed: {}", e.getMessage());
         } catch (Exception e) {
-            logger.error("Unexpected error while committing and pushing CodeTemplate ID: {}. Error: {}", ct.getId(), e.getMessage(), e);
+            // Unexpected error - 500 Internal Server Error
+            logger.error("Unexpected error saving code template", e);
         }
     }
 

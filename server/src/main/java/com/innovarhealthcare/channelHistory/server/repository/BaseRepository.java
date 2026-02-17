@@ -125,7 +125,7 @@ public abstract class BaseRepository<T> implements Repository<T> {
     }
 
     @Override
-    public final String saveAndPush(T entity, String message, PersonIdent committer, boolean forcePush) throws GitPushFailedException, GitOperationException {
+    public String saveAndPush(T entity, String message, PersonIdent committer, boolean forcePush) throws GitPushFailedException, GitOperationException {
         if (entity == null) {
             throw new IllegalArgumentException("Entity cannot be null");
         }
@@ -245,6 +245,80 @@ public abstract class BaseRepository<T> implements Repository<T> {
         }
 
         return deleted;
+    }
+
+    @Override
+    public final String deleteAndPush(String id, String message, PersonIdent committer, boolean forcePush) throws GitPushFailedException, GitOperationException {
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("ID cannot be null or empty");
+        }
+        if (committer == null) {
+            throw new IllegalArgumentException("Committer cannot be null");
+        }
+
+        logger.info("Deleting and pushing {} with ID: {}", getTypeName(), id);
+
+        StringBuilder result = new StringBuilder();
+
+        try {
+            // Validate git state
+            gitOps.validateCurrentBranch();
+
+            if (!gitOps.hasCommits()) {
+                throw new GitOperationException("No commits in repository, cannot pull or push");
+            }
+
+            // Check for remote changes
+            result.append("Remote Check Result:\n");
+            boolean remoteHasChanges = gitOps.hasRemoteChanges();
+            result.append("  Remote Changes: ").append(remoteHasChanges ? "Detected" : "None").append("\n");
+
+            if (remoteHasChanges) {
+                result.append("Pull Overwrite Result:\n");
+                String pullResult = gitOps.pullWithOverwrite();
+                result.append(pullResult);
+            } else {
+                result.append("  Skipped: No pull needed, local and remote branches are in sync\n");
+            }
+
+            // Delete entity
+            String path = generateFilePath(id);
+            boolean deleted = delete(id);
+
+            if (!deleted) {
+                throw new GitOperationException(getTypeName() + " with ID " + id + " does not exist");
+            }
+
+            // Build commit message
+            String serverName = ControllerFactory.getFactory().createConfigurationController().getServerName();
+            String commitMessage = "Delete " + getTypeName() + " (ID: " + id + ")\n\n" + "Message: " + (message != null ? message : "No message provided") + "\n" + "Server: " + serverName + " (" + serverId + ")";
+
+            // Commit
+            String commitSha = gitOps.commitFiles(Collections.singletonList(path), commitMessage, committer);
+
+            result.append("Commit: Staged and committed deletion of ").append(getTypeName().toLowerCase()).append(" '").append(id).append("' (").append(commitSha.substring(0, 7)).append(")\n");
+
+            // Push
+            result.append("Push Result:\n");
+            String pushResult = gitOps.push(forcePush);
+            result.append(pushResult);
+
+            result.append("\nSuccess: Committed and pushed deletion of ").append(getTypeName().toLowerCase()).append(" '").append(id).append("' to remote repository");
+
+            logger.info("Successfully deleted and pushed {} with ID: {}", getTypeName(), id);
+
+            return result.toString();
+
+        } catch (GitPushFailedException e) {
+            logger.error("Push failed for {} deletion '{}': {}", getTypeName(), id, e.getMessage());
+            throw e;
+        } catch (GitAPIException e) {
+            throw new GitOperationException("Git operation failed: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new GitOperationException("I/O error: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new GitOperationException("Unexpected error: " + e.getMessage(), e);
+        }
     }
 
 //    @Override

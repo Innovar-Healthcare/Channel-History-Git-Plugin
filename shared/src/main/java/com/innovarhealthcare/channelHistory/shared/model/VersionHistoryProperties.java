@@ -2,6 +2,9 @@ package com.innovarhealthcare.channelHistory.shared.model;
 
 import java.util.Properties;
 
+/* This class is MUTABLE to support in-place configuration updates without
+ * recreating service objects (avoiding memory leaks).
+ */
 public class VersionHistoryProperties {
     public static final String VERSION_HISTORY_ENABLE = "versionHistory.enable";
     public static final String VERSION_HISTORY_AUTO_COMMIT_ENABLE = "versionHistory.auto.commit.enable";
@@ -26,6 +29,7 @@ public class VersionHistoryProperties {
         enableAutoCommitPrompt = false;
         autoCommitMsg = "";
         enableSyncDelete = false;
+        gitSettings = null;
     }
 
     public VersionHistoryProperties(Properties properties) {
@@ -75,8 +79,15 @@ public class VersionHistoryProperties {
         String branchName = getStringProperty(properties, VERSION_HISTORY_REMOTE_BRANCH, "");
         String sshPrivateKey = getStringProperty(properties, VERSION_HISTORY_REMOTE_SSH_KEY, "");
 
-        // Create GitSettings
-        gitSettings = new GitSettings(remoteRepositoryUrl, branchName, sshPrivateKey);
+        // Update GitSettings IN-PLACE or create new if null
+        if (gitSettings == null) {
+            gitSettings = new GitSettings(remoteRepositoryUrl, branchName, sshPrivateKey);
+        } else {
+            // Update existing GitSettings object (preserves references in GitRepositoryService)
+            gitSettings.setRemoteRepositoryUrl(remoteRepositoryUrl);
+            gitSettings.setBranchName(branchName);
+            gitSettings.setSshPrivateKey(sshPrivateKey);
+        }
     }
 
     public boolean isEnableAutoCommit() {

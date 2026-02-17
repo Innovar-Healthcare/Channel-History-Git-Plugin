@@ -15,6 +15,7 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemp
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibraryMetadata;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.User;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
@@ -49,20 +50,28 @@ public class VersionHistoryService {
 
     // ========== Dependencies ==========
     private final GitRepositoryService gitRepositoryService;
+    private VersionHistoryProperties versionHistoryProperties;
 
     /**
      * Creates VersionHistoryService with Git infrastructure.
-     *
-     * @param gitRepositoryService Git infrastructure service
      */
-    public VersionHistoryService(GitRepositoryService gitRepositoryService) {
+    public VersionHistoryService(GitRepositoryService gitRepositoryService, VersionHistoryProperties versionHistoryProperties) {
         if (gitRepositoryService == null) {
             throw new IllegalArgumentException("GitRepositoryService cannot be null");
         }
         this.gitRepositoryService = gitRepositoryService;
+        this.versionHistoryProperties = versionHistoryProperties;
     }
 
     // ========== Business Methods ==========
+
+    public boolean isAutoCommitEnabled() {
+        return versionHistoryProperties.isEnableAutoCommit();
+    }
+
+    public boolean isEnableSyncDelete() {
+        return versionHistoryProperties.isEnableSyncDelete();
+    }
 
     /**
      * Saves a SINGLE channel and commits/pushes to git repository
@@ -132,6 +141,11 @@ public class VersionHistoryService {
         validateCodeTemplate(template);
         validateUser(user);
 
+        // Resolve message (null/empty = auto commit)
+        if (message == null || message.isEmpty()) {
+            message = versionHistoryProperties.getAutoCommitMsg();
+        }
+
         // Convert User to PersonIdent
         PersonIdent committer = GitCommitterHelper.fromUser(user);
 
@@ -187,6 +201,74 @@ public class VersionHistoryService {
 
         logger.info("saveLibrariesAndPush completed successfully");
 
+        return result;
+    }
+
+    public String deleteChannelAndPush(Channel channel, String message, User user) throws GitNotConnectedException, GitPushFailedException, GitOperationException, IllegalArgumentException {
+
+        logger.info("deleteChannelAndPush: channel={}", channel != null ? channel.getId() : null);
+
+        // Check Git availability
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        // Validate inputs
+        validateChannel(channel);
+        validateUser(user);
+
+        // Resolve message (null/empty = auto commit)
+        if (message == null || message.isEmpty()) {
+            message = versionHistoryProperties.getAutoCommitMsg();
+        }
+
+        // Convert User to PersonIdent
+        PersonIdent committer = GitCommitterHelper.fromUser(user);
+
+        // Get repository
+        ChannelRepository repository = gitRepositoryService.getChannelRepository();
+
+        // Execute operation
+        boolean forcePush = false;
+        String result = repository.deleteAndPush(channel.getId(), message, committer, forcePush);
+
+        logger.info("deleteChannelAndPush completed successfully");
+        return result;
+    }
+
+    public String deleteCodeTemplateAndPush(CodeTemplate template, String message, User user) throws GitNotConnectedException, GitPushFailedException, GitOperationException, IllegalArgumentException {
+
+        logger.info("deleteCodeTemplateAndPush: template={}", template != null ? template.getId() : null);
+
+        // Check Git availability
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        // Validate inputs
+        validateCodeTemplate(template);
+        validateUser(user);
+
+        // Resolve message (null/empty = auto commit)
+        if (message == null || message.isEmpty()) {
+            message = versionHistoryProperties.getAutoCommitMsg();
+        }
+
+        // Convert User to PersonIdent
+        PersonIdent committer = GitCommitterHelper.fromUser(user);
+
+        // Get repository
+        CodeTemplateRepository repository = gitRepositoryService.getCodeTemplateRepository();
+
+        // Execute operation
+        boolean forcePush = false;
+        String result = repository.deleteAndPush(template.getId(), message, committer, forcePush);
+
+        logger.info("deleteCodeTemplateAndPush completed successfully");
         return result;
     }
 
