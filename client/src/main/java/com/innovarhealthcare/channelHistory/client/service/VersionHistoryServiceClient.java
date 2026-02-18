@@ -410,10 +410,10 @@ public class VersionHistoryServiceClient {
 
         try {
             // Call servlet to get global scripts content at specific revision
-            String jsonResponse = getServlet().getContentAtRevision("scripts", revision, VersionControlConstants.MODE_GLOBAL_SCRIPTS);
+            String xmlContent = getServlet().getContentAtRevision("scripts", revision, VersionControlConstants.MODE_GLOBAL_SCRIPTS);
 
             // Deserialize JSON response to Map
-            Map<String, String> scripts = JsonUtils.fromJson(jsonResponse, Map.class);
+            @SuppressWarnings("unchecked") Map<String, String> scripts = ObjectXMLSerializer.getInstance().deserialize(xmlContent, Map.class);
 
             if (scripts == null || scripts.isEmpty()) {
                 throw new ClientException("No global scripts found at revision: " + revision);

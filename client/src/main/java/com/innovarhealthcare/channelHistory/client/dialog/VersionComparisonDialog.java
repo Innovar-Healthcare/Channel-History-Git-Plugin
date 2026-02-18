@@ -101,11 +101,6 @@ public class VersionComparisonDialog extends MirthDialog {
         dialog.prepareTextView(leftContent, rightContent);
         dialog.prepareObjectView();
 
-        // Conditionally add channel view if both objects are channels
-//        if (leftObject instanceof Channel && rightObject instanceof Channel) {
-//            dialog.prepareChannelView();
-//        }
-
         // Finalize and show
         dialog.finalizeAndShow();
 

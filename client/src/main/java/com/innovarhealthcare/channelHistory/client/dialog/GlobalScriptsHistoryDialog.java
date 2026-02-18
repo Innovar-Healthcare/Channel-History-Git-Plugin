@@ -340,10 +340,9 @@ public class GlobalScriptsHistoryDialog extends JDialog {
                 Map<String, String> scriptsToRevert = VersionHistoryServiceClient.getInstance().loadGlobalScriptsFromRepo(commitHash);
 
                 // Update MC with reverted scripts
-                Client client = parent.mirthClient;
-                client.setGlobalScripts(scriptsToRevert);
+                parent.globalScriptsPanel.importAllScripts(scriptsToRevert);
 
-                showInformation("Successfully reverted global scripts. Please refresh the Global Scripts panel to see changes.");
+                showInformation("Global scripts reverted to selected version.\n\n" + "Next steps:\n" + "1. Save in the Global Scripts panel to apply changes to Mirth Connect\n" + "2. Use Commit & Push to save this revert to the repository");
 
             } catch (ClientException e) {
                 showError("Failed to revert global scripts: " + e.getMessage());

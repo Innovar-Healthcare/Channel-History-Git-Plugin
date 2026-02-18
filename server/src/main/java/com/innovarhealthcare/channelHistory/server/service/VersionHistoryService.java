@@ -534,6 +534,26 @@ public class VersionHistoryService {
         return content;
     }
 
+    public String getGlobalScriptsContentAtRevision(String id, String revision) throws GitNotConnectedException, GitFileNotFoundException, GitOperationException {
+
+        logger.info("getCodeTemplateContentAtRevision: id={}, revision={}", id, revision);
+
+        validateId(id);
+        validateRevision(revision);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        GlobalScriptRepository repository = gitRepositoryService.getGlobalScriptRepository();
+        String content = repository.getContent(id, revision);
+
+        logger.info("Successfully loaded code template content: id={}, size={} bytes", id, content.length());
+        return content;
+    }
+
     /**
      * Gets commit history for a library
      *

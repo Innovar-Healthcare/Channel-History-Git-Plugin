@@ -160,6 +160,9 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
                 case VersionControlConstants.MODE_CODE_TEMPLATE:
                     return getService().getCodeTemplateContentAtRevision(id, revision);
 
+                case VersionControlConstants.MODE_GLOBAL_SCRIPTS:
+                    return getService().getGlobalScriptsContentAtRevision(id, revision);
+
                 default:
                     throw new IllegalArgumentException("Invalid mode: " + mode + ". Must be 'channel', 'library', or 'codetemplate'");
             }

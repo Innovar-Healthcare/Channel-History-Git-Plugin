@@ -3,6 +3,7 @@ package com.innovarhealthcare.channelHistory.client.taskpanel;
 import com.innovarhealthcare.channelHistory.client.dialog.CommitPushGlobalScriptsDialog;
 import com.innovarhealthcare.channelHistory.client.dialog.GlobalScriptsHistoryDialog;
 import com.mirth.connect.client.ui.Frame;
+import com.mirth.connect.client.ui.PlatformUI;
 
 /**
  * Operations for Global Script history management in the left task panel.
@@ -33,7 +34,7 @@ public class GlobalScriptOperations {
      * Displays tree view with expandable nodes for each script type (Deploy, Undeploy, Preprocessor, Postprocessor).
      */
     public void showDiff() {
-
+        PlatformUI.MIRTH_FRAME.alertInformation(parent, "Diff functionality coming soon - will show tree comparison between two versions");
     }
 
     /**
