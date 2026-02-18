@@ -25,6 +25,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthApiProvider;
@@ -196,6 +197,83 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
                     required = true)
             @QueryParam("userId") String userId
             ) throws ClientException;
+
+    @POST
+    @Path("/commitAndPushGlobalScripts")
+    @ApiResponse(responseCode = "200", description = "commit and push global scripts", content = {
+            @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+            @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+    })
+    @MirthOperation(
+            name = "commitAndPushGlobalScripts",
+            display = "commit and push global scripts",
+            permission = Permissions.GLOBAL_SCRIPTS_EDIT,
+            auditable = false
+    )
+    public String commitAndPushGlobalScripts(
+            @Param("globalScripts")
+            @RequestBody(
+                    description = "The Global Scripts map to commit.",
+                    required = true,
+                    content = {
+                            @Content(
+                                    mediaType = MediaType.APPLICATION_XML,
+                                    schema = @Schema(implementation = Map.class),
+                                    examples = {
+                                            @ExampleObject(
+                                                    name = "globalScripts",
+                                                    summary = "Global Scripts XML Map",
+                                                    value = "<map>\n" +
+                                                            "  <entry>\n" +
+                                                            "    <string>Deploy</string>\n" +
+                                                            "    <string>// Deploy script content\nreturn;</string>\n" +
+                                                            "  </entry>\n" +
+                                                            "  <entry>\n" +
+                                                            "    <string>Undeploy</string>\n" +
+                                                            "    <string>// Undeploy script content\nreturn;</string>\n" +
+                                                            "  </entry>\n" +
+                                                            "  <entry>\n" +
+                                                            "    <string>Preprocessor</string>\n" +
+                                                            "    <string>// Preprocessor script content\nreturn message;</string>\n" +
+                                                            "  </entry>\n" +
+                                                            "  <entry>\n" +
+                                                            "    <string>Postprocessor</string>\n" +
+                                                            "    <string>// Postprocessor script content\nreturn;</string>\n" +
+                                                            "  </entry>\n" +
+                                                            "</map>"
+                                            )
+                                    }
+                            ),
+                            @Content(
+                                    mediaType = MediaType.APPLICATION_JSON,
+                                    schema = @Schema(implementation = Map.class),
+                                    examples = {
+                                            @ExampleObject(
+                                                    name = "globalScripts",
+                                                    summary = "Global Scripts JSON Map",
+                                                    value = "{\n" +
+                                                            "  \"Deploy\": \"// Deploy script content\\nreturn;\",\n" +
+                                                            "  \"Undeploy\": \"// Undeploy script content\\nreturn;\",\n" +
+                                                            "  \"Preprocessor\": \"// Preprocessor script content\\nreturn message;\",\n" +
+                                                            "  \"Postprocessor\": \"// Postprocessor script content\\nreturn;\"\n" +
+                                                            "}"
+                                            )
+                                    }
+                            )
+                    }
+            )
+            Map<String, String> globalScripts,
+
+            @Param("message")
+            @Parameter(description = "commit message", required = true)
+            @QueryParam("message")
+            String message,
+
+            @Param("userId")
+            @Parameter(description = "user id", required = true)
+            @QueryParam("userId")
+            String userId
+    ) throws ClientException;
 }
 
 //@formatter:on

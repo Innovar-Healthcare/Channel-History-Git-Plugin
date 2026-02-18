@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
@@ -9,6 +10,7 @@ import com.innovarhealthcare.channelHistory.server.exception.GitOperationExcepti
 import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
 import com.innovarhealthcare.channelHistory.server.repository.ChannelRepository;
 import com.innovarhealthcare.channelHistory.server.repository.CodeTemplateRepository;
+import com.innovarhealthcare.channelHistory.server.repository.GlobalScriptRepository;
 import com.innovarhealthcare.channelHistory.server.repository.LibraryRepository;
 import com.innovarhealthcare.channelHistory.server.util.GitCommitterHelper;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
@@ -201,6 +203,52 @@ public class VersionHistoryService {
 
         logger.info("saveLibrariesAndPush completed successfully");
 
+        return result;
+    }
+
+    /**
+     * Saves global scripts and commits/pushes to git repository
+     *
+     * @param scripts Map of global scripts (Deploy, Undeploy, Preprocessor, Postprocessor)
+     * @param message Commit message (can be null or empty)
+     * @param user    User making the commit
+     * @return Result message with details of the operation
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitPushFailedException   if push operation fails
+     * @throws GitOperationException    if other Git operations fail
+     * @throws IllegalArgumentException if validation fails
+     */
+    public String saveGlobalScriptsAndPush(Map<String, String> scripts, String message, User user) throws GitNotConnectedException, GitPushFailedException, GitOperationException, IllegalArgumentException {
+
+        logger.info("saveGlobalScriptsAndPush: scripts={}", scripts != null ? scripts.keySet() : null);
+
+        // Check Git availability
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        // Validate inputs
+        validateGlobalScripts(scripts);
+        validateUser(user);
+
+        // Resolve message (null/empty = auto commit)
+        if (message == null || message.isEmpty()) {
+            message = versionHistoryProperties.getAutoCommitMsg();
+        }
+
+        // Convert User to PersonIdent
+        PersonIdent committer = GitCommitterHelper.fromUser(user);
+
+        // Get repository
+        GlobalScriptRepository repository = gitRepositoryService.getGlobalScriptRepository();
+
+        // Execute operation
+        boolean forcePush = false;
+        String result = repository.saveAndPush(scripts, message, committer, forcePush);
+
+        logger.info("saveGlobalScriptsAndPush completed successfully");
         return result;
     }
 
@@ -572,6 +620,25 @@ public class VersionHistoryService {
         logger.info("Retrieved {} commits for code template: {}", history.size(), id);
         return history;
     }
+
+    public List<CommitMetaData> getGlobalScriptsHistory(String id) throws GitNotConnectedException, GitOperationException, IllegalArgumentException {
+
+        logger.info("getGlobalScriptsHistory: id={}", id);
+
+        validateId(id);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        GlobalScriptRepository repository = gitRepositoryService.getGlobalScriptRepository();
+        List<CommitMetaData> history = repository.getHistory(id);
+
+        logger.info("Retrieved {} commits for global scripts: {}", history.size(), id);
+        return history;
+    }
     // ========== Status Methods ==========
 
     /**
@@ -647,6 +714,41 @@ public class VersionHistoryService {
                 throw new IllegalArgumentException("Library at index " + i + " (ID: " + library.getId() + ") has null or empty name");
             }
         }
+    }
+
+    /**
+     * Validates global scripts map
+     */
+    private void validateGlobalScripts(Map<String, String> scripts) throws IllegalArgumentException {
+        if (scripts == null) {
+            throw new IllegalArgumentException("Global scripts cannot be null");
+        }
+
+        // Check for valid script types only (content can be empty)
+        for (String scriptType : scripts.keySet()) {
+            if (scriptType == null || scriptType.trim().isEmpty()) {
+                throw new IllegalArgumentException("Script type cannot be null or empty");
+            }
+
+            // Validate against known types
+            if (!isValidScriptType(scriptType)) {
+                throw new IllegalArgumentException("Invalid script type: " + scriptType + ". Expected: Deploy, Undeploy, Preprocessor, or Postprocessor");
+            }
+        }
+
+        logger.debug("Global scripts validation passed: {} script types", scripts.size());
+    }
+
+    /**
+     * Checks if script type is valid
+     */
+    private boolean isValidScriptType(String scriptType) {
+        final String DEPLOY_SCRIPT = "Deploy";
+        final String UNDEPLOY_SCRIPT = "Undeploy";
+        final String PREPROCESSOR_SCRIPT = "Preprocessor";
+        final String POSTPROCESSOR_SCRIPT = "Postprocessor";
+
+        return DEPLOY_SCRIPT.equals(scriptType) || UNDEPLOY_SCRIPT.equals(scriptType) || PREPROCESSOR_SCRIPT.equals(scriptType) || POSTPROCESSOR_SCRIPT.equals(scriptType);
     }
 
     /**

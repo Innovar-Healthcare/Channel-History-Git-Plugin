@@ -1,6 +1,7 @@
 package com.innovarhealthcare.channelHistory.client.service;
 
 import java.util.List;
+import java.util.Map;
 
 import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
@@ -343,6 +344,87 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to commit and push code template: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Commit and push global scripts to the repository
+     *
+     * @param globalScripts Map of global scripts (Deploy, Undeploy, Preprocessor, Postprocessor) to commit
+     * @param message       User's commit message describing the changes
+     * @param userId        The user ID performing the commit
+     * @return String containing the operation result and commit information
+     * @throws ClientException if global scripts are invalid, commit fails, or push operation fails
+     */
+    public String commitAndPushGlobalScripts(Map<String, String> globalScripts, String message, String userId) throws ClientException {
+        if (globalScripts == null) {
+            throw new IllegalArgumentException("Global scripts cannot be null");
+        }
+        if (globalScripts.isEmpty()) {
+            throw new IllegalArgumentException("Global scripts cannot be empty");
+        }
+        if (StringUtils.isBlank(message)) {
+            throw new IllegalArgumentException("Commit message cannot be null or empty");
+        }
+        if (StringUtils.isBlank(userId)) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+
+        try {
+            return getServlet().commitAndPushGlobalScripts(globalScripts, message, userId);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to commit and push global scripts: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Load complete commit history for global scripts
+     *
+     * @return List of commit history entries (newest first)
+     * @throws ClientException if Git error occurs or global scripts not found
+     */
+    public List<CommitMetaData> loadGlobalScriptsHistory() throws ClientException {
+        try {
+            String jsonResponse = getServlet().getHistory("scripts", VersionControlConstants.MODE_GLOBAL_SCRIPTS);
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to load global scripts history: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Load global scripts from repository at specific revision
+     *
+     * @param revision Git revision (commit hash)
+     * @return Map of global scripts (Deploy, Undeploy, Preprocessor, Postprocessor)
+     * @throws ClientException if global scripts not found, invalid, or Git error occurs
+     */
+    public Map<String, String> loadGlobalScriptsFromRepo(String revision) throws ClientException {
+        if (StringUtils.isBlank(revision)) {
+            throw new ClientException("Revision cannot be null or empty");
+        }
+
+        try {
+            // Call servlet to get global scripts content at specific revision
+            String jsonResponse = getServlet().getContentAtRevision("scripts", revision, VersionControlConstants.MODE_GLOBAL_SCRIPTS);
+
+            // Deserialize JSON response to Map
+            Map<String, String> scripts = JsonUtils.fromJson(jsonResponse, Map.class);
+
+            if (scripts == null || scripts.isEmpty()) {
+                throw new ClientException("No global scripts found at revision: " + revision);
+            }
+
+            return scripts;
+
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to load global scripts from repository: " + e.getMessage(), e);
         }
     }
 

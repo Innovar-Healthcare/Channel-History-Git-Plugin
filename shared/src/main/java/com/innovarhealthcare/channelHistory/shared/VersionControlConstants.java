@@ -17,6 +17,7 @@ public class VersionControlConstants {
     public static final String MODE_CHANNEL = "MODE_CHANNEL";
     public static final String MODE_CODE_TEMPLATE = "MODE_CODE_TEMPLATE";
     public static final String MODE_CODE_TEMPLATE_LIBRARY = "MODE_CODE_TEMPLATE_LIBRARY";
+    public static final String MODE_GLOBAL_SCRIPTS = "MODE_GLOBAL_SCRIPTS";
 
     public VersionControlConstants() {
     }

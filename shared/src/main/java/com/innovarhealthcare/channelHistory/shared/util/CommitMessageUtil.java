@@ -1,5 +1,7 @@
 package com.innovarhealthcare.channelHistory.shared.util;
 
+import java.util.Map;
+
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.codetemplates.CodeTemplateLibrary;
@@ -217,6 +219,10 @@ public class CommitMessageUtil {
             return "Batch Libraries";
         }
 
+        if (object instanceof Map) {
+            return "Global Scripts";
+        }
+
         return "Object";
     }
 
@@ -240,6 +246,10 @@ public class CommitMessageUtil {
             return ((BatchLibraries) object).getNames();
         }
 
+        if (object instanceof Map) {
+            return "Global Scripts";
+        }
+        
         return "Unknown";
     }
 

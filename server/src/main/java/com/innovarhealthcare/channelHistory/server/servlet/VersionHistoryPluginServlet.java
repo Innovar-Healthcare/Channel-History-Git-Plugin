@@ -6,6 +6,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
 import java.io.FileNotFoundException;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
@@ -94,7 +95,9 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
                 case VersionControlConstants.MODE_CODE_TEMPLATE:
                     history = getService().getCodeTemplateHistory(id);
                     break;
-
+                case VersionControlConstants.MODE_GLOBAL_SCRIPTS:
+                    history = getService().getGlobalScriptsHistory(id);
+                    break;
                 default:
                     throw new IllegalArgumentException("Invalid mode: " + mode + ". Must be 'channel', 'library', or 'codetemplate'");
             }
@@ -426,6 +429,70 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
             // Unexpected error - 500 Internal Server Error
             logger.error("Unexpected error saving libraries", e);
             throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to save libraries: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String commitAndPushGlobalScripts(Map<String, String> globalScripts, String message, String userId) {
+        // Validate commit message
+        if (message == null || message.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Commit message is required");
+        }
+
+        // Validate and get user
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "User ID is required");
+        }
+
+        User user;
+        try {
+            user = userController.getUser(Integer.valueOf(userId), null);
+            if (user == null) {
+                throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.INVALID_REQUEST, "User not found: " + userId);
+            }
+        } catch (NumberFormatException e) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Invalid user ID format: " + userId);
+        } catch (ControllerException e) {
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.INVALID_REQUEST, "User not found: " + userId);
+        }
+
+        // Validate global scripts
+        if (globalScripts == null) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Global scripts cannot be null");
+        }
+
+        if (globalScripts.isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Global scripts cannot be empty");
+        }
+
+        // Call service
+        try {
+            return getService().saveGlobalScriptsAndPush(globalScripts, message, user);
+
+        } catch (GitNotConnectedException e) {
+            // Git not available - 503 Service Unavailable
+            logger.error("Git not connected: {}", e.getMessage());
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitPushFailedException e) {
+            // Push failed - 409 Conflict
+            logger.error("Push failed: {}", e.getMessage());
+            throw new VersionHistoryApiException(Response.Status.CONFLICT, VersionHistoryErrorCodes.PUSH_REJECTED, "Push rejected: " + e.getMessage());
+
+        } catch (GitOperationException e) {
+            // Other Git operations failed - 500 Internal Server Error
+            logger.error("Git operation failed: {}", e.getMessage(), e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.GIT_OPERATION_ERROR, "Git operation failed: " + e.getMessage());
+
+        } catch (IllegalArgumentException e) {
+            // Validation failed (from Service layer) - 400 Bad Request
+            logger.error("Validation failed: {}", e.getMessage());
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Validation failed: " + e.getMessage());
+
+        } catch (Exception e) {
+            // Unexpected error - 500 Internal Server Error
+            logger.error("Unexpected error saving global scripts", e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to save global scripts: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 

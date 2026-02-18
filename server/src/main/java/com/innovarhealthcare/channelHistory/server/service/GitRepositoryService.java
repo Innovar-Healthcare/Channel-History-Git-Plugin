@@ -8,6 +8,7 @@ import com.innovarhealthcare.channelHistory.server.file.FileOperations;
 import com.innovarhealthcare.channelHistory.server.git.GitOperations;
 import com.innovarhealthcare.channelHistory.server.repository.ChannelRepository;
 import com.innovarhealthcare.channelHistory.server.repository.CodeTemplateRepository;
+import com.innovarhealthcare.channelHistory.server.repository.GlobalScriptRepository;
 import com.innovarhealthcare.channelHistory.server.repository.LibraryRepository;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.jcraft.jsch.JSch;
@@ -233,12 +234,12 @@ public class GitRepositoryService {
         ensureGitAvailable();
         return new CodeTemplateRepository(gitOperations, fileOperations, serverId);
     }
-    //
-    // public GlobalScriptRepository getGlobalScriptRepository() {
-    //     ensureStarted();
-    //     ensureGitAvailable();
-    //     return new GlobalScriptRepository(gitOperations, fileOperations);
-    // }
+
+    public GlobalScriptRepository getGlobalScriptRepository() {
+        ensureStarted();
+        ensureGitAvailable();
+        return new GlobalScriptRepository(gitOperations, fileOperations, serverId);
+    }
 
     // ========== Direct Access Methods ==========
 

@@ -35,7 +35,7 @@ public class TaskPaneContextManager {
     private void registerContextFactories() {
         contextFactories.put(TaskConstants.CODE_TEMPLATE_KEY, this::createCodeTemplateContext);
         contextFactories.put(TaskConstants.CHANNEL_KEY, this::createChannelContext);
-        // contextFactories.put(TaskConstants.GLOBAL_SCRIPT_KEY, this::createGlobalScriptContext);
+        contextFactories.put(TaskConstants.GLOBAL_SCRIPT_KEY, this::createGlobalScriptContext);
     }
 
     /**
@@ -120,7 +120,10 @@ public class TaskPaneContextManager {
         return new ChannelPanelContext(operations);
     }
 
-    // private TaskPaneContext createGlobalScriptContext() { ... }
+    private TaskPaneContext createGlobalScriptContext() {
+        GlobalScriptOperations operations = new GlobalScriptOperations(parent);
+        return new GlobalScriptEditContext(operations);
+    }
 
     /**
      * Cleanup method - remove listeners if needed
