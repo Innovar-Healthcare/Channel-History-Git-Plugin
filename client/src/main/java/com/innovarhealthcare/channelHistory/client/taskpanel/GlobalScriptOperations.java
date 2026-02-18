@@ -21,11 +21,6 @@ public class GlobalScriptOperations {
      * Shows global script template history dialog
      */
     public void showHistory() {
-//        if (parent.isSaveEnabled()) {
-//            parent.alertWarning(parent, "Please save your changes before viewing history.");
-//            return;
-//        }
-
         new GlobalScriptsHistoryDialog(parent);
     }
 

@@ -23,10 +23,13 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import com.innovarhealthcare.channelHistory.client.diff.GlobalScriptsDiffDialog;
+import com.innovarhealthcare.channelHistory.client.diff.model.VersionInfo;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
 import com.innovarhealthcare.channelHistory.client.table.CommitMetaDataTable;
@@ -279,19 +282,40 @@ public class GlobalScriptsHistoryDialog extends JDialog {
         }
 
         try {
+            //@formatter:off
             Client client = parent.mirthClient;
             String currentUserName = client.getCurrentUser().getUsername();
 
             // Load current global scripts
-            Map<String, String> currentScripts = client.getGlobalScripts();
+            Map<String, String> currentScripts = parent.globalScriptsPanel.exportAllScripts();
 
             // Load historical global scripts
             Map<String, String> historicalScripts = VersionHistoryServiceClient.getInstance().loadGlobalScriptsFromRepo(lastChange.getHash());
 
-            // Create comparison dialog for global scripts
-            // TODO: Implement GlobalScriptsComparisonDialog with tree diff viewer
-            showInformation("Diff functionality coming soon - will show tree comparison of 4 script types");
+            // Create version info
+            VersionInfo currentVersion = VersionInfo.createCurrent(
+                    "Global Scripts",
+                    currentUserName
+            );
 
+            VersionInfo historicalVersion = VersionInfo.createHistorical(
+                    "Global Scripts",
+                    lastChange.getHash().substring(0, 7),
+                    lastChange.getCommitter(),
+                    new Date(lastChange.getTimestamp())
+            );
+
+            // Show comparison dialog
+            GlobalScriptsDiffDialog dialog = new GlobalScriptsDiffDialog(
+                    parent,
+                    "Compare Global Scripts",
+                    historicalScripts,    // scripts1
+                    currentScripts,       // scripts2
+                    historicalVersion,    // version1
+                    currentVersion        // version2 (will auto-sort to right)
+            );
+            dialog.setVisible(true);
+            //@formatter:on
         } catch (Exception e) {
             logger.error("Failed to show global scripts comparison", e);
             showError("Cannot compare versions: " + e.getMessage());
@@ -317,14 +341,35 @@ public class GlobalScriptsHistoryDialog extends JDialog {
         }
 
         try {
+            //@formatter:off
+            VersionHistoryServiceClient service = VersionHistoryServiceClient.getInstance();
             // Load both versions
-            Map<String, String> leftScripts = VersionHistoryServiceClient.getInstance().loadGlobalScriptsFromRepo(ri1.getHash());
-            Map<String, String> rightScripts = VersionHistoryServiceClient.getInstance().loadGlobalScriptsFromRepo(ri2.getHash());
+            Map<String, String> scripts1 = service.loadGlobalScriptsFromRepo(ri1.getHash());
+            Map<String, String> scripts2 = service.loadGlobalScriptsFromRepo(ri2.getHash());
 
-            // Create comparison dialog for global scripts
-            // TODO: Implement GlobalScriptsComparisonDialog with tree diff viewer
-            showInformation("Diff functionality coming soon - will show tree comparison between two versions");
+            // Create version info
+            VersionInfo version1 = VersionInfo.createHistorical(
+                    "Global Scripts",
+                    ri1.getHash().substring(0, 7),
+                    ri1.getCommitter(),
+                    new Date(ri1.getTimestamp())
+            );
+            VersionInfo version2 = VersionInfo.createHistorical(
+                    "Global Scripts",
+                    ri2.getHash().substring(0, 7),
+                    ri2.getCommitter(),
+                    new Date(ri2.getTimestamp())
+            );
 
+            // Dialog auto-sorts by timestamp
+            GlobalScriptsDiffDialog dialog = new GlobalScriptsDiffDialog(
+                    parent,
+                    "Compare Global Scripts",
+                    scripts1, scripts2,    // ← Neutral naming
+                    version1, version2     // ← Dialog decides which is left/right
+            );
+            dialog.setVisible(true);
+            //@formatter:on
         } catch (Exception e) {
             logger.error("Failed to show global scripts comparison", e);
             showError("Cannot compare versions: " + e.getMessage());
