@@ -1,20 +1,20 @@
 package com.innovarhealthcare.channelHistory.client.table;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.swing.JTextArea;
 import javax.swing.BorderFactory;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.table.TableCellRenderer;
 import java.awt.Component;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author Thai Tran
  * @create 2025-04-30 10:00 AM
  */
 public class MultiLineTableCellRenderer extends JTextArea implements TableCellRenderer {
-    private static final Logger logger = LoggerFactory.getLogger(MultiLineTableCellRenderer.class);
+    private static final Logger logger = LogManager.getLogger(MultiLineTableCellRenderer.class);
 
     public MultiLineTableCellRenderer() {
         setLineWrap(true);
@@ -24,8 +24,7 @@ public class MultiLineTableCellRenderer extends JTextArea implements TableCellRe
     }
 
     @Override
-    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
-                                                   boolean hasFocus, int row, int column) {
+    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
         String text = value != null ? value.toString() : "";
         setText(text);
 

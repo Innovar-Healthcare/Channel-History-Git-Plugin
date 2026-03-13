@@ -1,8 +1,9 @@
 package com.innovarhealthcare.channelHistory.shared.util;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 
 /**
  * Utility class for creating and parsing standardized JSON response objects for operations.
@@ -10,7 +11,7 @@ import org.slf4j.LoggerFactory;
  * and parse JSON strings. Designed for reuse in both server and client within a shared package.
  */
 public class ResponseUtil {
-    private static final Logger logger = LoggerFactory.getLogger(ResponseUtil.class);
+    private static final Logger logger = LogManager.getLogger(ResponseUtil.class);
 
     private boolean status;
     private String message;
@@ -126,8 +127,7 @@ public class ResponseUtil {
             logger.debug("Created JSON response: {}", jsonString);
             return jsonString;
         } catch (Exception e) {
-            logger.error("Failed to create JSON response: status={}, message={}, operationDetails={}",
-                    this.status, this.message, this.operationDetails, e);
+            logger.error("Failed to create JSON response: status={}, message={}, operationDetails={}", this.status, this.message, this.operationDetails, e);
             return "{\"status\":false,\"message\":\"Internal error creating response: " + e.getMessage() + "\",\"operationDetails\":\"\"}";
         }
     }

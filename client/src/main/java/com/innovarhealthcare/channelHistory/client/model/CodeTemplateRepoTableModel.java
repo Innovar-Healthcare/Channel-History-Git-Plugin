@@ -1,23 +1,20 @@
 package com.innovarhealthcare.channelHistory.client.model;
 
-import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
-import com.mirth.connect.model.codetemplates.CodeTemplate;
-import com.mirth.connect.model.converters.ObjectXMLSerializer;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
  * @create 2024-11-27 4:25 PM
  */
 public class CodeTemplateRepoTableModel extends AbstractTableModel {
-    private static final Logger logger = LoggerFactory.getLogger(CodeTemplateRepoTableModel.class);
+    private static final Logger logger = LogManager.getLogger(CodeTemplateRepoTableModel.class);
     private static final String[] COLUMN_NAMES = {"Code Template Id", "Code Template Name", "Last Commit Id"};
     private final List<RepoItemMetadata> entries;
 

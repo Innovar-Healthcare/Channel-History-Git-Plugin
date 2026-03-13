@@ -29,12 +29,11 @@
     <artifactId>server</artifactId>
 
     <properties>
-        <javax-servlet.version>4.0.1</javax-servlet.version>
-        <javax.version>2.1.1</javax.version>
         <rootDir>${project.basedir}/..</rootDir>
     </properties>
 
     <dependencies>
+        <!-- Internal shared module -->
         <dependency>
             <groupId>com.innovarhealthcare</groupId>
             <artifactId>shared</artifactId>
@@ -47,7 +46,6 @@
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
             <version>${javax-servlet.version}</version>
-            <scope>provided</scope>
         </dependency>
 
         <dependency>

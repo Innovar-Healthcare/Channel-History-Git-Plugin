@@ -53,30 +53,36 @@
         <maven-processor-plugin.version>3.3.3</maven-processor-plugin.version>
         <maven-assembly-plugin.version>3.3.0</maven-assembly-plugin.version>
         <maven-jarsigner-plugin.version>3.0.0</maven-jarsigner-plugin.version>
+        <maven-toolchains-plugin.version>3.1.0</maven-toolchains-plugin.version>
         <mirth-plugin-maven-plugin.version>2.0.4</mirth-plugin-maven-plugin.version>
+
         <lombok.version>1.18.22</lombok.version>
-        <miglayout.version>3.7.4</miglayout.version>
-        <swingx-core.version>1.6.2</swingx-core.version>
+        <miglayout.version>4.2</miglayout.version>
+        <swingx-core.version>1.6.2-2</swingx-core.version>
+        <javax-servlet.version>4.0.1</javax-servlet.version>
+        <javax-rs-api.version>2.0.1</javax-rs-api.version>
+        <javax.version>2.1.1</javax.version>
+        <swagger-annotations.version>2.0.10</swagger-annotations.version>
+        <jersey-media-multipart.version>2.22.1</jersey-media-multipart.version>
+        <commons-beanutils.version>1.9.4</commons-beanutils.version>
+        <commons-email.version>1.6.0</commons-email.version>
+        <commons-io.version>2.13.0</commons-io.version>
+        <commons-lang3.version>3.13.0</commons-lang3.version>
+        <commons-collections4.version>4.4</commons-collections4.version>
+        <junit.version>4.13.2</junit.version>
+        <httpclient.version>4.5.13</httpclient.version>
+        <log4j.version>2.17.2</log4j.version>
+        <mockito.version>4.11.0</mockito.version>
+        <jackson.version>2.14.3</jackson.version>
+        <jetty-server.version>9.4.57.v20241219</jetty-server.version>
 
         <jgit.version>5.13.5.202508271544-r</jgit.version>
         <jgit.JavaEWAH.version>1.1.7</jgit.JavaEWAH.version>
         <ognl.version>3.2.15</ognl.version>
         <objmeld.version>3.4.0</objmeld.version>
-        <javax-servlet.version>4.0.1</javax-servlet.version>
-        <javax-rs-api.version>2.0.1</javax-rs-api.version>
-        <commons-beanutils.version>1.9.4</commons-beanutils.version>
-        <xstream.version>1.4.18</xstream.version>
-        <junit.version>4.13.2</junit.version>
-        <rhino.version>1.7.13</rhino.version>
-        <xpp3.version>1.1.4c</xpp3.version>
-        <commons-io.version>2.10.0</commons-io.version>
-        <commons-lang3.version>3.13.0</commons-lang3.version>
-        <commons-collections4.version>4.4</commons-collections4.version>
-        <log4j.version>2.17.2</log4j.version>
-        <javassist.version>3.28.0-GA</javassist.version>
-        <jackson.version>2.14.3</jackson.version>
-        <json.version>20231013</json.version>
 
+        <json.version>20231013</json.version>
+        <java-diff-utils.version>4.12</java-diff-utils.version>
         <!-- Where should annotation processor generate aggregation file -->
         <processor.aggregator.path>distribution/aggregated.json</processor.aggregator.path>
 
@@ -110,11 +116,7 @@
             <artifactId>mirth-plugin-maven-plugin</artifactId>
             <version>${mirth-plugin-maven-plugin.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.eclipse.jgit</groupId>
-            <artifactId>org.eclipse.jgit</artifactId>
-            <version>${jgit.version}</version>
-        </dependency>
+
         <dependency>
             <groupId>com.mirth</groupId>
             <artifactId>server</artifactId>
@@ -138,51 +140,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.swinglabs.swingx</groupId>
-            <artifactId>swingx-core</artifactId>
-            <version>1.6.3</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.connectors</groupId>
-            <artifactId>vm-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.plugins.datatypes</groupId>
-            <artifactId>datatype-raw-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.plugins.datatypes</groupId>
-            <artifactId>datatype-hl7v2-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.connectors</groupId>
-            <artifactId>js-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.plugins</groupId>
-            <artifactId>javascriptstep-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.connectors</groupId>
-            <artifactId>tcp-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.plugins</groupId>
-            <artifactId>mllpmode-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.mirth.connect.connectors</groupId>
-            <artifactId>http-shared</artifactId>
-            <version>${mirth.version}</version>
-        </dependency>
-        <dependency>
             <groupId>com.mirth.connect</groupId>
             <artifactId>donkey-model</artifactId>
             <version>${mirth.version}</version>
@@ -191,6 +148,19 @@
             <groupId>com.mirth.connect</groupId>
             <artifactId>donkey-server</artifactId>
             <version>${mirth.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>${swagger-annotations.version}</version>
         </dependency>
 
         <dependency>
@@ -239,25 +209,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>org.javassist</groupId>
-            <artifactId>javassist</artifactId>
-            <version>${javassist.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.thoughtworks.xstream</groupId>
-            <artifactId>xstream</artifactId>
-            <version>${xstream.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j.version}</version>
-            <scope>provided</scope>
-        </dependency>
 
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -277,18 +228,7 @@
             <version>${commons-io.version}</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>xpp3</groupId>
-            <artifactId>xpp3</artifactId>
-            <version>${xpp3.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mozilla</groupId>
-            <artifactId>rhino</artifactId>
-            <version>${rhino.version}</version>
-            <scope>provided</scope>
-        </dependency>
+
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -348,6 +288,22 @@
                     <alias>selfsigned</alias>
                     <storepass>storepass</storepass>
                     <keypass>keypass</keypass>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>3.1.2</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>3.1.2</version>
+                <configuration>
+                    <skip>true</skip>
                 </configuration>
             </plugin>
         </plugins>
@@ -454,6 +410,39 @@
 
                 <mirth.version>4.6.1</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}
+                </plugin.archive.name>
+            </properties>
+        </profile>
+        <profile>
+            <id>v2630</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <maven.compiler.source>17</maven.compiler.source>
+                <maven.compiler.target>17</maven.compiler.target>
+                <mirth.version>26.3.0</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <lombok.version>1.18.22</lombok.version>
+                <miglayout.version>4.2</miglayout.version>
+                <swingx-core.version>1.6.2-2</swingx-core.version>
+                <javax-servlet.version>4.0.1</javax-servlet.version>
+                <javax-rs-api.version>2.0.1</javax-rs-api.version>
+                <javax.version>2.1.1</javax.version>
+                <swagger-annotations.version>2.0.10</swagger-annotations.version>
+                <jersey-media-multipart.version>2.22.1</jersey-media-multipart.version>
+                <commons-beanutils.version>1.11.0</commons-beanutils.version>
+                <commons-email.version>1.6.0</commons-email.version>
+                <commons-io.version>2.13.0</commons-io.version>
+                <commons-lang3.version>3.18.0</commons-lang3.version>
+                <commons-collections4.version>4.4</commons-collections4.version>
+                <junit.version>4.13.2</junit.version>
+                <httpclient.version>4.5.13</httpclient.version>
+                <log4j.version>2.25.3</log4j.version>
+                <mockito.version>4.11.0</mockito.version>
+                <jackson.version>2.14.3</jackson.version>
+                <jetty-server.version>12.0.32</jetty-server.version>
                 <plugin.archive.name>innovarhealthcare-channel-history-v${plugin.version}-bl${mirth.version}
                 </plugin.archive.name>
             </properties>

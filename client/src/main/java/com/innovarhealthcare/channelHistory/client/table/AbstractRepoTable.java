@@ -1,24 +1,25 @@
 package com.innovarhealthcare.channelHistory.client.table;
 
-import com.mirth.connect.client.ui.UIConstants;
-import com.mirth.connect.client.ui.components.MirthTable;
-import org.jdesktop.swingx.decorator.Highlighter;
-import org.jdesktop.swingx.decorator.HighlighterFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.swing.*;
+import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
+
+import com.mirth.connect.client.ui.UIConstants;
+import com.mirth.connect.client.ui.components.MirthTable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jdesktop.swingx.decorator.Highlighter;
+import org.jdesktop.swingx.decorator.HighlighterFactory;
 
 /**
  * @author Thai Tran (thaitran@innovarhealthcare.com)
  * @create 2024-11-27 4:25 PM
  */
 public abstract class AbstractRepoTable extends MirthTable {
-    private static final Logger logger = LoggerFactory.getLogger(AbstractRepoTable.class);
+    private static final Logger logger = LogManager.getLogger(AbstractRepoTable.class);
+
     private final int hiddenColumnIndex;
 
     protected AbstractRepoTable(int hiddenColumnIndex) {
@@ -30,8 +31,7 @@ public abstract class AbstractRepoTable extends MirthTable {
     private void initializeUI() {
         try {
             // Add alternating row striping
-            Highlighter rowStripe = HighlighterFactory.createAlternateStriping(
-                    UIConstants.HIGHLIGHTER_COLOR, UIConstants.BACKGROUND_COLOR);
+            Highlighter rowStripe = HighlighterFactory.createAlternateStriping(UIConstants.HIGHLIGHTER_COLOR, UIConstants.BACKGROUND_COLOR);
             setHighlighters(rowStripe);
 
             // Configure table appearance
@@ -52,8 +52,7 @@ public abstract class AbstractRepoTable extends MirthTable {
         }
 
         if (dataModel instanceof DefaultTableModel && dataModel.getColumnCount() == 0) {
-            logger.warn("Received DefaultTableModel with 0 columns for {}. Skipping model setting.",
-                    getClass().getSimpleName());
+            logger.warn("Received DefaultTableModel with 0 columns for {}. Skipping model setting.", getClass().getSimpleName());
             return;
         }
 
@@ -61,8 +60,7 @@ public abstract class AbstractRepoTable extends MirthTable {
             super.setModel(dataModel);
             configureColumns();
         } else {
-            logger.error("Invalid table model for {}. Expected model with at least 3 columns, got: {} with {} columns",
-                    getClass().getSimpleName(), dataModel.getClass().getName(), dataModel.getColumnCount());
+            logger.error("Invalid table model for {}. Expected model with at least 3 columns, got: {} with {} columns", getClass().getSimpleName(), dataModel.getClass().getName(), dataModel.getColumnCount());
         }
     }
 

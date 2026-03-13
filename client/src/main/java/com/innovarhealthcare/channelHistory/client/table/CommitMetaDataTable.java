@@ -1,30 +1,27 @@
 package com.innovarhealthcare.channelHistory.client.table;
 
-import com.mirth.connect.client.ui.UIConstants;
-import com.mirth.connect.client.ui.components.MirthTable;
-
-import org.jdesktop.swingx.decorator.ComponentAdapter;
-import org.jdesktop.swingx.decorator.Highlighter;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
-import javax.swing.JTextArea;
 import javax.swing.event.ChangeListener;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
-
 import java.awt.Component;
+
+import com.mirth.connect.client.ui.UIConstants;
+import com.mirth.connect.client.ui.components.MirthTable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jdesktop.swingx.decorator.ComponentAdapter;
+import org.jdesktop.swingx.decorator.Highlighter;
 
 /**
  * @author Thai Tran
  * @create 2025-04-30 10:00 AM
  */
 public class CommitMetaDataTable extends MirthTable {
-    private static final Logger logger = LoggerFactory.getLogger(CommitMetaDataTable.class);
+    private static final Logger logger = LogManager.getLogger(CommitMetaDataTable.class);
     private final MultiLineTableCellRenderer messageRenderer = new MultiLineTableCellRenderer();
     private String highlightValue = "";
 

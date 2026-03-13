@@ -58,36 +58,26 @@
 
         <dependency>
             <groupId>com.miglayout</groupId>
-            <artifactId>miglayout</artifactId>
+            <artifactId>miglayout-core</artifactId>
             <version>${miglayout.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-            <version>1.11</version>
-        </dependency>
-
-        <dependency>
-            <groupId>joda-time</groupId>
-            <artifactId>joda-time</artifactId>
-            <version>${joda-time.version}</version>
-            <scope>provided</scope>
+            <groupId>com.miglayout</groupId>
+            <artifactId>miglayout-swing</artifactId>
+            <version>${miglayout.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.swinglabs</groupId>
             <artifactId>swingx-core</artifactId>
-            <!-- Use the version 1.6.2-2 cause the pom file of 1.6.2 is messed(has
-                wrong version) up in central repo. Without this version the Maven fails to
-                build -->
             <version>${swingx-core.version}</version>
         </dependency>
 
         <dependency>
             <groupId>io.github.java-diff-utils</groupId>
             <artifactId>java-diff-utils</artifactId>
-            <version>4.12</version>
+            <version>${java-diff-utils.version}</version>
         </dependency>
 
     </dependencies>

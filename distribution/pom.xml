@@ -101,11 +101,6 @@
                         </configuration>
                     </execution>
                 </executions>
-
-                <!-- Apply aggregatorPath option to all executions -->
-                <configuration>
-                    <aggregatorPath>${processor.aggregator.path}</aggregatorPath>
-                </configuration>
             </plugin>
 
             <!-- Generate plugin zipfile -->
@@ -132,6 +127,28 @@
 
                             <!-- Where should the generated zipfile be named -->
                             <finalName>${plugin.archive.name}</finalName>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>deploy-to-mirth</id>
+                        <phase>deploy</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>bash</executable>
+                            <arguments>
+                                <argument>${project.parent.basedir}/deploy-mirth.sh</argument>
+                                <argument>${project.build.directory}/${plugin.archive.name}.zip</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                 </executions>
