@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
+import com.innovarhealthcare.channelHistory.shared.model.GitSettings;
+import org.apache.commons.io.FileUtils;
 import com.innovarhealthcare.channelHistory.server.file.FileOperations;
 import com.innovarhealthcare.channelHistory.server.git.GitOperations;
 import com.innovarhealthcare.channelHistory.server.repository.ChannelRepository;
@@ -269,6 +271,70 @@ public class GitRepositoryService {
         return fileOperations;
     }
 
+    // ========== Connection Validation ==========
+
+    /**
+     * Validates the SSH (or default) connection to the remote repository described by gitSettings.
+     * Clones to a temporary directory with no checkout, then deletes the temp dir.
+     * Never throws — returns null on success or an error message string on failure.
+     *
+     * @param gitSettings Settings to validate (URL, branch, SSH key or key path)
+     * @return null on success; error message on failure
+     */
+    public String validateSSHConnection(GitSettings gitSettings) {
+        if (gitSettings == null) {
+            return "Git settings cannot be null";
+        }
+
+        String remoteUrl = gitSettings.getRemoteRepositoryUrl();
+        String branch = gitSettings.getBranchName();
+
+        if (remoteUrl == null || remoteUrl.trim().isEmpty()) {
+            return "Remote repository URL is not configured";
+        }
+        if (branch == null || branch.trim().isEmpty()) {
+            return "Branch name is not configured";
+        }
+
+        File tempDir = null;
+        Git tempGit = null;
+        try {
+            SshSessionFactory tempFactory = buildSshSessionFactory(gitSettings);
+            tempDir = new File(Donkey.getInstance().getConfiguration().getAppData(), "version-control-validate-" + System.currentTimeMillis());
+
+            tempGit = Git.cloneRepository()
+                    .setURI(remoteUrl)
+                    .setDirectory(tempDir)
+                    .setBranch(branch)
+                    .setNoCheckout(true)
+                    .setTransportConfigCallback(transport -> {
+                        if (transport instanceof SshTransport) {
+                            ((SshTransport) transport).setSshSessionFactory(tempFactory);
+                        }
+                    })
+                    .call();
+
+            logger.info("Connection validation succeeded for: {}", remoteUrl);
+            return null;
+
+        } catch (Exception e) {
+            logger.warn("Connection validation failed: {}", e.getMessage());
+            return e.getMessage() != null ? e.getMessage() : "Unknown error during connection validation";
+
+        } finally {
+            if (tempGit != null) {
+                tempGit.close();
+            }
+            if (tempDir != null && tempDir.exists()) {
+                try {
+                    FileUtils.deleteDirectory(tempDir);
+                } catch (IOException deleteEx) {
+                    logger.warn("Failed to delete temp validation directory: {}", tempDir.getAbsolutePath());
+                }
+            }
+        }
+    }
+
     // ========== Private Initialization Methods ==========
 
     /**
@@ -354,6 +420,49 @@ public class GitRepositoryService {
         };
 
         logger.debug("SSH session factory created successfully");
+    }
+
+    /**
+     * Builds a standalone SshSessionFactory from the given GitSettings.
+     * Supports both inline key content (bytes) and file-path key.
+     * Used by validateSSHConnection() so it can work independently of the live sshSessionFactory.
+     */
+    private SshSessionFactory buildSshSessionFactory(GitSettings gitSettings) {
+        final String sshPrivateKey = gitSettings.getSshPrivateKey();
+        final String sshPrivateKeyPath = gitSettings.getSshPrivateKeyPath();
+
+        boolean hasInlineKey = sshPrivateKey != null && !sshPrivateKey.trim().isEmpty();
+        boolean hasKeyPath = sshPrivateKeyPath != null && !sshPrivateKeyPath.trim().isEmpty();
+
+        if (!hasInlineKey && !hasKeyPath) {
+            logger.warn("No SSH private key configured for validation, using default session factory");
+            return SshSessionFactory.getInstance();
+        }
+
+        return new JschConfigSessionFactory() {
+            @Override
+            protected void configure(OpenSshConfig.Host hc, Session session) {
+                session.setConfig("StrictHostKeyChecking", "no");
+            }
+
+            @Override
+            protected JSch createDefaultJSch(FS fs) throws JSchException {
+                JSch jsch = super.createDefaultJSch(fs);
+                try {
+                    if (hasInlineKey) {
+                        jsch.addIdentity(SSH_KEY_IDENTITY_NAME, sshPrivateKey.getBytes(), null, null);
+                        logger.debug("SSH private key added from inline content");
+                    } else {
+                        jsch.addIdentity(sshPrivateKeyPath.trim());
+                        logger.debug("SSH private key loaded from path: {}", sshPrivateKeyPath);
+                    }
+                } catch (JSchException e) {
+                    logger.error("Failed to add SSH private key", e);
+                    throw e;
+                }
+                return jsch;
+            }
+        };
     }
 
     /**
