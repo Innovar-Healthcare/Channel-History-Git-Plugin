@@ -4,20 +4,13 @@ import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitRepositoryException;
 import com.innovarhealthcare.channelHistory.server.service.GitRepositoryService;
-import com.innovarhealthcare.channelHistory.server.service.GitRepositoryServiceLegacy;
 import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/**
- * @author Thai Tran (thaitran@innovarhealthcare.com)
- * @create 2024-11-27 4:25 PM
- */
-
 public class GitRepositoryController {
     private static final Logger logger = LogManager.getLogger(GitRepositoryController.class);
-    private final GitRepositoryServiceLegacy service = new GitRepositoryServiceLegacy();
 
     private GitRepositoryService gitService;
     private VersionHistoryService versionHistoryService;
@@ -121,29 +114,8 @@ public class GitRepositoryController {
         }
     }
 
-    public boolean isEnable() {
-        return versionHistoryProperties.isEnableVersionHistory();
-    }
-
-    public boolean isGitConnected() {
-        // thai fix later
-        return true;
-        //return service.isGitConnected();
-    }
-
-    public GitRepositoryServiceLegacy getService() {
-        return service;
-    }
-
     public VersionHistoryService getVersionHistoryService() {
         return versionHistoryService;
     }
 
-    public String validate(Properties properties) throws GitRepositoryException {
-        try {
-            return service.validateSettings(properties);
-        } catch (Exception e) {
-            throw new GitRepositoryException(e);
-        }
-    }
 }

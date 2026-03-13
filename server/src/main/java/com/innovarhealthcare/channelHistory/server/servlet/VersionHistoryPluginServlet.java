@@ -53,7 +53,7 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
     @Override
     public String validateSetting(Properties properties) throws ClientException {
         try {
-            return GitRepositoryController.getInstance().validate(properties);
+            return getService().validateGitConnection(properties);
         } catch (Exception e) {
             throw createErrorResponse(e);
         }

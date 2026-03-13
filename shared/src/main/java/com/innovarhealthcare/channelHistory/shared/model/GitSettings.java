@@ -8,11 +8,20 @@ public class GitSettings {
     private String remoteRepositoryUrl;
     private String branchName;
     private String sshPrivateKey;
+    private String sshPrivateKeyPath = "";
+    private String authType;
+    private String httpsUsername;
+    private String httpsPassword;
+    private String httpsCredentialsPath;
 
     public GitSettings(String remoteRepositoryUrl, String branchName, String sshPrivateKey) {
         this.remoteRepositoryUrl = remoteRepositoryUrl != null ? remoteRepositoryUrl : "";
         this.branchName = branchName != null ? branchName : "";
         this.sshPrivateKey = sshPrivateKey != null ? sshPrivateKey : "";
+        this.authType = "";
+        this.httpsUsername = "";
+        this.httpsPassword = "";
+        this.httpsCredentialsPath = "";
     }
 
     public String getRemoteRepositoryUrl() {
@@ -39,9 +48,66 @@ public class GitSettings {
         this.sshPrivateKey = sshPrivateKey;
     }
 
+    public String getSshPrivateKeyPath() {
+        return sshPrivateKeyPath;
+    }
+
+    public void setSshPrivateKeyPath(String sshPrivateKeyPath) {
+        this.sshPrivateKeyPath = sshPrivateKeyPath;
+    }
+
+    public String getAuthType() {
+        return authType;
+    }
+
+    public void setAuthType(String authType) {
+        this.authType = authType;
+    }
+
+    public String getHttpsUsername() {
+        return httpsUsername;
+    }
+
+    public void setHttpsUsername(String httpsUsername) {
+        this.httpsUsername = httpsUsername;
+    }
+
+    public String getHttpsPassword() {
+        return httpsPassword;
+    }
+
+    public void setHttpsPassword(String httpsPassword) {
+        this.httpsPassword = httpsPassword;
+    }
+
+    public String getHttpsCredentialsPath() {
+        return httpsCredentialsPath;
+    }
+
+    public void setHttpsCredentialsPath(String httpsCredentialsPath) {
+        this.httpsCredentialsPath = httpsCredentialsPath;
+    }
+
+    public boolean isSSH() {
+        return "SSH".equalsIgnoreCase(authType) || authType == null || authType.isEmpty();
+    }
+
+    public boolean isHTTPS() {
+        return "HTTPS".equalsIgnoreCase(authType);
+    }
+
     public boolean validate() {
-        return !StringUtils.isBlank(remoteRepositoryUrl) &&
-                !StringUtils.isBlank(branchName) &&
-                !StringUtils.isBlank(sshPrivateKey);
+        if (StringUtils.isEmpty(remoteRepositoryUrl) || StringUtils.isEmpty(branchName)) {
+            return false;
+        }
+        if (isSSH()) {
+            return !StringUtils.isEmpty(sshPrivateKey) || !StringUtils.isEmpty(sshPrivateKeyPath);
+        }
+        if (isHTTPS()) {
+            boolean directInput = !StringUtils.isEmpty(httpsUsername) && !StringUtils.isEmpty(httpsPassword);
+            boolean filePath = !StringUtils.isEmpty(httpsCredentialsPath);
+            return directInput || filePath;
+        }
+        return false;
     }
 }

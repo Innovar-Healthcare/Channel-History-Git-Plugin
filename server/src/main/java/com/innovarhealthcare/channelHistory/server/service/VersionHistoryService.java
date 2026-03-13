@@ -3,6 +3,7 @@ package com.innovarhealthcare.channelHistory.server.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
@@ -66,6 +67,23 @@ public class VersionHistoryService {
     }
 
     // ========== Business Methods ==========
+
+    /**
+     * Validates the Git connection described by the given properties.
+     * Parses properties into a VersionHistoryProperties, then delegates to
+     * GitRepositoryService.validateSSHConnection() which clones to a temp dir and deletes it.
+     *
+     * @param properties Plugin properties containing Git settings
+     * @return Success message on success; error message on failure
+     */
+    public String validateGitConnection(Properties properties) {
+        VersionHistoryProperties tempProperties = new VersionHistoryProperties(properties);
+        String error = gitRepositoryService.validateSSHConnection(tempProperties.getGitSettings());
+        if (error == null) {
+            return "Successfully connected to the remote repository. Remember to save your changes.";
+        }
+        return error;
+    }
 
     public boolean isAutoCommitEnabled() {
         return versionHistoryProperties.isEnableAutoCommit();

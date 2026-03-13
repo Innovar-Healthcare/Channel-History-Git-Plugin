@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.client.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
@@ -42,6 +43,23 @@ public class VersionHistoryServiceClient {
     }
 
     private VersionHistoryServiceClient() {
+    }
+
+    /**
+     * Validate the Git remote repository settings on the server
+     *
+     * @param properties Git settings as Properties (url, branch, ssh key/path)
+     * @return Server response message
+     * @throws ClientException if the settings are invalid or the connection fails
+     */
+    public String validateSetting(Properties properties) throws ClientException {
+        try {
+            return getServlet().validateSetting(properties);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to validate Git settings: " + e.getMessage(), e);
+        }
     }
 
     /**

@@ -1,23 +1,9 @@
 package com.innovarhealthcare.channelHistory.client.panel;
 
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
+import javax.swing.JTabbedPane;
 import javax.swing.SwingWorker;
-import javax.swing.border.TitledBorder;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.Properties;
 
-import com.innovarhealthcare.channelHistory.client.dialog.GitSettingsDialog;
 import com.innovarhealthcare.channelHistory.client.plugin.VersionHistorySettingPlugin;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.mirth.connect.client.core.ClientException;
@@ -25,11 +11,8 @@ import com.mirth.connect.client.ui.AbstractSettingsPanel;
 import com.mirth.connect.client.ui.Frame;
 import com.mirth.connect.client.ui.PlatformUI;
 import com.mirth.connect.client.ui.UIConstants;
-import com.mirth.connect.client.ui.components.MirthRadioButton;
-import com.mirth.connect.client.ui.components.MirthTextPane;
 import com.mirth.connect.model.Channel;
 import net.miginfocom.swing.MigLayout;
-import org.apache.commons.lang3.StringUtils;
 
 /**
  * @author Thai Tran
@@ -38,246 +21,124 @@ import org.apache.commons.lang3.StringUtils;
 public class VersionHistorySettingPanel extends AbstractSettingsPanel {
 
     private VersionHistorySettingPlugin plugin;
-
-    private JPanel enabledPanel;
-    private JLabel enabledLabel;
-    private MirthRadioButton yesEnabledRadio;
-    private MirthRadioButton noEnabledRadio;
-    private ButtonGroup enabledButtonGroup;
-
-    private JPanel gitSettingsPanel;
-    private JLabel gitSettingLabel;
-    private JButton gitSettingsBtn;
-    private JLabel syncDeleteLabel;
-    private MirthRadioButton syncDeleteYes;
-    private MirthRadioButton syncDeleteNo;
-    private ButtonGroup syncDeleteButtonGroup;
-
-    private JPanel autoCommitPanel;
-    private JLabel autoCommitLabel;
-    private MirthRadioButton autoCommitYes;
-    private MirthRadioButton autoCommitNo;
-    private ButtonGroup autoCommitButtonGroup;
-    private JLabel promptLabel;
-    private MirthRadioButton promptYes;
-    private MirthRadioButton promptNo;
-    private ButtonGroup promptButtonGroup;
-    private JLabel defaultMessageLabel;
-    private JTextPane defaultMessageField;
-    private JScrollPane defaultMessageScrollPane;
     private Frame parent;
 
     private Properties backupChannelCommitIds;
     private VersionHistoryProperties versionHistoryProperties;
 
+    private JTabbedPane tabbedPane;
+    private GeneralTabPanel generalTabPanel;
+    private GitSettingsTabPanel gitSettingsTabPanel;
+    private GitBehaviorTabPanel gitBehaviorTabPanel;
+    private GitStatusTabPanel gitStatusTabPanel;
+
     public VersionHistorySettingPanel(String tabName, VersionHistorySettingPlugin plugin) {
         super(tabName);
-
         this.plugin = plugin;
         this.parent = PlatformUI.MIRTH_FRAME;
-
         versionHistoryProperties = new VersionHistoryProperties();
-
         initComponents();
-
         initLayout();
     }
 
     private void initComponents() {
         setBackground(UIConstants.BACKGROUND_COLOR);
 
-        enabledPanel = new JPanel();
-        enabledPanel.setBackground(UIConstants.BACKGROUND_COLOR);
-        enabledPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)), "Enable", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Tahoma", 1, 11)));
+        tabbedPane = new JTabbedPane();
+        tabbedPane.setFocusable(false);
 
-        enabledLabel = new JLabel("Enable:");
-        yesEnabledRadio = new MirthRadioButton("Yes");
-        yesEnabledRadio.setFocusable(false);
-        yesEnabledRadio.setBackground(Color.white);
-        yesEnabledRadio.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                enabledActionPerformed();
+        generalTabPanel = new GeneralTabPanel(versionHistoryProperties);
+        gitSettingsTabPanel = new GitSettingsTabPanel(versionHistoryProperties);
+        gitBehaviorTabPanel = new GitBehaviorTabPanel(versionHistoryProperties);
+        gitStatusTabPanel = new GitStatusTabPanel();
+
+        generalTabPanel.addEnabledActionListener(e -> visibleFields(generalTabPanel.isPluginEnabled()));
+
+        tabbedPane.addTab("General", generalTabPanel);
+        tabbedPane.addTab("Git Settings", gitSettingsTabPanel);
+        tabbedPane.addTab("Git Behavior", gitBehaviorTabPanel);
+        tabbedPane.addTab("Git Status", gitStatusTabPanel);
+
+        tabbedPane.addChangeListener(e -> {
+            if (tabbedPane.getSelectedIndex() == 3) { // Git Status tab
+                if (PlatformUI.MIRTH_FRAME.isSaveEnabled()) {
+                    showError("You have unsaved Git Settings changes. Please save before viewing Git Status.");
+                    tabbedPane.setSelectedIndex(1);
+                }
             }
         });
-
-        noEnabledRadio = new MirthRadioButton("No");
-        noEnabledRadio.setFocusable(false);
-        noEnabledRadio.setBackground(Color.white);
-        noEnabledRadio.setSelected(true);
-        noEnabledRadio.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                enabledActionPerformed();
-            }
-        });
-
-        enabledButtonGroup = new ButtonGroup();
-        enabledButtonGroup.add(yesEnabledRadio);
-        enabledButtonGroup.add(noEnabledRadio);
-
-        gitSettingsPanel = new JPanel();
-        gitSettingsPanel.setBackground(UIConstants.BACKGROUND_COLOR);
-        gitSettingsPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)), "Git", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Tahoma", 1, 11)));
-
-        gitSettingLabel = new JLabel("Settings:");
-        gitSettingsBtn = new JButton(new ImageIcon(Frame.class.getResource("images/wrench.png")));
-        gitSettingsBtn.addActionListener(e -> {
-            new GitSettingsDialog(parent, versionHistoryProperties.getGitSettings());
-        });
-
-        syncDeleteLabel = new JLabel("Sync Delete:");
-        syncDeleteYes = new MirthRadioButton("Yes");
-        syncDeleteYes.setFocusable(false);
-        syncDeleteYes.setBackground(Color.white);
-
-        syncDeleteNo = new MirthRadioButton("No");
-        syncDeleteNo.setFocusable(false);
-        syncDeleteNo.setBackground(Color.white);
-        syncDeleteNo.setSelected(true);
-        syncDeleteButtonGroup = new ButtonGroup();
-        syncDeleteButtonGroup.add(syncDeleteYes);
-        syncDeleteButtonGroup.add(syncDeleteNo);
-
-        autoCommitPanel = new JPanel();
-        autoCommitPanel.setBackground(UIConstants.BACKGROUND_COLOR);
-        autoCommitPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)), "Auto Commit", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Tahoma", 1, 11)));
-
-        autoCommitLabel = new JLabel("Enable:");
-
-        autoCommitYes = new MirthRadioButton("Yes");
-        autoCommitYes.setFocusable(false);
-        autoCommitYes.setBackground(Color.white);
-        autoCommitYes.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                autoCommitActionPerformed();
-            }
-        });
-
-        autoCommitNo = new MirthRadioButton("No");
-        autoCommitNo.setFocusable(false);
-        autoCommitNo.setBackground(Color.white);
-        autoCommitNo.setSelected(true);
-        autoCommitNo.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                autoCommitActionPerformed();
-            }
-        });
-        autoCommitButtonGroup = new ButtonGroup();
-        autoCommitButtonGroup.add(autoCommitYes);
-        autoCommitButtonGroup.add(autoCommitNo);
-
-        promptLabel = new JLabel("Prompt:");
-
-        promptYes = new MirthRadioButton("Yes");
-        promptYes.setFocusable(false);
-        promptYes.setBackground(Color.white);
-        promptYes.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                promptYesNoActionPerformed();
-            }
-        });
-
-        promptNo = new MirthRadioButton("No");
-        promptNo.setFocusable(false);
-        promptNo.setBackground(Color.white);
-        promptNo.setSelected(true);
-        promptNo.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                promptYesNoActionPerformed();
-            }
-        });
-        promptButtonGroup = new ButtonGroup();
-        promptButtonGroup.add(promptYes);
-        promptButtonGroup.add(promptNo);
-
-        defaultMessageLabel = new JLabel("Default Message:");
-        defaultMessageField = new MirthTextPane();
-        defaultMessageScrollPane = new JScrollPane(defaultMessageField, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        defaultMessageScrollPane.setPreferredSize(new Dimension(300, 100));
     }
 
     private void initLayout() {
         setLayout(new MigLayout("hidemode 3, novisualpadding, insets 12", "[grow]"));
-
-        // enabledPanel: Right-aligned label with 150-pixel first column
-        enabledPanel.setLayout(new MigLayout("hidemode 3, novisualpadding, insets 0", "[120,right][grow]"));
-        enabledPanel.add(enabledLabel);
-        enabledPanel.add(yesEnabledRadio, "split, gapleft 12");
-        enabledPanel.add(noEnabledRadio, "wrap");
-
-        // gitSettingsPanel: Right-aligned labels with 150-pixel first column
-        gitSettingsPanel.setLayout(new MigLayout("hidemode 3, novisualpadding, insets 0", "[120,right][grow]"));
-        gitSettingsPanel.add(gitSettingLabel);
-        gitSettingsPanel.add(gitSettingsBtn, "gapleft 12, wrap");
-        gitSettingsPanel.add(syncDeleteLabel);
-        gitSettingsPanel.add(syncDeleteYes, "split, gapleft 12");
-        gitSettingsPanel.add(syncDeleteNo, "wrap");
-
-        // autoCommitPanel: Right-aligned labels with 150-pixel first column
-        autoCommitPanel.setLayout(new MigLayout("hidemode 3, novisualpadding, insets 0", "[120,right][grow]"));
-        autoCommitPanel.add(autoCommitLabel);
-        autoCommitPanel.add(autoCommitYes, "split, gapleft 12");
-        autoCommitPanel.add(autoCommitNo, "wrap");
-        autoCommitPanel.add(promptLabel);
-        autoCommitPanel.add(promptYes, "split, gapleft 12");
-        autoCommitPanel.add(promptNo, "wrap");
-        autoCommitPanel.add(defaultMessageLabel);
-        autoCommitPanel.add(defaultMessageScrollPane, "gapleft 12, wrap");
-
-        add(enabledPanel, "grow, sx, wrap");
-        add(gitSettingsPanel, "grow, sx, wrap");
-        add(autoCommitPanel, "grow, sx");
-    }
-
-    private void enabledActionPerformed() {
-        visibleFields(yesEnabledRadio.isSelected());
+        add(tabbedPane, "grow, sx");
     }
 
     public void visibleFields(boolean isVisible) {
-        gitSettingsPanel.setVisible(isVisible);
-        autoCommitPanel.setVisible(isVisible);
-    }
-
-    private void autoCommitActionPerformed() {
-        boolean selected = autoCommitYes.isSelected();
-        promptYes.setEnabled(selected);
-        promptNo.setEnabled(selected);
-        defaultMessageField.setEnabled(selected);
-    }
-
-    private void promptYesNoActionPerformed() {
-//        defaultMessageField.setVisible(promptNo.isSelected());
+        tabbedPane.setEnabledAt(1, isVisible);
+        tabbedPane.setEnabledAt(2, isVisible);
+        tabbedPane.setEnabledAt(3, isVisible);
+        if (!isVisible && tabbedPane.getSelectedIndex() != 0) {
+            tabbedPane.setSelectedIndex(0);
+        }
     }
 
     public void setProperties(Properties properties) {
         versionHistoryProperties.fromProperties(properties);
 
-        yesEnabledRadio.setSelected(versionHistoryProperties.isEnableVersionHistory());
-        noEnabledRadio.setSelected(!versionHistoryProperties.isEnableVersionHistory());
+        generalTabPanel.setProperties();
+        gitSettingsTabPanel.setProperties();
+        gitBehaviorTabPanel.setProperties();
 
-        autoCommitYes.setSelected(versionHistoryProperties.isEnableAutoCommit());
-        autoCommitNo.setSelected(!versionHistoryProperties.isEnableAutoCommit());
-
-        promptYes.setSelected(versionHistoryProperties.isEnableAutoCommitPrompt());
-        promptNo.setSelected(!versionHistoryProperties.isEnableAutoCommitPrompt());
-        defaultMessageField.setText(versionHistoryProperties.getAutoCommitMsg());
-
-        syncDeleteYes.setSelected(versionHistoryProperties.isEnableSyncDelete());
-        syncDeleteNo.setSelected(!versionHistoryProperties.isEnableSyncDelete());
-
-        enabledActionPerformed();
-
-        autoCommitActionPerformed();
-
+        visibleFields(generalTabPanel.isPluginEnabled());
         backupChannelCommitIdFromProperties(properties);
 
         repaint();
         this.getFrame().setSaveEnabled(false);
+    }
+
+    public Properties getProperties() {
+        generalTabPanel.getProperties();
+        gitSettingsTabPanel.getProperties();
+        gitBehaviorTabPanel.getProperties();
+
+        Properties properties = versionHistoryProperties.toProperties();
+        if (backupChannelCommitIds != null) {
+            properties.putAll(backupChannelCommitIds);
+        }
+        return properties;
+    }
+
+    public boolean validateFields() {
+        resetInvalidSettings();
+
+        if (!generalTabPanel.isPluginEnabled()) {
+            return true;
+        }
+
+        boolean valid = true;
+        StringBuilder errorMessage = new StringBuilder();
+
+        if (!gitSettingsTabPanel.validateFields()) {
+            valid = false;
+            errorMessage.append("Git Settings are invalid.").append(System.lineSeparator());
+        }
+
+        if (!gitBehaviorTabPanel.validateFields()) {
+            valid = false;
+            errorMessage.append("Please provide a default commit message.").append(System.lineSeparator());
+        }
+
+        if (!valid) {
+            showError(errorMessage.toString());
+        }
+
+        return valid;
+    }
+
+    public void resetInvalidSettings() {
+        gitSettingsTabPanel.resetInvalidState();
+        gitBehaviorTabPanel.resetInvalidState();
     }
 
     public void backupChannelCommitIdFromProperties(Properties properties) {
@@ -291,56 +152,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
                 }
             }
         } catch (ClientException ignored) {
-
         }
-    }
-
-    public Properties getProperties() {
-        versionHistoryProperties.setEnableVersionHistory(yesEnabledRadio.isSelected());
-        versionHistoryProperties.setEnableAutoCommit(autoCommitYes.isSelected());
-        versionHistoryProperties.setEnableAutoCommitPrompt(promptYes.isSelected());
-        versionHistoryProperties.setAutoCommitMsg(defaultMessageField.getText().trim());
-        versionHistoryProperties.setEnableSyncDelete(syncDeleteYes.isSelected());
-
-        Properties properties = versionHistoryProperties.toProperties();
-
-        if (backupChannelCommitIds != null) {
-            properties.putAll(backupChannelCommitIds);
-        }
-
-        return properties;
-    }
-
-    public boolean validateFields() {
-        boolean valid = true;
-        StringBuilder errorMessage = new StringBuilder();
-
-        // Reset backgrounds
-        resetInvalidSettings();
-
-        if (!yesEnabledRadio.isSelected()) {
-            return true;
-        }
-
-        if (!versionHistoryProperties.getGitSettings().validate()) {
-            valid = false;
-            errorMessage.append("Git Settings are invalid.").append(System.lineSeparator());
-        }
-
-        if (autoCommitYes.isSelected()) {
-            String url = defaultMessageField.getText().trim();
-            if (StringUtils.isEmpty(url)) {
-                valid = false;
-                defaultMessageField.setBackground(UIConstants.INVALID_COLOR);
-                errorMessage.append("Please provide a default message.").append(System.lineSeparator());
-            }
-        }
-
-        if (!valid) {
-            showError(errorMessage.toString());
-        }
-
-        return valid;
     }
 
     @Override
@@ -408,10 +220,6 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         worker.execute();
 
         return true;
-    }
-
-    public void resetInvalidSettings() {
-        defaultMessageField.setBackground(getBackground());
     }
 
     protected void showError(String err) {

@@ -15,6 +15,11 @@ public class VersionHistoryProperties {
     public static final String VERSION_HISTORY_REMOTE_REPO_URL = "versionHistory.remote.url";
     public static final String VERSION_HISTORY_REMOTE_BRANCH = "versionHistory.remote.branch";
     public static final String VERSION_HISTORY_REMOTE_SSH_KEY = "versionHistory.remote.ssh.key";
+    public static final String VERSION_HISTORY_REMOTE_SSH_KEY_PATH = "versionHistory.remote.ssh.keyPath";
+    public static final String VERSION_HISTORY_REMOTE_AUTH_TYPE = "versionHistory.remote.authType";
+    public static final String VERSION_HISTORY_REMOTE_HTTPS_USERNAME = "versionHistory.remote.https.username";
+    public static final String VERSION_HISTORY_REMOTE_HTTPS_PASSWORD = "versionHistory.remote.https.password";
+    public static final String VERSION_HISTORY_REMOTE_HTTPS_CREDENTIALS_PATH = "versionHistory.remote.https.credentialsPath";
 
     private boolean enableVersionHistory;
     private boolean enableAutoCommit;
@@ -51,15 +56,23 @@ public class VersionHistoryProperties {
         // Git settings - handle null safely
         if (gitSettings != null) {
             properties.setProperty(VERSION_HISTORY_REMOTE_REPO_URL, gitSettings.getRemoteRepositoryUrl() != null ? gitSettings.getRemoteRepositoryUrl() : "");
-
             properties.setProperty(VERSION_HISTORY_REMOTE_BRANCH, gitSettings.getBranchName() != null ? gitSettings.getBranchName() : "");
-
             properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY, gitSettings.getSshPrivateKey() != null ? gitSettings.getSshPrivateKey() : "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY_PATH, gitSettings.getSshPrivateKeyPath() != null ? gitSettings.getSshPrivateKeyPath() : "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_AUTH_TYPE, gitSettings.getAuthType() != null ? gitSettings.getAuthType() : "SSH");
+            properties.setProperty(VERSION_HISTORY_REMOTE_HTTPS_USERNAME, gitSettings.getHttpsUsername() != null ? gitSettings.getHttpsUsername() : "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_HTTPS_PASSWORD, gitSettings.getHttpsPassword() != null ? gitSettings.getHttpsPassword() : "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_HTTPS_CREDENTIALS_PATH, gitSettings.getHttpsCredentialsPath() != null ? gitSettings.getHttpsCredentialsPath() : "");
         } else {
             // GitSettings is null - set empty defaults
             properties.setProperty(VERSION_HISTORY_REMOTE_REPO_URL, "");
             properties.setProperty(VERSION_HISTORY_REMOTE_BRANCH, "");
             properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY, "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY_PATH, "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_AUTH_TYPE, "SSH");
+            properties.setProperty(VERSION_HISTORY_REMOTE_HTTPS_USERNAME, "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_HTTPS_PASSWORD, "");
+            properties.setProperty(VERSION_HISTORY_REMOTE_HTTPS_CREDENTIALS_PATH, "");
         }
 
         return properties;
@@ -78,6 +91,11 @@ public class VersionHistoryProperties {
         String remoteRepositoryUrl = getStringProperty(properties, VERSION_HISTORY_REMOTE_REPO_URL, "");
         String branchName = getStringProperty(properties, VERSION_HISTORY_REMOTE_BRANCH, "");
         String sshPrivateKey = getStringProperty(properties, VERSION_HISTORY_REMOTE_SSH_KEY, "");
+        String sshPrivateKeyPath = getStringProperty(properties, VERSION_HISTORY_REMOTE_SSH_KEY_PATH, "");
+        String authType = getStringProperty(properties, VERSION_HISTORY_REMOTE_AUTH_TYPE, "SSH");
+        String httpsUsername = getStringProperty(properties, VERSION_HISTORY_REMOTE_HTTPS_USERNAME, "");
+        String httpsPassword = getStringProperty(properties, VERSION_HISTORY_REMOTE_HTTPS_PASSWORD, "");
+        String httpsCredentialsPath = getStringProperty(properties, VERSION_HISTORY_REMOTE_HTTPS_CREDENTIALS_PATH, "");
 
         // Update GitSettings IN-PLACE or create new if null
         if (gitSettings == null) {
@@ -88,6 +106,11 @@ public class VersionHistoryProperties {
             gitSettings.setBranchName(branchName);
             gitSettings.setSshPrivateKey(sshPrivateKey);
         }
+        gitSettings.setSshPrivateKeyPath(sshPrivateKeyPath);
+        gitSettings.setAuthType(authType);
+        gitSettings.setHttpsUsername(httpsUsername);
+        gitSettings.setHttpsPassword(httpsPassword);
+        gitSettings.setHttpsCredentialsPath(httpsCredentialsPath);
     }
 
     public boolean isEnableAutoCommit() {
