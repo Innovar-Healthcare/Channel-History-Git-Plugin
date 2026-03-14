@@ -16,6 +16,7 @@ import com.innovarhealthcare.channelHistory.server.repository.LibraryRepository;
 import com.innovarhealthcare.channelHistory.server.util.GitCommitterHelper;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibraryMetadata;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
@@ -677,6 +678,24 @@ public class VersionHistoryService {
         logger.info("Retrieved {} commits for global scripts: {}", history.size(), id);
         return history;
     }
+    /**
+     * Returns a snapshot of the local repository's structure and size.
+     *
+     * @return RepoInfo with local path, remote URL, branch, total size, and folder list
+     * @throws GitNotConnectedException if Git repository is not available
+     */
+    public RepoInfo getRepoInfo() throws GitNotConnectedException {
+        logger.info("getRepoInfo called");
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getRepoInfo();
+    }
+
     // ========== Status Methods ==========
 
     /**

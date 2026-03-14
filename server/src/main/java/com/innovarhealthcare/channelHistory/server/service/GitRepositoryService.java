@@ -2,8 +2,13 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFile;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFolder;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.model.GitSettings;
 import org.apache.commons.io.FileUtils;
 import com.innovarhealthcare.channelHistory.server.file.FileOperations;
@@ -269,6 +274,48 @@ public class GitRepositoryService {
         ensureStarted();
         ensureGitAvailable();
         return fileOperations;
+    }
+
+    // ========== Repository Info ==========
+
+    /**
+     * Returns a snapshot of the repository's structure and size.
+     * Scans the top two levels only (folder → files) and skips the .git directory.
+     *
+     * @return RepoInfo with local path, remote URL, branch, total size, and folder list
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     */
+    public RepoInfo getRepoInfo() {
+        ensureStarted();
+        ensureGitAvailable();
+
+        String remoteUrl = versionHistoryProperties.getGitSettings().getRemoteRepositoryUrl();
+        String branch = versionHistoryProperties.getGitSettings().getBranchName();
+        String localRepoPath = repositoryDirectory.getAbsolutePath();
+        long totalSizeBytes = FileUtils.sizeOfDirectory(repositoryDirectory);
+
+        List<RepoFolder> folders = new ArrayList<>();
+        File[] topLevel = repositoryDirectory.listFiles();
+        if (topLevel != null) {
+            for (File entry : topLevel) {
+                if (!entry.isDirectory() || ".git".equals(entry.getName())) {
+                    continue;
+                }
+                List<RepoFile> files = new ArrayList<>();
+                File[] children = entry.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isFile()) {
+                            files.add(new RepoFile(child.getName(), child.length()));
+                        }
+                    }
+                }
+                folders.add(new RepoFolder(entry.getName(), files.size(), files));
+            }
+        }
+
+        return new RepoInfo(localRepoPath, remoteUrl, branch, totalSizeBytes, folders);
     }
 
     // ========== Connection Validation ==========

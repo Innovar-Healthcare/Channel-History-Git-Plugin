@@ -274,6 +274,25 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
             @QueryParam("userId")
             String userId
     ) throws ClientException;
+
+    @GET
+    @Path("/repoInfo")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get local repository structure and size",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getRepoInfo",
+            display = "Get local repository info",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    public String getRepoInfo() throws ClientException;
 }
 
 //@formatter:on

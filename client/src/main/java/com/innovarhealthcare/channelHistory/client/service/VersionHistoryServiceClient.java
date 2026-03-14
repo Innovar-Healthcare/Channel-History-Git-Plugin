@@ -10,6 +10,7 @@ import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
@@ -443,6 +444,23 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to load global scripts from repository: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get local repository info (path, remote URL, branch, size, file browser)
+     *
+     * @return RepoInfo with repository structure details
+     * @throws ClientException if Git is not connected or an error occurs
+     */
+    public RepoInfo getRepoInfo() throws ClientException {
+        try {
+            String jsonResponse = getServlet().getRepoInfo();
+            return JsonUtils.fromJson(jsonResponse, RepoInfo.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get repository info: " + e.getMessage(), e);
         }
     }
 
