@@ -3,7 +3,6 @@ package com.innovarhealthcare.channelHistory.client.dialog;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.KeyStroke;
@@ -12,6 +11,7 @@ import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.awt.event.KeyEvent;
 
+import com.innovarhealthcare.channelHistory.client.diff.CodeTemplateFunctionDiffPanel;
 import com.innovarhealthcare.channelHistory.client.diff.DiffComparisonPanel;
 import com.innovarhealthcare.channelHistory.client.diff.model.VersionInfo;
 
@@ -30,7 +30,7 @@ public class CodeTemplateDiffDialog extends JDialog {
         DiffPair sorted = sortVersions(leftVersion, rightVersion, leftXml, rightXml);
 
         initComponents(sorted.leftVersion, sorted.rightVersion);
-        setupLayout();
+        setupLayout(sorted);
         setupDialog(parent);
 
         diffPanel.updateDiff(sorted.leftXml, sorted.rightXml);
@@ -60,14 +60,14 @@ public class CodeTemplateDiffDialog extends JDialog {
         diffPanel = new DiffComparisonPanel(leftVersion, rightVersion);
     }
 
-    private void setupLayout() {
+    private void setupLayout(DiffPair sorted) {
         JTabbedPane tabbedPane = new JTabbedPane();
 
         tabbedPane.addTab("XML Diff", diffPanel);
 
-        JLabel tbdLabel = new JLabel("TBD");
-        tbdLabel.setHorizontalAlignment(JLabel.CENTER);
-        tabbedPane.addTab("Code Template", tbdLabel);
+        CodeTemplateFunctionDiffPanel functionPanel = new CodeTemplateFunctionDiffPanel(
+                sorted.leftXml, sorted.rightXml, sorted.leftVersion, sorted.rightVersion);
+        tabbedPane.addTab("Code Template", functionPanel);
 
         setLayout(new BorderLayout());
         add(tabbedPane, BorderLayout.CENTER);

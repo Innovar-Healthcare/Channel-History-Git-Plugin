@@ -27,6 +27,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import com.innovarhealthcare.channelHistory.client.diff.model.VersionInfo;
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
 import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
@@ -236,13 +237,13 @@ public class CodeTemplateHistoryDialog extends JDialog {
             CodeTemplateWithRaw right = VersionHistoryServiceClient.getInstance().loadCodeTemplateWithRawFromRepo(codeTemplateId, lastChange.getHash());
 
             // Build VersionInfo for current version
-            VersionComparisonDialog.VersionInfo currentVersion = VersionComparisonDialog.VersionInfo.createCurrent(leftCodeTemplate.getName(), currentUserName);
+            VersionInfo currentVersion = VersionInfo.createCurrent(leftCodeTemplate.getName(), currentUserName);
 
             // Build VersionInfo for historical version
-            VersionComparisonDialog.VersionInfo historicalVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCodeTemplate.getName(), lastChange.getHash().substring(0, 7), lastChange.getCommitter(), new Date(lastChange.getTimestamp()));
+            VersionInfo historicalVersion = VersionInfo.createHistorical(leftCodeTemplate.getName(), lastChange.getHash().substring(0, 7), lastChange.getCommitter(), new Date(lastChange.getTimestamp()));
 
             // Create and show comparison dialog
-            VersionComparisonDialog.create("Code Template Version Comparison", currentVersion, historicalVersion, leftCodeTemplate, right.getCodeTemplate(), left, right.getRawContent(), this);
+            new CodeTemplateDiffDialog(parent, currentVersion, historicalVersion, left, right.getRawContent()).setVisible(true);
         } catch (Exception e) {
             logger.error("Failed to show code template comparison", e);
             showError("Cannot compare versions: " + e.getMessage());
@@ -278,15 +279,15 @@ public class CodeTemplateHistoryDialog extends JDialog {
             CodeTemplate rightCodeTemplate = right.getCodeTemplate();
 
             // Build VersionInfo for left side
-            VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftCodeTemplate.getName(), ri1.getHash().substring(0, 7),  // Short hash
+            VersionInfo leftVersion = VersionInfo.createHistorical(leftCodeTemplate.getName(), ri1.getHash().substring(0, 7),  // Short hash
                     ri1.getCommitter(), new Date(ri1.getTimestamp()));
 
             // Build VersionInfo for right side
-            VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightCodeTemplate.getName(), ri2.getHash().substring(0, 7),  // Short hash
+            VersionInfo rightVersion = VersionInfo.createHistorical(rightCodeTemplate.getName(), ri2.getHash().substring(0, 7),  // Short hash
                     ri2.getCommitter(), new Date(ri2.getTimestamp()));
 
             // Create and show comparison dialog
-            VersionComparisonDialog.create("Code Template Version Comparison", leftVersion, rightVersion, leftCodeTemplate, rightCodeTemplate, left.getRawContent(), right.getRawContent(), this);
+            new CodeTemplateDiffDialog(parent, leftVersion, rightVersion, left.getRawContent(), right.getRawContent()).setVisible(true);
         } catch (Exception e) {
             logger.error("Failed to show code template comparison", e);
             showError("Cannot compare versions: " + e.getMessage());

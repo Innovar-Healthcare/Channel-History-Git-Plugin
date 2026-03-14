@@ -12,6 +12,52 @@ import com.github.difflib.patch.Patch;
 
 public class ScriptDiffEngine {
 
+    /**
+     * Computes a unified diff — a single interleaved list of DiffLines where
+     * DELETED lines (from left, prefix "-") appear before ADDED lines (from right,
+     * prefix "+") at each change site, and UNCHANGED lines (prefix " ") fill the
+     * context between changes.
+     */
+    public static List<DiffLine> computeUnifiedDiff(String leftText, String rightText) {
+        List<String> leftLines  = splitIntoLines(leftText);
+        List<String> rightLines = splitIntoLines(rightText);
+
+        Patch<String> patch = DiffUtils.diff(leftLines, rightLines);
+
+        List<DiffLine> result = new ArrayList<>();
+        int leftPos = 0; // cursor into leftLines
+
+        for (AbstractDelta<String> delta : patch.getDeltas()) {
+            // Emit unchanged context lines before this delta
+            int deltaSourceStart = delta.getSource().getPosition();
+            while (leftPos < deltaSourceStart) {
+                result.add(new DiffLine(leftPos + 1, leftLines.get(leftPos), ChangeType.UNCHANGED));
+                leftPos++;
+            }
+
+            // Emit deleted lines from left
+            List<String> sourceLines = delta.getSource().getLines();
+            for (int i = 0; i < sourceLines.size(); i++) {
+                result.add(new DiffLine(delta.getSource().getPosition() + i + 1, sourceLines.get(i), ChangeType.DELETED));
+            }
+            leftPos += delta.getSource().size();
+
+            // Emit added lines from right
+            List<String> targetLines = delta.getTarget().getLines();
+            for (int i = 0; i < targetLines.size(); i++) {
+                result.add(new DiffLine(delta.getTarget().getPosition() + i + 1, targetLines.get(i), ChangeType.ADDED));
+            }
+        }
+
+        // Emit any remaining unchanged lines
+        while (leftPos < leftLines.size()) {
+            result.add(new DiffLine(leftPos + 1, leftLines.get(leftPos), ChangeType.UNCHANGED));
+            leftPos++;
+        }
+
+        return result;
+    }
+
     public static DiffResult computeDiff(String leftText, String rightText) {
         List<String> leftLines = splitIntoLines(leftText);
         List<String> rightLines = splitIntoLines(rightText);
