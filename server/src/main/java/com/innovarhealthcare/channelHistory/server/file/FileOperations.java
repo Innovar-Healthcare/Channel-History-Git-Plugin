@@ -266,6 +266,27 @@ public class FileOperations {
     }
 
     /**
+     * Reads raw file content from the working tree as a UTF-8 string.
+     *
+     * @param relativePath Relative path from base directory (e.g., "Channels/abc-123.xml")
+     * @return File content as string
+     * @throws IOException if file does not exist or read fails
+     */
+    public String readFileContent(String relativePath) throws IOException {
+        if (relativePath == null || relativePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("Relative path cannot be null or empty");
+        }
+
+        File file = new File(baseDirectory, relativePath);
+        if (!file.exists() || !file.isFile()) {
+            throw new IOException("File not found: " + relativePath);
+        }
+
+        logger.debug("Reading file content: {}", relativePath);
+        return Files.readString(file.toPath(), StandardCharsets.UTF_8);
+    }
+
+    /**
      * Gets the base directory
      *
      * @return Base directory

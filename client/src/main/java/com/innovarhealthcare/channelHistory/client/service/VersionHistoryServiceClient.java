@@ -10,6 +10,7 @@ import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
@@ -461,6 +462,57 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to get repository info: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get current working tree changes (modified/removed/missing and untracked files)
+     *
+     * @return RepoChanges with changedFiles and untrackedFiles
+     * @throws ClientException if Git is not connected or an error occurs
+     */
+    public RepoChanges getRepoChanges() throws ClientException {
+        try {
+            String jsonResponse = getServlet().getRepoChanges();
+            return JsonUtils.fromJson(jsonResponse, RepoChanges.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get repository changes: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get file content from the working tree
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc-123.xml")
+     * @return Raw file content as string
+     * @throws ClientException if file not found or Git is not connected
+     */
+    public String getFileContent(String filePath) throws ClientException {
+        try {
+            return getServlet().getFileContent(filePath);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get file content: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get file content at HEAD revision
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc-123.xml")
+     * @return Raw file content at HEAD as string
+     * @throws ClientException if file not found at HEAD or Git is not connected
+     */
+    public String getFileContentAtHead(String filePath) throws ClientException {
+        try {
+            return getServlet().getFileContentAtHead(filePath);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get file content at HEAD: " + e.getMessage(), e);
         }
     }
 

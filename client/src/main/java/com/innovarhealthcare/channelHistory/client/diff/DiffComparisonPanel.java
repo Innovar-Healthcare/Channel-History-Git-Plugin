@@ -19,7 +19,7 @@ import com.innovarhealthcare.channelHistory.client.diff.model.DiffResult;
 import com.innovarhealthcare.channelHistory.client.diff.model.ScriptDiffEngine;
 import com.innovarhealthcare.channelHistory.client.diff.model.VersionInfo;
 
-class DiffComparisonPanel extends JPanel {
+public class DiffComparisonPanel extends JPanel {
     private static final Color HEADER_BG = new Color(250, 251, 252);
     private static final Color BORDER_COLOR = new Color(224, 224, 224);
     private static final Font HEADER_FONT = new Font("SansSerif", Font.PLAIN, 12);
@@ -29,26 +29,17 @@ class DiffComparisonPanel extends JPanel {
     private DiffTextPane rightPane;
     private JScrollPane leftScroll;
     private JScrollPane rightScroll;
-    private VersionInfo leftVersion;
-    private VersionInfo rightVersion;
 
-    public DiffComparisonPanel(String leftContent, String rightContent, VersionInfo leftVersion, VersionInfo rightVersion) {
-        this.leftVersion = leftVersion;
-        this.rightVersion = rightVersion;
-
+    public DiffComparisonPanel(VersionInfo leftVersion, VersionInfo rightVersion) {
         setLayout(new GridLayout(1, 2, 1, 0));
 
         leftPane = new DiffTextPane();
         rightPane = new DiffTextPane();
 
-        // Create panels with headers
-        JPanel leftPanel = createPanelWithHeader(leftPane, leftVersion, true);
-        JPanel rightPanel = createPanelWithHeader(rightPane, rightVersion, false);
+        add(createPanelWithHeader(leftPane, leftVersion, true));
+        add(createPanelWithHeader(rightPane, rightVersion, false));
 
-        add(leftPanel);
-        add(rightPanel);
-
-        updateDiff(leftContent, rightContent);
+        setupSynchronizedScrolling();
     }
 
     private JPanel createPanelWithHeader(DiffTextPane textPane, VersionInfo version, boolean isLeft) {

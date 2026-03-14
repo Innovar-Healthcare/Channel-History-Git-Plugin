@@ -21,7 +21,7 @@ Channel-History-Git-Plugin/
 ├── shared/                          # DTOs, interfaces, constants — used by all modules
 │   └── src/main/java/com/innovarhealthcare/channelHistory/shared/
 │       ├── model/                   # GitSettings, CommitMetaData, RepoItemMetadata, …
-│       ├── dto/response/            # RepoFile, RepoFolder, RepoInfo, ErrorResponse, …
+│       ├── dto/response/            # RepoFile, RepoFolder, RepoInfo, RepoChanges, ErrorResponse, …
 │       ├── util/                    # CommitMessageUtil, JsonUtils, ResponseUtil, …
 │       ├── interfaces/              # VersionHistoryServletInterface (JAX-RS)
 │       └── diff/                    # ObjectDiff, FieldNode, FieldType, …
@@ -36,7 +36,7 @@ Channel-History-Git-Plugin/
 ├── client/                          # Swing UI — dialogs, panels, task pane, tables
 │   └── src/main/java/com/innovarhealthcare/channelHistory/client/
 │       ├── panel/                   # VersionHistorySettingPanel, tab panels
-│       ├── dialog/                  # History dialogs, comparison dialogs, import dialogs
+│       ├── dialog/                  # History dialogs, diff dialogs, import dialogs
 │       ├── taskpane/                # VersionHistoryTaskPane, context classes, operations
 │       ├── table/                   # Commit and repo item tables + models
 │       ├── diff/                    # DiffComparisonPanel, ScriptDiffEngine, DiffLine, …
@@ -79,21 +79,22 @@ Channel-History-Git-Plugin/
 | `RepoFile` | DTO: `name` (String), `sizeBytes` (long); Jackson `@JsonCreator` / `@JsonProperty` |
 | `RepoFolder` | DTO: `name`, `fileCount` (int), `files` (List\<RepoFile\>, defaults to empty list) |
 | `RepoInfo` | DTO: `localRepoPath`, `remoteUrl`, `branch`, `totalSizeBytes` (long), `folders` (List\<RepoFolder\>, defaults to empty list) |
+| `RepoChanges` | DTO: `modifiedFiles` (List\<String\>, from `Status.getModified()`), `deletedFiles` (List\<String\>, from `Status.getRemoved()` + `Status.getMissing()`), `untrackedFiles` (List\<String\>, from `Status.getUntracked()`); all default to empty list; Jackson `@JsonCreator` / `@JsonProperty` |
 
 ### 4.2 Server
 
 | Class | Responsibility |
 |---|---|
 | `GitRepositoryController` | Singleton entry point; owns lifecycle (`init`, `start`, `update`, `stop`); wires together `GitRepositoryService` and `VersionHistoryService` |
-| `GitRepositoryService` | Thread-safe singleton managing the JGit connection (clone / open / pull on start; factory for repository instances); `validateSSHConnection(GitSettings)` clones to a temp dir with `--no-checkout` to test reachability then deletes the dir — never throws, returns `null` on success or an error string; private `buildSshSessionFactory(GitSettings)` constructs a `JschConfigSessionFactory` from inline key bytes or a file path; `getRepoInfo()` scans the top two levels of the working tree (folders → files), skips `.git`, and returns a `RepoInfo` snapshot with path, remote URL, branch, total size (`FileUtils.sizeOfDirectory`), and folder list |
-| `VersionHistoryService` | Business logic facade; coordinates repository layer for save, delete, history, and content-retrieval operations; `validateGitConnection(Properties)` parses a temporary `VersionHistoryProperties` and delegates to `GitRepositoryService.validateSSHConnection()`; `getRepoInfo()` checks `isGitAvailable()` (throws `GitNotConnectedException` if not) then delegates to `GitRepositoryService.getRepoInfo()` |
-| `GitOperations` | Low-level JGit wrapper: stage, commit, push (normal + force), pull-with-overwrite, read-at-revision, file history |
-| `FileOperations` | File I/O using Mirth's `ObjectXMLSerializer` for serialisation/deserialisation |
+| `GitRepositoryService` | Thread-safe singleton managing the JGit connection; `validateSSHConnection(GitSettings)` clones to a temp dir with `--no-checkout` to test reachability then deletes the dir; `getRepoInfo()` scans the top two levels of the working tree (skips `.git`), returns a `RepoInfo` snapshot; `getRepoChanges()` calls `GitOperations.getRepoChanges()`, wraps `GitAPIException` as `GitOperationException`; `getFileContent(filePath)` reads raw bytes from the working tree via `FileOperations.readFileContent()`, throws `GitFileNotFoundException` if absent; `getFileContentAtHead(filePath)` reads via `GitOperations.readFileAtRevision(filePath, "HEAD")`, converts bytes to UTF-8 string |
+| `VersionHistoryService` | Business logic facade; all methods guard with `isGitAvailable()` and throw `GitNotConnectedException` when Git is unavailable; `validateGitConnection(Properties)` parses a temporary `VersionHistoryProperties` and delegates to `GitRepositoryService.validateSSHConnection()`; `getRepoInfo()`, `getRepoChanges()`, `getFileContent(filePath)`, `getFileContentAtHead(filePath)` delegate directly to `GitRepositoryService` |
+| `GitOperations` | Low-level JGit wrapper: stage, commit, push (normal + force), pull-with-overwrite, read-at-revision, file history; `getRepoChanges()` calls `git.status().call()` and partitions results into modified, deleted, and untracked lists |
+| `FileOperations` | File I/O using Mirth's `ObjectXMLSerializer` for serialisation/deserialisation; `readFileContent(relativePath)` reads the working-tree file as a UTF-8 string using `Files.readString()` |
 | `ChannelRepository` | Channel entity data-access over Git |
 | `LibraryRepository` | Code-template library data-access |
 | `CodeTemplateRepository` | Code template data-access |
 | `GlobalScriptRepository` | Global scripts data-access |
-| `VersionHistoryPluginServlet` | JAX-RS servlet; maps HTTP requests → `VersionHistoryService`; maps exceptions → HTTP status codes; `getRepoInfo()` serialises `RepoInfo` to JSON, maps `GitNotConnectedException` → 503 |
+| `VersionHistoryPluginServlet` | JAX-RS servlet; maps HTTP requests → `VersionHistoryService`; maps exceptions → HTTP status codes; `getRepoInfo()` serialises `RepoInfo` to JSON; `getRepoChanges()` serialises `RepoChanges` to JSON; `getFileContent(filePath)` returns raw file content, maps `GitFileNotFoundException` → 404; `getFileContentAtHead(filePath)` returns HEAD content, maps `GitFileNotFoundException` → 404 and `GitOperationException` → 500 |
 | `VersionHistoryPlugin` | `ServicePlugin` entry point (`init`, `start`, `stop`, `update`) |
 | `ChannelVersionPlugin` | Channel-change listener → triggers auto-commit |
 | `CodeTemplateVersionPlugin` | Code-template change listener → triggers auto-commit |
@@ -114,12 +115,12 @@ VersionHistoryApiException      → carries HTTP status; thrown from servlet lay
 
 | Class | Responsibility |
 |---|---|
-| `VersionHistoryServiceClient` | REST client wrapper; calls all server endpoints including `validateSetting()` and `getRepoInfo()` (deserialises JSON response into `RepoInfo` via `JsonUtils.fromJson`) |
+| `VersionHistoryServiceClient` | REST client wrapper; `getRepoInfo()` deserialises JSON → `RepoInfo`; `getRepoChanges()` deserialises JSON → `RepoChanges`; `getFileContent(filePath)` returns raw file content string; `getFileContentAtHead(filePath)` returns HEAD content string; all methods follow the `rethrowParsedClientError` pattern |
 | `VersionHistorySettingPanel` | Top-level settings panel with four tabs: General, Git Settings, Git Behavior, Git Status; tabs 1–3 disabled when plugin is off; Git Status tab blocks navigation when there are unsaved changes |
 | `GeneralTabPanel` | Plugin enable/disable toggle |
 | `GitSettingsTabPanel` | Remote URL, branch, SSH key (paste-key / file-path radio toggle); "Validate Connection" button opens `GitValidationDialog` (inner class) |
-| `GitBehaviorTabPanel` | Two titled sections in one tab — **Auto Commit** (enable, prompt, default message) and **Sync Delete** (auto-remove deleted entities from Git) |
-| `GitStatusTabPanel` | Live repository status tab: **Repository Info** panel (local path, remote URL, branch, size) + **File Browser** panel (two-level `JTree`: top-level folders as parents, files with sizes as leaves); auto-loads via `HierarchyListener` (`SHOWING_CHANGED`) when tab becomes visible; `LoadRepoInfoWorker` (`SwingWorker`) fetches data in background; Refresh button re-triggers load; loading/error/loaded state transitions with indeterminate `JProgressBar` and red status label |
+| `GitBehaviorTabPanel` | Two titled sections — **Auto Commit** (enable, prompt, default message) and **Sync Delete** (auto-remove deleted entities from Git) |
+| `GitStatusTabPanel` | Live repository status tab: **Repository Info** panel (local path, remote URL, branch, size as four labeled rows); **JSplitPane** (50/50 horizontal split) — left: **File Browser** two-level `JTree` (folder nodes → file leaf nodes storing `FileNode{displayText, relativePath}`); right: **Working Tree Changes** `JTree` with colour-coded `[M]`/`[D]`/`[U]` prefixes via `ChangesCellRenderer`; auto-loads via `HierarchyListener`; `LoadDataWorker` (`SwingWorker`) fetches `getRepoInfo()` + `getRepoChanges()` in parallel on the background thread; double-click on file tree → `getFileContent()` then binary check → simple text viewer; double-click on changes tree → fetch content(s) → binary check → XML check → `ChannelDiffDialog` / `CodeTemplateDiffDialog` or simple text viewer |
 | `ChannelHistoryTabPanel` | Commit history table + content preview for a channel |
 | `VersionHistoryTaskPane` | Context-sensitive task pane for channels, code templates, global scripts |
 | `TaskPaneContextManager` | Manages the active `TaskPaneContext` based on current Mirth view |
@@ -127,9 +128,11 @@ VersionHistoryApiException      → carries HTTP status; thrown from servlet lay
 | `GlobalScriptOperations` | Global-script operations invoked from the task pane |
 | `CodeTemplateOperations` | Code-template operations invoked from the task pane |
 | `VersionComparisonDialog` | Side-by-side comparison of two channel revisions |
-| `GlobalScriptsHistoryDialog` | History viewer and diff display for global scripts |
-| `ScriptDiffEngine` | Line-based diff algorithm |
-| `DiffComparisonPanel` | Renders unified diff with colour-coded ADDED / REMOVED / UNCHANGED lines |
+| `GlobalScriptsHistoryDialog` | History viewer and diff display for global scripts; contains `GlobalScriptsDiffPanel` |
+| `ChannelDiffDialog` | Modal `JDialog` (1200×800) for channel diff; `JTabbedPane` with **XML Diff** tab (`DiffComparisonPanel`) and **Channel** tab (TBD visual view); constructor auto-sorts versions (current always right, newer timestamp right); ESC closes |
+| `CodeTemplateDiffDialog` | Same structure as `ChannelDiffDialog`; title "Code Template Diff"; second tab labelled "Code Template" (TBD) |
+| `DiffComparisonPanel` | Generic `public` side-by-side diff panel; constructor `(VersionInfo leftVersion, VersionInfo rightVersion)`; `updateDiff(leftText, rightText)` triggers diff render; uses `ScriptDiffEngine` + `DiffTextPane`; synchronized scrolling wired in constructor |
+| `ScriptDiffEngine` | Line-based diff using java-diff-utils; produces `DiffResult` with left/right `DiffLine` lists annotated with `ADDED`/`DELETED`/`UNCHANGED` |
 | `CommitMetaDataTable` | Swing table displaying commit history rows |
 | `ChannelRepoTable` | Swing table displaying channels present in the Git repo |
 
@@ -142,6 +145,24 @@ A modal `JDialog` opened by the "Validate Connection" button:
 3. `ValidateWorker` (`SwingWorker`) calls `VersionHistoryServiceClient.validateSetting(toGitSettingsProperties())` on a background thread.
 4. `done()` hides the progress bar and either shows a green `✓ Connection successful` label (success) or a red `✗ <server error message>` label (failure), then enables Close.
 5. `DO_NOTHING_ON_CLOSE` prevents accidental dismissal while validation is in progress.
+
+**`GitStatusTabPanel` — double-click file-open logic:**
+
+| Source | Content type | Action |
+|---|---|---|
+| File Browser (any file) | Binary (contains `\0` in first 8 KB) | Error dialog: "Cannot display binary file: {name}" |
+| File Browser (any file) | Text | Simple read-only viewer (800×600 `JDialog`, monospaced `JTextArea`) |
+| Changes `[M]` | Binary | Error dialog |
+| Changes `[M]` | Text, not XML | Simple viewer (current content) |
+| Changes `[M]` | XML | `ChannelDiffDialog` or `CodeTemplateDiffDialog` — HEAD left, Current right |
+| Changes `[D]` | Binary | Error dialog |
+| Changes `[D]` | Text, not XML | Simple viewer (HEAD content) |
+| Changes `[D]` | XML | Diff dialog — HEAD left, blank "Deleted" right |
+| Changes `[U]` | Binary | Error dialog |
+| Changes `[U]` | Text, not XML | Simple viewer (current content) |
+| Changes `[U]` | XML | Diff dialog — blank "Not in repository" left, current right |
+
+Path routing: path containing `codetemplate`/`libraries`/`library` (case-insensitive) → `CodeTemplateDiffDialog`; otherwise → `ChannelDiffDialog`.
 
 ---
 
@@ -172,7 +193,7 @@ A modal `JDialog` opened by the "Validate Connection" button:
 | **Template Method** | `BaseRepository` — common save/history logic, overridden in subclasses |
 | **Observer/Listener** | `ChannelVersionPlugin`, `CodeTemplateVersionPlugin` react to Mirth events |
 | **Strategy** | Different save strategies per entity type in `VersionHistoryService` |
-| **Builder** | `ResponseUtil` and `ErrorResponseFactory` for response construction |
+| **Builder** | `ResponseUtil`, `ErrorResponseFactory`, and `VersionInfo.Builder` |
 | **In-place Mutation** | `VersionHistoryProperties.fromProperties()` updates existing instance to preserve live service references |
 
 ---
@@ -287,7 +308,7 @@ done() on EDT:
   failure → red "✗ <error message>",       Close enabled
 ```
 
-### 6.6 Get Repository Info (Git Status Tab)
+### 6.6 Load Git Status Tab
 
 ```
 User selects "Git Status" tab (or tab becomes visible)
@@ -295,29 +316,89 @@ User selects "Git Status" tab (or tab becomes visible)
 HierarchyListener fires (SHOWING_CHANGED && isShowing())
         ↓
 GitStatusTabPanel.loadData()
-  ├─ loadingBar visible, Refresh disabled, values cleared to "—"
-  └─ new LoadRepoInfoWorker().execute()
-        ↓ (background thread)
+  ├─ loadingBar visible, Refresh disabled, all values cleared to "—"
+  └─ new LoadDataWorker().execute()
+        ↓ (background thread — both calls sequential)
 VersionHistoryServiceClient.getRepoInfo()
         ↓  HTTP GET /plugins/version-history/repoInfo
-VersionHistoryPluginServlet.getRepoInfo()
-        ↓
-VersionHistoryService.getRepoInfo()
-  ├─ isGitAvailable() == false  →  throw GitNotConnectedException  →  HTTP 503
-  └─ gitRepositoryService.getRepoInfo()
+VersionHistoryService.getRepoInfo()  →  GitRepositoryService.getRepoInfo()
         ├─ FileUtils.sizeOfDirectory(repositoryDirectory)
-        ├─ scan repositoryDirectory top-level: skip .git, collect RepoFolder per dir
-        │    └─ per folder: collect RepoFile per file child (name + sizeBytes)
+        ├─ scan top-level dirs (skip .git): build RepoFolder per dir
+        │    └─ per folder: build RepoFile per file (name + sizeBytes)
         └─ return RepoInfo(localRepoPath, remoteUrl, branch, totalSizeBytes, folders)
-        ↓
-JsonUtils.toJson(repoInfo)  →  HTTP 200
-        ↓
-JsonUtils.fromJson(json, RepoInfo.class)
+
+VersionHistoryServiceClient.getRepoChanges()
+        ↓  HTTP GET /plugins/version-history/repoChanges
+VersionHistoryService.getRepoChanges()  →  GitRepositoryService.getRepoChanges()
+        └─ GitOperations.getRepoChanges()
+               ├─ git.status().call()
+               ├─ modifiedFiles  = status.getModified()
+               ├─ deletedFiles   = status.getRemoved() + status.getMissing()
+               └─ untrackedFiles = status.getUntracked()
+
         ↓ (EDT via done())
-exitLoadedState(info):
-  ├─ localRepoPathValueLabel, remoteUrlValueLabel, branchValueLabel, sizeValueLabel populated
-  ├─ JTree rebuilt from folders/files, all rows expanded
-  └─ loadingBar hidden, Refresh enabled
+exitLoadedState(info, changes):
+  ├─ Repository Info panel: localRepoPath, remoteUrl, branch, size populated
+  ├─ File Browser JTree rebuilt from RepoInfo.folders/files (all rows expanded)
+  │    └─ leaf nodes store FileNode{displayText, relativePath} for double-click lookup
+  └─ Working Tree Changes JTree rebuilt:
+       ├─ "Changed (N)" group: [M] modifiedFiles + [D] deletedFiles (ChangesCellRenderer colours)
+       └─ "Unversioned Files (N)" group: [U] untrackedFiles
+```
+
+### 6.7 Open File Content (double-click in Git Status Tab)
+
+```
+User double-clicks a file node in File Browser or Changes JTree
+        ↓
+SwingWorker starts; setCursor(WAIT_CURSOR)
+        ↓ (background thread)
+  File Browser node:
+    VersionHistoryServiceClient.getFileContent(relativePath)
+        ↓  HTTP GET /plugins/version-history/fileContent?filePath=…
+        ↓  FileOperations.readFileContent(relativePath)  →  UTF-8 string
+
+  [M] node:
+    getFileContentAtHead(filePath)  +  getFileContent(filePath)
+        ↓  GET /fileContentAtHead  +  GET /fileContent
+
+  [D] node:
+    getFileContentAtHead(filePath)
+        ↓  GET /fileContentAtHead
+
+  [U] node:
+    getFileContent(filePath)
+        ↓  GET /fileContent
+
+        ↓ (EDT via done()); setCursor(DEFAULT_CURSOR)
+Binary check (scan first 8 KB for '\0'):
+  → true   → JOptionPane error: "Cannot display binary file: {name}"
+  → false  → text content:
+       not XML (trimmed doesn't start with '<'):
+         → showTextViewer(title, content)  [800×600 modal JDialog, monospaced JTextArea]
+       XML:
+         → path routing:  codetemplate / libraries / library  →  CodeTemplateDiffDialog
+                          otherwise                            →  ChannelDiffDialog
+         → VersionInfo built per side (isCurrent=true for "Current" / "Deleted")
+         → dialog.setVisible(true)
+```
+
+### 6.8 Diff Dialog Version Auto-Sort
+
+```
+ChannelDiffDialog / CodeTemplateDiffDialog constructor
+        ↓
+sortVersions(version1, version2, xml1, xml2)
+  ├─ version1.isCurrent() && !version2.isCurrent()  →  version1 goes RIGHT
+  ├─ version2.isCurrent() && !version1.isCurrent()  →  version2 goes RIGHT
+  ├─ both not current: version1.timestamp.after(version2.timestamp) →  version1 goes RIGHT
+  └─ default: keep original order
+        ↓
+DiffComparisonPanel(leftVersion, rightVersion)
+diffPanel.updateDiff(leftXml, rightXml)
+        ↓
+ScriptDiffEngine.diff(leftLines, rightLines)  →  DiffResult
+DiffTextPane (left) + DiffTextPane (right) rendered with colour-coded lines
 ```
 
 ---
@@ -339,13 +420,16 @@ Base path: `/plugins/version-history`
 | `GET` | `/libraries_and_templates` | — | Libraries + template metadata |
 | `POST` | `/saveLibraries` | body: List\<CodeTemplateLibrary\>, `message`, `userId` | Save libraries batch |
 | `GET` | `/repoInfo` | — | Local repo path, remote URL, branch, size, and two-level file tree |
+| `GET` | `/repoChanges` | — | Working tree changes: modified, deleted, and untracked file lists |
+| `GET` | `/fileContent` | `filePath` | Raw file content from working tree (UTF-8); 404 if not found |
+| `GET` | `/fileContentAtHead` | `filePath` | Raw file content at HEAD revision (UTF-8); 404 if not found at HEAD |
 
 **HTTP error codes:**
 
 | Code | Condition |
 |---|---|
 | 400 | Validation failed / bad input |
-| 404 | File not found at revision |
+| 404 | File not found at revision or in working tree |
 | 409 | Push rejected (conflict) |
 | 503 | Git not connected |
 | 500 | Unhandled Git operation failure |
@@ -438,9 +522,12 @@ innovarhealthcare-channel-history-v3.0.0-bl4.6.1.zip
 
 ## 12. Known Limitations
 
-- `GitRepositoryController.isGitConnected()` currently returns a hardcoded value; live status detection is not fully implemented.
-- SSH strict host key checking is disabled by default — acceptable for internal use but a security consideration for public deployments.
-- No merge conflict resolution: conflicting pushes are rejected with HTTP 409 and must be resolved manually.
-- `VersionHistoryService` is not thread-safe at the service level; high-concurrency environments could see race conditions on simultaneous saves.
-- Sensitive fields (SSH private key, HTTPS password) are stored as plain text in properties. A future task will implement XStream-based encryption/masking to prevent credentials from appearing in logs and exports.
-- `validateSSHConnection()` only exercises the SSH (and default) transport path. HTTPS credential validation (`authType = "HTTPS"`) is not yet wired — the method will attempt a clone using the default session factory and likely fail with an authentication error rather than providing a meaningful message.
+- **Exception handling inconsistency** — The service layer (`GitRepositoryService`, `VersionHistoryService`) mixes checked and unchecked exceptions across methods without a uniform policy. Some methods declare checked exceptions in their signatures; others throw unchecked `GitOperationException` silently. Needs a full audit and standardisation against the `GitRepositoryException` hierarchy.
+- **Sensitive fields stored as plain text** — SSH private key content and HTTPS password are stored as plain text in the plugin properties file. A future task will implement XStream-based encryption/masking to prevent credentials appearing in logs and exports.
+- **HTTPS validation not yet implemented** — `validateSSHConnection()` only exercises the SSH transport path. When `authType = "HTTPS"`, the method attempts a clone with the default session factory and will likely fail with a generic authentication error rather than a meaningful message.
+- **`DiffComparisonPanel` — no synchronized scrolling** — The left and right `DiffTextPane` scroll panes are not linked; scrolling one side does not scroll the other. `setupSynchronizedScrolling()` is called in the constructor but the implementation is not yet complete.
+- **`DiffComparisonPanel` — no blank-line padding for alignment** — Deleted lines on the left have no corresponding blank placeholder on the right (and vice versa), so matching context lines fall out of vertical alignment when diffs are large.
+- **`ChannelDiffDialog` / `CodeTemplateDiffDialog` — visual view TBD** — The second tab ("Channel" / "Code Template") shows a placeholder `JLabel("TBD")`. A structured visual comparison (rendered channel properties, connector list, etc.) is not yet implemented.
+- **`GitRepositoryController.isGitConnected()` stub** — Currently returns a hardcoded value; live status detection is not fully implemented.
+- **SSH strict host key checking disabled** — Acceptable for internal use but a security consideration for public deployments.
+- **No merge conflict resolution** — Conflicting pushes are rejected with HTTP 409 and must be resolved manually outside the plugin.

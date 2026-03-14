@@ -293,6 +293,71 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
             auditable = false
     )
     public String getRepoInfo() throws ClientException;
+
+    @GET
+    @Path("/repoChanges")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get current working tree changes",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getRepoChanges",
+            display = "Get working tree changes",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    public String getRepoChanges() throws ClientException;
+
+    @GET
+    @Path("/fileContent")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get file content from working tree",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getFileContent",
+            display = "Get file content from working tree",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    public String getFileContent(
+            @Param("filePath")
+            @Parameter(description = "Relative file path from repository root (e.g., 'Channels/abc-123.xml')", required = true)
+            @QueryParam("filePath") String filePath
+    ) throws ClientException;
+
+    @GET
+    @Path("/fileContentAtHead")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get file content at HEAD revision",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getFileContentAtHead",
+            display = "Get file content at HEAD revision",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    public String getFileContentAtHead(
+            @Param("filePath")
+            @Parameter(description = "Relative file path from repository root (e.g., 'Channels/abc-123.xml')", required = true)
+            @QueryParam("filePath") String filePath
+    ) throws ClientException;
 }
 
 //@formatter:on

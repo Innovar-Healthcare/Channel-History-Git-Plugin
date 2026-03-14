@@ -8,6 +8,7 @@ import java.util.List;
 import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
 import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
 import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -221,6 +222,31 @@ public class GitOperations {
 
         logger.info("Found {} commits for file: {}", history.size(), filePath);
         return history;
+    }
+
+    /**
+     * Gets the current working tree changes: modified, removed, or missing files
+     * and new untracked files.
+     *
+     * @return RepoChanges with changedFiles and untrackedFiles lists
+     * @throws GitAPIException if git operation fails
+     */
+    public RepoChanges getRepoChanges() throws GitAPIException {
+        logger.debug("Getting working tree changes");
+
+        Status status = git.status().call();
+
+        List<String> modifiedFiles  = new ArrayList<>(status.getModified());
+
+        List<String> deletedFiles   = new ArrayList<>();
+        deletedFiles.addAll(status.getRemoved());
+        deletedFiles.addAll(status.getMissing());
+
+        List<String> untrackedFiles = new ArrayList<>(status.getUntracked());
+
+        logger.info("Found {} modified, {} deleted, {} untracked files",
+                modifiedFiles.size(), deletedFiles.size(), untrackedFiles.size());
+        return new RepoChanges(modifiedFiles, deletedFiles, untrackedFiles);
     }
 
     /**

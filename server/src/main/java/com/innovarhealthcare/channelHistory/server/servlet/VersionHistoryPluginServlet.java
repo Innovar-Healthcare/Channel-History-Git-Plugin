@@ -19,6 +19,7 @@ import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
@@ -515,6 +516,84 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
         } catch (Exception e) {
             logger.error("Unexpected error getting repo info", e);
             throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to get repository info: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String getRepoChanges() {
+        try {
+            RepoChanges repoChanges = getService().getRepoChanges();
+            return JsonUtils.toJson(repoChanges);
+
+        } catch (GitNotConnectedException e) {
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting repo changes", e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to get repository changes: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String getFileContent(String filePath) {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "File path is required");
+        }
+
+        logger.info("getFileContent: filePath={}", filePath);
+
+        try {
+            return getService().getFileContent(filePath);
+
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: filePath={}", filePath);
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitFileNotFoundException e) {
+            logger.warn("File not found in working tree: filePath={}", filePath);
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.FILE_NOT_FOUND, "File not found: " + filePath);
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting file content: filePath={}", filePath, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to get file content: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String getFileContentAtHead(String filePath) {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "File path is required");
+        }
+
+        logger.info("getFileContentAtHead: filePath={}", filePath);
+
+        try {
+            return getService().getFileContentAtHead(filePath);
+
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: filePath={}", filePath);
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitFileNotFoundException e) {
+            logger.warn("File not found at HEAD: filePath={}", filePath);
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.FILE_NOT_FOUND, "File not found at HEAD: " + filePath);
+
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed: filePath={}", filePath, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.GIT_OPERATION_ERROR, "Failed to get file content at HEAD: " + e.getMessage());
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting file content at HEAD: filePath={}", filePath, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to get file content at HEAD: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 

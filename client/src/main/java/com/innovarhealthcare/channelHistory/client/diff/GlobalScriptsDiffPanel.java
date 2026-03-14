@@ -148,7 +148,7 @@ class GlobalScriptsDiffPanel extends JPanel {
     private JPanel createDetailPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
-        codeDiffPanel = new DiffComparisonPanel("", "", leftVersion, rightVersion);
+        codeDiffPanel = new DiffComparisonPanel(leftVersion, rightVersion);
         panel.add(codeDiffPanel, BorderLayout.CENTER);
 
         return panel;

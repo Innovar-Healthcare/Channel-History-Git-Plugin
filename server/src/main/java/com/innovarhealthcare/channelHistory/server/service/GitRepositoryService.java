@@ -2,21 +2,24 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
-import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFile;
-import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFolder;
-import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
-import com.innovarhealthcare.channelHistory.shared.model.GitSettings;
-import org.apache.commons.io.FileUtils;
+import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
 import com.innovarhealthcare.channelHistory.server.file.FileOperations;
 import com.innovarhealthcare.channelHistory.server.git.GitOperations;
 import com.innovarhealthcare.channelHistory.server.repository.ChannelRepository;
 import com.innovarhealthcare.channelHistory.server.repository.CodeTemplateRepository;
 import com.innovarhealthcare.channelHistory.server.repository.GlobalScriptRepository;
 import com.innovarhealthcare.channelHistory.server.repository.LibraryRepository;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFile;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFolder;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
+import com.innovarhealthcare.channelHistory.shared.model.GitSettings;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
@@ -24,6 +27,7 @@ import com.jcraft.jsch.Session;
 import com.mirth.connect.donkey.server.Donkey;
 import com.mirth.connect.model.converters.ObjectXMLSerializer;
 import com.mirth.connect.server.controllers.ControllerFactory;
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.Git;
@@ -318,6 +322,66 @@ public class GitRepositoryService {
         return new RepoInfo(localRepoPath, remoteUrl, branch, totalSizeBytes, folders);
     }
 
+    /**
+     * Returns the current working tree changes (modified/removed/missing and untracked files).
+     *
+     * @return RepoChanges snapshot
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitOperationException    if the status command fails
+     */
+    public RepoChanges getRepoChanges() throws GitOperationException {
+        ensureStarted();
+        ensureGitAvailable();
+        try {
+            return gitOperations.getRepoChanges();
+        } catch (Exception e) {
+            throw new GitOperationException("Failed to get repository changes: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the raw content of a file from the working tree filesystem.
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc.xml")
+     * @return File content as UTF-8 string
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitFileNotFoundException if the file does not exist in the working tree
+     */
+    public String getFileContent(String filePath) {
+        ensureStarted();
+        ensureGitAvailable();
+        try {
+            return fileOperations.readFileContent(filePath);
+        } catch (IOException e) {
+            throw new GitFileNotFoundException("File not found in working tree: " + filePath);
+        }
+    }
+
+    /**
+     * Returns the raw content of a file at HEAD revision from the Git object store.
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc.xml")
+     * @return File content as UTF-8 string
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitFileNotFoundException if the file does not exist at HEAD
+     * @throws GitOperationException    if the Git read operation fails
+     */
+    public String getFileContentAtHead(String filePath) throws GitFileNotFoundException, GitOperationException {
+        ensureStarted();
+        ensureGitAvailable();
+        try {
+            byte[] bytes = gitOperations.readFileAtRevision(filePath, "HEAD");
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (GitFileNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitOperationException("Failed to read file at HEAD: " + filePath + " — " + e.getMessage(), e);
+        }
+    }
+
     // ========== Connection Validation ==========
 
     /**
@@ -349,17 +413,11 @@ public class GitRepositoryService {
             SshSessionFactory tempFactory = buildSshSessionFactory(gitSettings);
             tempDir = new File(Donkey.getInstance().getConfiguration().getAppData(), "version-control-validate-" + System.currentTimeMillis());
 
-            tempGit = Git.cloneRepository()
-                    .setURI(remoteUrl)
-                    .setDirectory(tempDir)
-                    .setBranch(branch)
-                    .setNoCheckout(true)
-                    .setTransportConfigCallback(transport -> {
-                        if (transport instanceof SshTransport) {
-                            ((SshTransport) transport).setSshSessionFactory(tempFactory);
-                        }
-                    })
-                    .call();
+            tempGit = Git.cloneRepository().setURI(remoteUrl).setDirectory(tempDir).setBranch(branch).setNoCheckout(true).setTransportConfigCallback(transport -> {
+                if (transport instanceof SshTransport) {
+                    ((SshTransport) transport).setSshSessionFactory(tempFactory);
+                }
+            }).call();
 
             logger.info("Connection validation succeeded for: {}", remoteUrl);
             return null;

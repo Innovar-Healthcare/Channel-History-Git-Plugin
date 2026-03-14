@@ -16,6 +16,7 @@ import com.innovarhealthcare.channelHistory.server.repository.LibraryRepository;
 import com.innovarhealthcare.channelHistory.server.util.GitCommitterHelper;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibraryMetadata;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
@@ -678,6 +679,7 @@ public class VersionHistoryService {
         logger.info("Retrieved {} commits for global scripts: {}", history.size(), id);
         return history;
     }
+
     /**
      * Returns a snapshot of the local repository's structure and size.
      *
@@ -694,6 +696,64 @@ public class VersionHistoryService {
         }
 
         return gitRepositoryService.getRepoInfo();
+    }
+
+    /**
+     * Returns the current working tree changes (modified/removed/missing and untracked files).
+     *
+     * @return RepoChanges with changedFiles and untrackedFiles
+     * @throws GitNotConnectedException if Git repository is not available
+     */
+    public RepoChanges getRepoChanges() throws GitNotConnectedException, GitOperationException {
+        logger.info("getRepoChanges called");
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getRepoChanges();
+    }
+
+    /**
+     * Returns the raw content of a file from the working tree filesystem.
+     *
+     * @param filePath Relative path from repository root
+     * @return File content as string
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitFileNotFoundException if the file does not exist
+     */
+    public String getFileContent(String filePath) throws GitNotConnectedException, GitFileNotFoundException {
+        logger.info("getFileContent called: filePath={}", filePath);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getFileContent(filePath);
+    }
+
+    /**
+     * Returns the raw content of a file at HEAD revision from the Git object store.
+     *
+     * @param filePath Relative path from repository root
+     * @return File content as string
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitFileNotFoundException if the file does not exist at HEAD
+     */
+    public String getFileContentAtHead(String filePath) throws GitNotConnectedException, GitFileNotFoundException, GitOperationException {
+        logger.info("getFileContentAtHead called: filePath={}", filePath);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getFileContentAtHead(filePath);
     }
 
     // ========== Status Methods ==========
