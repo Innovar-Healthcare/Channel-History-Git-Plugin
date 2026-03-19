@@ -9,7 +9,7 @@
 
 ## 1. Purpose
 
-A Mirth Connect plugin that provides Git-backed version control for channels, code templates, libraries, and global scripts. Users can commit and push changes to a remote Git repository (SSH or HTTPS) either manually or automatically on save.
+A Mirth Connect plugin that provides Git-backed version control for channels, code templates, libraries, and global scripts. Users can commit and push changes to a remote Git repository (SSH or HTTPS) either manually or automatically on save. The plugin also exposes a Git Status view showing live repo state, working-tree changes, and file-level diff dialogs.
 
 ---
 
@@ -20,29 +20,41 @@ Channel-History-Git-Plugin/
 ├── pom.xml                          # Parent POM — version management, build profiles
 ├── shared/                          # DTOs, interfaces, constants — used by all modules
 │   └── src/main/java/com/innovarhealthcare/channelHistory/shared/
-│       ├── model/                   # GitSettings, CommitMetaData, RepoItemMetadata, …
-│       ├── dto/response/            # RepoFile, RepoFolder, RepoInfo, RepoChanges, ErrorResponse, …
-│       ├── util/                    # CommitMessageUtil, JsonUtils, ResponseUtil, …
+│       ├── model/                   # GitSettings, CommitMetaData, VersionHistoryProperties, …
+│       ├── dto/response/            # RepoFile, RepoFolder, RepoInfo, RepoChanges,
+│       │                            #   LibraryMetadata, LibrariesAndTemplatesResponse,
+│       │                            #   RepoItemMetadata, ErrorResponse
+│       ├── util/                    # CommitMessageUtil, JsonUtils, ErrorResponseFactory
 │       ├── interfaces/              # VersionHistoryServletInterface (JAX-RS)
-│       └── diff/                    # ObjectDiff, FieldNode, FieldType, …
+│       └── diff/                    # (unused — was ObjectDiff/FieldNode; now empty)
 ├── server/                          # Business logic, Git operations, REST servlet
 │   └── src/main/java/com/innovarhealthcare/channelHistory/server/
 │       ├── controller/              # GitRepositoryController (singleton)
 │       ├── service/                 # VersionHistoryService, GitRepositoryService
-│       ├── repository/              # ChannelRepository, LibraryRepository, …
+│       ├── repository/              # Repository<T>, BaseRepository<T>,
+│       │                            #   ChannelRepository, LibraryRepository,
+│       │                            #   CodeTemplateRepository, GlobalScriptRepository
 │       ├── git/                     # GitOperations, FileOperations, GitCommitterHelper
-│       ├── exception/               # Custom exception hierarchy
-│       └── plugin/                  # VersionHistoryPlugin, ChannelVersionPlugin, …
+│       ├── exception/               # GitRepositoryException hierarchy,
+│       │                            #   VersionHistoryApiException
+│       └── plugin/                  # VersionHistoryPlugin, ChannelVersionPlugin,
+│                                    #   CodeTemplateVersionPlugin
 ├── client/                          # Swing UI — dialogs, panels, task pane, tables
 │   └── src/main/java/com/innovarhealthcare/channelHistory/client/
-│       ├── panel/                   # VersionHistorySettingPanel, tab panels
+│       ├── panel/                   # VersionHistorySettingPanel, tab panels,
+│       │                            #   ChannelHistoryTabPanel
 │       ├── dialog/                  # History dialogs, diff dialogs, import dialogs
-│       ├── taskpane/                # VersionHistoryTaskPane, context classes, operations
-│       ├── table/                   # Commit and repo item tables + models
-│       ├── diff/                    # DiffComparisonPanel, ScriptDiffEngine, DiffLine, …
-│       ├── model/                   # ChannelWithRaw, CodeTemplateWithRaw, VersionInfo
+│       ├── taskpane/                # VersionHistoryTaskPane, contexts, operations
+│       ├── table/                   # CommitMetaDataTable, repo item tables + models
+│       ├── diff/                    # DiffComparisonPanel, ScriptDiffEngine,
+│       │                            #   CodeTemplateFunctionParser, renderers, models
+│       ├── model/                   # ChannelWithRaw, CodeTemplateWithRaw,
+│       │                            #   CommitMetaDataTableModel, …
 │       ├── service/                 # VersionHistoryServiceClient (REST client)
-│       └── plugin/                  # VersionHistorySettingPlugin, ChannelHistoryTabPlugin, …
+│       ├── exception/               # VersionHistoryClientException
+│       ├── util/                    # VersionControlUtil
+│       └── plugin/                  # VersionHistorySettingPlugin,
+│                                    #   ChannelHistoryTabPlugin, VersionHistoryTaskPlugin
 └── distribution/                    # Assembly descriptor → plugin ZIP
     └── assembly/zip.xml
 ```
@@ -53,7 +65,7 @@ Channel-History-Git-Plugin/
 
 | Module | JAR | Responsibility |
 |---|---|---|
-| `shared` | `channelHistory-shared.jar` | DTOs, constants, REST interface contract, diff utilities |
+| `shared` | `channelHistory-shared.jar` | DTOs, constants, REST interface contract, commit message utilities |
 | `server` | `channelHistory-server.jar` | Git operations, repositories, business logic, REST servlet |
 | `client` | `channelHistory-client.jar` | Swing UI, task pane, REST client, diff display |
 | `distribution` | *(zip)* | Plugin packaging — JAR assembly, `plugin.xml` generation |
@@ -66,105 +78,120 @@ Channel-History-Git-Plugin/
 
 | Class | Responsibility |
 |---|---|
-| `VersionControlConstants` | Static constants for property keys and entity modes (`MODE_CHANNEL`, `MODE_CODE_TEMPLATE`, etc.) |
-| `GitSettings` | POJO: remote URL, branch name, auth type (`SSH`\|`HTTPS`), SSH key (inline or file path), HTTPS username/password/credentials-file path; `isSSH()` / `isHTTPS()` helpers; auth-type-aware `validate()` |
-| `VersionHistoryProperties` | **Mutable** configuration loaded from Java `Properties`; supports in-place `fromProperties()` update to avoid orphaned service references |
-| `CommitMetaData` | Commit hash, committer, timestamp, and message |
-| `CommitMessageUtil` | Parses/formats structured commit messages: `"{Type} name: {Name}. Message: {Msg}. Server Name: {SrvName}. Server Id: {SrvId}"` |
-| `VersionHistoryServletInterface` | JAX-RS interface declaring all plugin REST endpoints |
-| `JsonUtils` | Jackson `ObjectMapper` wrapper |
-| `ResponseUtil` | Builds standardised JSON responses (`status`, `message`, `operationDetails`) |
-| `ErrorResponseFactory` | Factory producing `ErrorResponse` objects |
-| `ObjectDiff` | Field-level object comparison via OGNL + Apache BeanUtils |
-| `RepoFile` | DTO: `name` (String), `sizeBytes` (long); Jackson `@JsonCreator` / `@JsonProperty` |
-| `RepoFolder` | DTO: `name`, `fileCount` (int), `files` (List\<RepoFile\>, defaults to empty list) |
-| `RepoInfo` | DTO: `localRepoPath`, `remoteUrl`, `branch`, `totalSizeBytes` (long), `folders` (List\<RepoFolder\>, defaults to empty list) |
-| `RepoChanges` | DTO: `modifiedFiles` (List\<String\>, from `Status.getModified()`), `deletedFiles` (List\<String\>, from `Status.getRemoved()` + `Status.getMissing()`), `untrackedFiles` (List\<String\>, from `Status.getUntracked()`); all default to empty list; Jackson `@JsonCreator` / `@JsonProperty` |
+| `VersionControlConstants` | Static property key constants (`VERSION_HISTORY_ENABLE`, etc.) and entity mode constants (`MODE_CHANNEL`, `MODE_CODE_TEMPLATE`, `MODE_CODE_TEMPLATE_LIBRARY`, `MODE_GLOBAL_SCRIPTS`) |
+| `GitSettings` | POJO: `remoteRepositoryUrl`, `branchName`, `sshPrivateKey`, `sshPrivateKeyPath`, `authType`, `httpsUsername`, `httpsPassword`, `httpsCredentialsPath`; `isSSH()` / `isHTTPS()` helpers; auth-type-aware `validate()` |
+| `VersionHistoryProperties` | **Mutable** configuration loaded from Java `Properties`; `fromProperties(Properties)` updates all fields **in-place** (preserves live service references — never replaced); `toProperties()` converts back |
+| `CommitMetaData` | Commit hash, committer, timestamp (long ms), message; `getShortHash()`, `getMessageContent()`, `getServerId()`, `getServerName()` |
+| `VersionHistoryErrorCodes` | Static error code string constants (`INVALID_REQUEST`, `GIT_NOT_CONNECTED`, `GIT_AUTH_FAILED`, `PUSH_REJECTED`, `FILE_NOT_FOUND`, etc.) |
+| `CommitMessageUtil` | Parses and formats structured commit messages: `"{Type} name: {Name}. Message: {Msg}. Server Name: {SrvName}. Server Id: {SrvId}"`; static extraction methods for each field; backward-compatible with old format omitting Server Name; inner `BatchLibraries` wrapper for batch library commits |
+| `JsonUtils` | Static Jackson `ObjectMapper` (ISO 8601 dates, unknown properties ignored); `fromJson`, `toJson`, `toJsonPretty`, `fromJsonList` |
+| `ErrorResponseFactory` | `build(code, message)` → `ErrorResponse` with UTC timestamp |
+| `VersionHistoryServletInterface` | JAX-RS interface declaring all plugin REST endpoints with `@MirthOperation` metadata |
+| `RepoFile` | DTO: `name`, `sizeBytes` |
+| `RepoFolder` | DTO: `name`, `fileCount`, `files` (List\<RepoFile\>, defaults to empty) |
+| `RepoInfo` | DTO: `localRepoPath`, `remoteUrl`, `branch`, `totalSizeBytes`, `folders` (List\<RepoFolder\>) |
+| `RepoChanges` | DTO: `modifiedFiles` (from `Status.getModified()`), `deletedFiles` (from `Status.getRemoved()` + `Status.getMissing()`), `untrackedFiles` (from `Status.getUntracked()`); all List\<String\>, default empty |
+| `RepoItemMetadata` | DTO: `id`, `name`, `path`, `lastCommitId`; equals/hashCode via Apache Commons builders |
+| `LibraryMetadata` | DTO: `id`, `name`, `codeTemplateIds` (List\<String\>) |
+| `LibrariesAndTemplatesResponse` | DTO: `libraries` (List\<LibraryMetadata\>), `templates` (List\<RepoItemMetadata\>) |
+| `ErrorResponse` | DTO: `status` ("error"), `code`, `message`, `timestamp` (UTC ISO 8601) |
 
 ### 4.2 Server
 
 | Class | Responsibility |
 |---|---|
-| `GitRepositoryController` | Singleton entry point; owns lifecycle (`init`, `start`, `update`, `stop`); wires together `GitRepositoryService` and `VersionHistoryService` |
-| `GitRepositoryService` | Thread-safe singleton managing the JGit connection; `validateSSHConnection(GitSettings)` clones to a temp dir with `--no-checkout` to test reachability then deletes the dir; `getRepoInfo()` scans the top two levels of the working tree (skips `.git`), returns a `RepoInfo` snapshot; `getRepoChanges()` calls `GitOperations.getRepoChanges()`, wraps `GitAPIException` as `GitOperationException`; `getFileContent(filePath)` reads raw bytes from the working tree via `FileOperations.readFileContent()`, throws `GitFileNotFoundException` if absent; `getFileContentAtHead(filePath)` reads via `GitOperations.readFileAtRevision(filePath, "HEAD")`, converts bytes to UTF-8 string |
-| `VersionHistoryService` | Business logic facade; all methods guard with `isGitAvailable()` and throw `GitNotConnectedException` when Git is unavailable; `validateGitConnection(Properties)` parses a temporary `VersionHistoryProperties` and delegates to `GitRepositoryService.validateSSHConnection()`; `getRepoInfo()`, `getRepoChanges()`, `getFileContent(filePath)`, `getFileContentAtHead(filePath)` delegate directly to `GitRepositoryService` |
-| `GitOperations` | Low-level JGit wrapper: stage, commit, push (normal + force), pull-with-overwrite, read-at-revision, file history; `getRepoChanges()` calls `git.status().call()` and partitions results into modified, deleted, and untracked lists |
-| `FileOperations` | File I/O using Mirth's `ObjectXMLSerializer` for serialisation/deserialisation; `readFileContent(relativePath)` reads the working-tree file as a UTF-8 string using `Files.readString()` |
-| `ChannelRepository` | Channel entity data-access over Git |
-| `LibraryRepository` | Code-template library data-access |
-| `CodeTemplateRepository` | Code template data-access |
-| `GlobalScriptRepository` | Global scripts data-access |
-| `VersionHistoryPluginServlet` | JAX-RS servlet; maps HTTP requests → `VersionHistoryService`; maps exceptions → HTTP status codes; `getRepoInfo()` serialises `RepoInfo` to JSON; `getRepoChanges()` serialises `RepoChanges` to JSON; `getFileContent(filePath)` returns raw file content, maps `GitFileNotFoundException` → 404; `getFileContentAtHead(filePath)` returns HEAD content, maps `GitFileNotFoundException` → 404 and `GitOperationException` → 500 |
-| `VersionHistoryPlugin` | `ServicePlugin` entry point (`init`, `start`, `stop`, `update`) |
-| `ChannelVersionPlugin` | Channel-change listener → triggers auto-commit |
-| `CodeTemplateVersionPlugin` | Code-template change listener → triggers auto-commit |
-| `GitCommitterHelper` | Converts a Mirth `User` to a JGit `PersonIdent` |
+| `GitRepositoryController` | Singleton entry point; `init(Properties)`, `start()`, `update(Properties)`, `stop()`; wires `GitRepositoryService` and `VersionHistoryService`; `update()` calls `VersionHistoryProperties.fromProperties()` then `GitRepositoryService.startGit()` |
+| `GitRepositoryService` | Thread-safe singleton managing JGit lifecycle; `startGit()` — clones or opens repo, sets `gitAvailable`; never throws (swallows failures into `gitUnavailableReason`); `getRepoInfo()` scans top two directory levels (skips `.git`); `getRepoChanges()` delegates to GitOperations; `getFileContent(filePath)` via FileOperations; `getFileContentAtHead(filePath)` via GitOperations; `validateSSHConnection(GitSettings)` clones to temp dir (`--no-checkout`) then deletes |
+| `VersionHistoryService` | **Non-thread-safe** business logic facade; all mutating methods guard with `isGitAvailable()` → `GitNotConnectedException`; `saveChannelAndPush`, `saveCodeTemplateAndPush`, `saveLibrariesAndPush`, `saveGlobalScriptsAndPush`; history and content-at-revision queries; `validateGitConnection(Properties)` creates a temporary `VersionHistoryProperties` without mutating the live one |
+| `GitOperations` | Low-level JGit wrapper; constructed with `(Git, branch, SshSessionFactory)`; `readFileAtRevision(path, revision)` → byte[]; `getRepoChanges()` → RepoChanges via `git.status().call()`; `getFileHistory(path)` → List\<CommitMetaData\>; `stageFiles`, `commit`, `push(forcePush)`; `pullWithOverwrite()` — fetch + hard reset to remote; `hasRemoteChanges()` |
+| `FileOperations` | File I/O via Mirth's `ObjectXMLSerializer`; `writeXml`, `readXml`, `deserializeXml`; `readFileContent(relativePath)` — UTF-8 string from working tree via `Files.readString()`; `listFiles`, `deleteFile`, `fileExists` |
+| `BaseRepository<T>` | Abstract template: `save()`, `saveAndPush()` (save → pull-with-overwrite → commit → push), `load()`, `delete()`, `deleteAndPush()`, `loadMetadata()`, `getHistory()`, `getContent()`; subclasses override `extractId`, `extractName`, `getEntityClass`, `deserializeAndVerify`, `generateFilename`, `postCommit` |
+| `ChannelRepository` | Extends BaseRepository\<Channel\>; directory `"channels"` |
+| `CodeTemplateRepository` | Extends BaseRepository\<CodeTemplate\>; directory `"codetemplates"` |
+| `LibraryRepository` | Extends BaseRepository\<CodeTemplateLibrary\>; directory `"libraries"`; extra `saveAllAndPush(List)` for batch operations; `buildBatchCommitMessage` truncates library names at 200 chars |
+| `GlobalScriptRepository` | Extends BaseRepository\<Map\<String,String\>\>; directory `"globalscripts"`, filename `"scripts"`; validates map contains only known types (`Deploy`, `Undeploy`, `Preprocessor`, `Postprocessor`) |
+| `GitCommitterHelper` | Static `fromUser(User)` and `fromUser(User, domain)` → JGit `PersonIdent` |
+| `VersionHistoryPluginServlet` | JAX-RS servlet; maps requests → VersionHistoryService; maps exceptions → HTTP codes (see below); `getRepoInfo()` / `getRepoChanges()` serialize DTOs to JSON; `getFileContent` / `getFileContentAtHead` return raw strings |
+| `VersionHistoryPlugin` | `ServicePlugin` entry point: `init`, `start`, `stop`, `update`; `getDefaultProperties()` |
+| `ChannelVersionPlugin` | Channel-save event listener → triggers auto-commit if enabled |
+| `CodeTemplateVersionPlugin` | Code-template-save event listener → triggers auto-commit if enabled |
 
 **Exception hierarchy:**
 ```
-GitRepositoryException
-├── GitNotConnectedException    → HTTP 503
-├── GitOperationException       → HTTP 500
-├── GitPushFailedException      → HTTP 409
-└── GitFileNotFoundException    → HTTP 404
+GitRepositoryException (checked)
+├── GitOperationException   (checked)  → HTTP 500
+└── GitPushFailedException  (checked)  → HTTP 409
 
-VersionHistoryApiException      → carries HTTP status; thrown from servlet layer
+GitNotConnectedException    (runtime)  → HTTP 503
+GitFileNotFoundException    (runtime)  → HTTP 404
+
+VersionHistoryApiException  (WebApplicationException) — carries HTTP status + ErrorResponse JSON body
 ```
 
 ### 4.3 Client
 
 | Class | Responsibility |
 |---|---|
-| `VersionHistoryServiceClient` | REST client wrapper; `getRepoInfo()` deserialises JSON → `RepoInfo`; `getRepoChanges()` deserialises JSON → `RepoChanges`; `getFileContent(filePath)` returns raw file content string; `getFileContentAtHead(filePath)` returns HEAD content string; all methods follow the `rethrowParsedClientError` pattern |
-| `VersionHistorySettingPanel` | Top-level settings panel with four tabs: General, Git Settings, Git Behavior, Git Status; tabs 1–3 disabled when plugin is off; Git Status tab blocks navigation when there are unsaved changes |
+| `VersionHistoryServiceClient` | Singleton REST client; wraps every call in `rethrowParsedClientError()` which parses `ErrorResponse` JSON and throws `VersionHistoryClientException`; methods mirror every server endpoint |
+| `VersionHistoryClientException` | Extends `ClientException`; holds `ErrorResponse getError()` |
+| `VersionControlUtil` | Static helpers: `isEnableVersionControl(Client)`, `isAutoCommitEnable(Client)`, `getChannelCommitId`, `setChannelCommitId`, `getAlertText()` |
+| `ChannelWithRaw` | Pair of `Channel` + `rawContent` (String) |
+| `CodeTemplateWithRaw` | Pair of `CodeTemplate` + `rawContent` (String) |
+| `CommitMetaDataTableModel` | TableModel wrapping `List<CommitMetaData>` |
+| `VersionHistorySettingPanel` | Top-level settings panel; four tabs: General, Git Settings, Git Behavior, Git Status; tabs 1–3 disabled when plugin off; Git Status tab blocks navigation on unsaved changes |
 | `GeneralTabPanel` | Plugin enable/disable toggle |
-| `GitSettingsTabPanel` | Remote URL, branch, SSH key (paste-key / file-path radio toggle); "Validate Connection" button opens `GitValidationDialog` (inner class) |
-| `GitBehaviorTabPanel` | Two titled sections — **Auto Commit** (enable, prompt, default message) and **Sync Delete** (auto-remove deleted entities from Git) |
-| `GitStatusTabPanel` | Live repository status tab: **Repository Info** panel (local path, remote URL, branch, size as four labeled rows); **JSplitPane** (50/50 horizontal split) — left: **File Browser** two-level `JTree` (folder nodes → file leaf nodes storing `FileNode{displayText, relativePath}`); right: **Working Tree Changes** `JTree` with colour-coded `[M]`/`[D]`/`[U]` prefixes via `ChangesCellRenderer`; auto-loads via `HierarchyListener`; `LoadDataWorker` (`SwingWorker`) fetches `getRepoInfo()` + `getRepoChanges()` in parallel on the background thread; double-click on file tree → `getFileContent()` then binary check → simple text viewer; double-click on changes tree → fetch content(s) → binary check → XML check → `ChannelDiffDialog` / `CodeTemplateDiffDialog` or simple text viewer |
-| `ChannelHistoryTabPanel` | Commit history table + content preview for a channel |
-| `VersionHistoryTaskPane` | Context-sensitive task pane for channels, code templates, global scripts |
-| `TaskPaneContextManager` | Manages the active `TaskPaneContext` based on current Mirth view |
-| `ChannelHistoryOperations` | Channel-specific operations invoked from the task pane |
-| `GlobalScriptOperations` | Global-script operations invoked from the task pane |
-| `CodeTemplateOperations` | Code-template operations invoked from the task pane |
-| `VersionComparisonDialog` | Legacy side-by-side comparison dialog for channel revisions; still used by channel history flows; superseded by `CodeTemplateDiffDialog` for code-template flows |
-| `GlobalScriptsHistoryDialog` | History viewer and diff display for global scripts; contains `GlobalScriptsDiffPanel` |
-| `CodeTemplateHistoryDialog` | History viewer for a single code template; "Diff" button compares selected revision vs. current (`showDiffLastChangeWindow`); right-click "Show Diff" compares two selected revisions (`showDiffWindow`); both paths now open `CodeTemplateDiffDialog` (previously used `VersionComparisonDialog`) |
-| `CodeTemplateHistoryDialogWithTaskPane` | Alternate code-template history viewer using `JXTaskPane` for the action panel (Mirth Connect–style side panel); same diff logic as `CodeTemplateHistoryDialog`; Diff action supports 1-row (vs. current) and 2-row (vs. each other) selection; both paths open `CodeTemplateDiffDialog` |
-| `ChannelDiffDialog` | Modal `JDialog` (1200×800) for channel diff; `JTabbedPane` with **XML Diff** tab (`DiffComparisonPanel`) and **Channel** tab (TBD visual view); constructor auto-sorts versions (current always right, newer timestamp right); ESC closes |
-| `CodeTemplateDiffDialog` | Modal `JDialog` (1200×800) for code template diff; `JTabbedPane` with **XML Diff** tab (`DiffComparisonPanel`) and **Code Template** tab (`CodeTemplateFunctionDiffPanel`); same auto-sort and ESC-close behaviour as `ChannelDiffDialog`; used by `CodeTemplateHistoryDialog` and `CodeTemplateHistoryDialogWithTaskPane` (replacing the old `VersionComparisonDialog`) |
-| `CodeTemplateFunctionDiffPanel` | Panel for the "Code Template" tab in `CodeTemplateDiffDialog`; `JSplitPane` (left: `JList<ScriptEntry>` of changed functions, divider=250; right: `DiffComparisonPanel` re-created per selection); left list uses `FunctionListCellRenderer`; `buildChangedEntries()` unions all function names from both XMLs and includes only non-UNCHANGED entries; `onFunctionSelected()` builds per-type `VersionInfo` and calls `updateDiff()` — ADDED sets left code to `""` + left version `"Not in previous version"`, DELETED sets right code to `""` + right version `"Deleted"`; auto-selects first item after wiring listener |
-| `CodeTemplateFunctionParser` | Parses named JavaScript functions from a Mirth code-template XML `<code>` element (strips `<![CDATA[…]]>` wrapper); handles two declaration forms — standard `function name(…)` and assignment `Object.method = function(…)`; uses a brace-counting loop (not regex) aware of `//`, `/* */`, `"`, `'`, and `` ` `` string literals to correctly extract nested-brace bodies; returns a `LinkedHashMap<String, String>` of `functionName → functionCode` in source order; advances `searchFrom` past each extracted body to skip inner functions |
-| `FunctionListCellRenderer` | Cell renderer for `CodeTemplateFunctionDiffPanel`'s `JList`; displays `[M]`/`[A]`/`[D]` prefix with HTML colour coding — `<font color='#CC6600'>` for Modified, `<font color='#009900'>` for Added, `<font color='#CC0000'>` for Deleted; **uses HTML text rather than `setForeground()`** to bypass Mirth Connect's Substance LAF overriding the component foreground during paint; when selected, plain text is shown so the LAF selection colour applies normally |
-| `DiffComparisonPanel` | Generic `public` diff panel; constructor `(VersionInfo leftVersion, VersionInfo rightVersion)`; `updateDiff(leftText, rightText)` computes and renders both split and unified diff every call; **Split/Unified toggle button** (top-right toolbar) switches via `CardLayout` between a two-column split view (`GridLayout 1×2`) and a single unified pane; synchronized vertical scrolling between left and right panes; all three scroll panes reset to top on each `updateDiff()` call |
-| `ScriptDiffEngine` | Line-based diff using java-diff-utils; `computeDiff()` produces a `DiffResult` with left/right `DiffLine` lists for the split view; `computeUnifiedDiff()` produces a single `List<DiffLine>` interleaving DELETED (from source chunk) then ADDED (from target chunk) around UNCHANGED context lines, for the unified view |
-| `CommitMetaDataTable` | Swing table displaying commit history rows |
-| `ChannelRepoTable` | Swing table displaying channels present in the Git repo |
+| `GitSettingsTabPanel` | Remote URL, branch, SSH key (paste / file-path radio toggle); "Validate Connection" → `GitValidationDialog` (inner class); inner dialog: progress bar + `ValidateWorker` SwingWorker; Close disabled during validation; success = green `✓`, failure = red `✗ <message>` |
+| `GitBehaviorTabPanel` | Auto Commit section (enable, prompt, default message) + Sync Delete section |
+| `GitStatusTabPanel` | Repository Info panel (4 labeled rows); `JSplitPane` — left: File Browser `JTree` (folder→file, `FileNode{displayText, relativePath}`); right: Changes `JTree` ([M]/[D]/[U], `ChangesCellRenderer`); `LoadDataWorker` SwingWorker fetches `getRepoInfo()` + `getRepoChanges()`; double-click logic (see §6.7) |
+| `ChannelHistoryTabPanel` | Channel history tab; commit table + XML preview; diff buttons open `ChannelDiffDialog` |
+| `VersionHistoryTaskPane` | Context-sensitive task pane (channels, code templates, global scripts) |
+| `TaskPaneContextManager` | Manages active `TaskPaneContext` |
+| `ChannelHistoryOperations` | Channel task-pane operations |
+| `CodeTemplateOperations` | Code-template task-pane operations |
+| `GlobalScriptOperations` | Global-script task-pane operations |
+| `ChannelDiffDialog` | Modal `JDialog` (1200×800); `JTabbedPane`: **XML Diff** (`DiffComparisonPanel`) + **Channel** (TBD placeholder); auto-sorts versions (current always right, newer timestamp right); ESC closes |
+| `CodeTemplateDiffDialog` | Modal `JDialog` (1200×800); `JTabbedPane`: **XML Diff** (`DiffComparisonPanel`) + **Code Template** (`CodeTemplateFunctionDiffPanel`); same sort/ESC behaviour; opened by `CodeTemplateHistoryDialog`, `CodeTemplateHistoryDialogWithTaskPane`, `GitStatusTabPanel` |
+| `CodeTemplateHistoryDialog` | Code-template history: commit table; "Diff" → current vs. selected (`showDiffLastChangeWindow`); right-click "Show Diff" → two selected revisions (`showDiffWindow`); both paths open `CodeTemplateDiffDialog` |
+| `CodeTemplateHistoryDialogWithTaskPane` | Alternate code-template history with `JXTaskPane` action panel; Diff action supports 1-row (vs. current) or 2-row (vs. each other); opens `CodeTemplateDiffDialog` |
+| `GlobalScriptsHistoryDialog` | Global scripts history + `GlobalScriptsDiffPanel` |
+| `DiffComparisonPanel` | Generic `public` diff panel; `DiffComparisonPanel(VersionInfo left, VersionInfo right)`; `updateDiff(leftText, rightText)` renders both split and unified every call; **Split/Unified toggle** (CardLayout: `"SPLIT"` GridLayout 1×2 / `"UNIFIED"` single pane); synchronized vertical scrolling; all scroll panes reset to top on `updateDiff()` |
+| `ScriptDiffEngine` | Line-based diff via java-diff-utils; `computeDiff(leftText, rightText)` → `DiffResult` (left+right `DiffLine` lists for split view); `computeUnifiedDiff(leftText, rightText)` → `List<DiffLine>` (interleaved DELETED/ADDED/UNCHANGED for unified view) |
+| `DiffTextPane` | `JTextPane` subclass rendering `List<DiffLine>` with colour-coded backgrounds |
+| `DiffLine` | Fields: `lineNumber`, `content`, `changeType` (ChangeType enum) |
+| `DiffResult` | Pair of `leftLines` / `rightLines` (List\<DiffLine\>) for split view |
+| `ChangeType` | Enum: `ADDED`, `DELETED`, `UNCHANGED` |
+| `VersionInfo` | Version metadata DTO; Builder pattern; `name`, `version`, `author`, `timestamp` (Date), `isCurrent`; factory methods `createCurrent(name, author)` and `createHistorical(name, hash, author, timestamp)` |
+| `ScriptEntry` | DTO: `name`, `leftCode`, `rightCode`, `changeType`; `toString()` returns `name` (used as default JList display) |
+| `CodeTemplateFunctionParser` | Parses JavaScript functions from Mirth code-template XML `<code>` element; strips `<![CDATA[…]]>`; handles `function name(…)` and `Object.method = function(…)` forms; brace-counting body extraction aware of `//`, `/* */`, `"`, `'`, `` ` `` literals and `\\` escape; returns `LinkedHashMap<String, String>` in source order; advances past each body to skip nested functions |
+| `CodeTemplateFunctionDiffPanel` | "Code Template" tab panel; `JSplitPane` (left: `JList<ScriptEntry>`, divider=250; right: `DiffComparisonPanel` re-created per selection via `setRightComponent`); `buildChangedEntries()` unions function names, skips UNCHANGED; ADDED: left code/version=""; DELETED: right code/version="Deleted"; auto-selects index 0 |
+| `FunctionListCellRenderer` | Cell renderer for `CodeTemplateFunctionDiffPanel` list; HTML colour coding (`<font color='#CC6600'>` [M], `<font color='#009900'>` [A], `<font color='#CC0000'>` [D]) to bypass Substance LAF `setForeground()` override; plain text when selected |
+| `ScriptListCellRenderer` | Cell renderer for `GlobalScriptsDiffPanel` list; uses `setForeground()` (has Substance LAF color issue — not yet migrated to HTML) |
+| `GlobalScriptsDiffPanel` | Global scripts diff: `JList` of script types on left, `DiffComparisonPanel` on right; similar structure to `CodeTemplateFunctionDiffPanel` |
+| `CommitMetaDataTable` | JTable displaying commit history |
+| `ChannelRepoTable` | JTable for channels in repository |
 
 **`GitSettingsTabPanel.GitValidationDialog` (inner class)**
 
-A modal `JDialog` opened by the "Validate Connection" button:
-
-1. `validateFields()` runs first on the EDT — highlights invalid fields and returns early if any are blank.
-2. Dialog opens with an indeterminate `JProgressBar` and "Validating Git connection…" label; Close button is disabled.
-3. `ValidateWorker` (`SwingWorker`) calls `VersionHistoryServiceClient.validateSetting(toGitSettingsProperties())` on a background thread.
-4. `done()` hides the progress bar and either shows a green `✓ Connection successful` label (success) or a red `✗ <server error message>` label (failure), then enables Close.
-5. `DO_NOTHING_ON_CLOSE` prevents accidental dismissal while validation is in progress.
+1. `validateFields()` runs on EDT — highlights blanks, returns early if invalid.
+2. Opens with indeterminate `JProgressBar`, "Validating…" label, Close disabled.
+3. `ValidateWorker` (SwingWorker) calls `VersionHistoryServiceClient.validateSetting()` on background thread.
+4. `done()` hides bar; shows green `✓ Connection successful` or red `✗ <error>`, enables Close.
+5. `DO_NOTHING_ON_CLOSE` prevents dismissal during validation.
 
 **`GitStatusTabPanel` — double-click file-open logic:**
 
 | Source | Content type | Action |
 |---|---|---|
-| File Browser (any file) | Binary (contains `\0` in first 8 KB) | Error dialog: "Cannot display binary file: {name}" |
-| File Browser (any file) | Text | Simple read-only viewer (800×600 `JDialog`, monospaced `JTextArea`) |
+| File Browser (any) | Binary (contains `\0` in first 8 KB) | Error dialog: "Cannot display binary file: {name}" |
+| File Browser (any) | Text | Read-only viewer (800×600 `JDialog`, monospaced `JTextArea`) |
 | Changes `[M]` | Binary | Error dialog |
-| Changes `[M]` | Text, not XML | Simple viewer (current content) |
-| Changes `[M]` | XML | `ChannelDiffDialog` or `CodeTemplateDiffDialog` — HEAD left, Current right |
+| Changes `[M]` | Text, not XML | Viewer (current content) |
+| Changes `[M]` | XML | `ChannelDiffDialog` or `CodeTemplateDiffDialog` — HEAD left, current right |
 | Changes `[D]` | Binary | Error dialog |
-| Changes `[D]` | Text, not XML | Simple viewer (HEAD content) |
+| Changes `[D]` | Text, not XML | Viewer (HEAD content) |
 | Changes `[D]` | XML | Diff dialog — HEAD left, blank "Deleted" right |
 | Changes `[U]` | Binary | Error dialog |
-| Changes `[U]` | Text, not XML | Simple viewer (current content) |
+| Changes `[U]` | Text, not XML | Viewer (current content) |
 | Changes `[U]` | XML | Diff dialog — blank "Not in repository" left, current right |
 
 Path routing: path containing `codetemplate`/`libraries`/`library` (case-insensitive) → `CodeTemplateDiffDialog`; otherwise → `ChannelDiffDialog`.
@@ -193,13 +220,14 @@ Path routing: path containing `codetemplate`/`libraries`/`library` (case-insensi
 
 | Pattern | Where |
 |---|---|
-| **Singleton** | `GitRepositoryController`, `GitRepositoryService` |
+| **Singleton** | `GitRepositoryController`, `GitRepositoryService`, `VersionHistoryServiceClient` |
 | **Factory** | `GitRepositoryService.getXxxRepository()` creates repository instances |
-| **Template Method** | `BaseRepository` — common save/history logic, overridden in subclasses |
-| **Observer/Listener** | `ChannelVersionPlugin`, `CodeTemplateVersionPlugin` react to Mirth events |
-| **Strategy** | Different save strategies per entity type in `VersionHistoryService` |
-| **Builder** | `ResponseUtil`, `ErrorResponseFactory`, and `VersionInfo.Builder` |
-| **In-place Mutation** | `VersionHistoryProperties.fromProperties()` updates existing instance to preserve live service references |
+| **Template Method** | `BaseRepository<T>` — common save/history logic; subclasses override `extractId`, `deserializeAndVerify`, `postCommit`, etc. |
+| **Observer / Listener** | `ChannelVersionPlugin`, `CodeTemplateVersionPlugin` react to Mirth events |
+| **Strategy** | Different repository implementations per entity type |
+| **Builder** | `ErrorResponseFactory`, `VersionInfo.Builder`, `RepoInfo`/`RepoChanges` Jackson constructors |
+| **In-place Mutation** | `VersionHistoryProperties.fromProperties()` — updates existing instance to preserve live service references |
+| **Fail-Safe Startup** | `GitRepositoryService.startGit()` swallows all exceptions into `gitUnavailableReason`; plugin stays alive, all operations return HTTP 503 |
 
 ---
 
@@ -208,7 +236,7 @@ Path routing: path containing `codetemplate`/`libraries`/`library` (case-insensi
 ### 6.1 Commit and Push a Channel
 
 ```
-User clicks "Commit & Push" in Mirth Designer
+User clicks "Commit & Push"
         ↓
 VersionHistoryTaskPane / ChannelHistoryTabPanel
         ↓
@@ -218,8 +246,9 @@ VersionHistoryPluginServlet.commitAndPushChannel()
         ↓
 VersionHistoryService.saveChannelAndPush(channel, message, user)
         ↓
-ChannelRepository.saveAndPush(channel, commitMessage)
-        ├─ FileOperations.serialize(channel)  →  writes XML to working tree
+ChannelRepository.saveAndPush(channel, commitMessage, committer, forcePush=false)
+        ├─ FileOperations.writeXml("channels", channelId, channel)
+        ├─ GitOperations.pullWithOverwrite()   ← pull before commit
         ├─ GitOperations.stageFiles([channelFile])
         ├─ GitOperations.commit(message, committer)
         └─ GitOperations.push(forcePush=false)
@@ -230,17 +259,17 @@ JSON response  →  client displays success / error
 ### 6.2 View Commit History
 
 ```
-User opens history panel
+User opens history panel / tab
         ↓
-VersionHistoryServiceClient.getHistory(fileName, mode)
+VersionHistoryServiceClient.loadChannelHistory(channelId)
         ↓  HTTP GET /plugins/version-history/history?fileName=…&mode=channel
 VersionHistoryPluginServlet.getHistory()
         ↓
 VersionHistoryService.getChannelHistory(channelId)
         ↓
-ChannelRepository.getHistory(filePath)
+ChannelRepository.getHistory(id)
         ↓
-GitOperations.getFileHistory(filePath)  →  JGit log walk
+GitOperations.getFileHistory(filePath)  →  JGit log walk (newest first)
         ↓
 List<CommitMetaData>  →  JSON  →  CommitMetaDataTable rendered in UI
 ```
@@ -248,19 +277,19 @@ List<CommitMetaData>  →  JSON  →  CommitMetaDataTable rendered in UI
 ### 6.3 Retrieve Content at Revision
 
 ```
-User selects a commit in history table
+User selects commit in history table
         ↓
-VersionHistoryServiceClient.getContentAtRevision(id, revision, mode)
+VersionHistoryServiceClient.loadChannelWithRawFromRepo(channelId, revision)
         ↓  HTTP GET /plugins/version-history/content?id=…&revision=…&mode=channel
 VersionHistoryPluginServlet.getContentAtRevision()
         ↓
 VersionHistoryService.getChannelContentAtRevision(id, revision)
         ↓
 ChannelRepository.getContent(id, revision)
-        ├─ GitOperations.readFileAtRevision(filePath, revision)  →  XML string
-        └─ FileOperations.deserialize(xml)  →  Channel object
+        ├─ GitOperations.readFileAtRevision(filePath, revision)  →  byte[]
+        └─ FileOperations.deserializeXml(xml, Channel.class)
         ↓
-XML string  →  JSON  →  VersionComparisonDialog (channels) / CodeTemplateDiffDialog (code templates) / DiffComparisonPanel
+XML string  →  JSON  →  ChannelDiffDialog (channels) / CodeTemplateDiffDialog (code templates)
 ```
 
 ### 6.4 Plugin Startup
@@ -271,6 +300,8 @@ Mirth Connect starts
 VersionHistoryPlugin.init(properties)
         ↓
 GitRepositoryController.getInstance().init(properties)
+        ├─ new GitRepositoryService(versionHistoryProperties)
+        └─ new VersionHistoryService(gitRepoService, versionHistoryProperties)
         ↓
 GitRepositoryController.start()
         ↓
@@ -279,6 +310,7 @@ GitRepositoryService.startGit()
         └─ if not          →  clone from remoteUrl
         ↓
 Plugin ready; isGitAvailable() = true
+  OR  Git startup failed; isGitAvailable() = false; all API calls return HTTP 503
 ```
 
 ### 6.5 Validate Git Connection
@@ -286,106 +318,85 @@ Plugin ready; isGitAvailable() = true
 ```
 User clicks "Validate Connection" in GitSettingsTabPanel
         ↓
-GitSettingsTabPanel.validateFields()  →  highlight blanks, return if invalid
+GitSettingsTabPanel.validateFields()  →  highlight blanks; return if invalid
         ↓
-GitValidationDialog opens (modal, indeterminate progress bar, Close disabled)
+GitValidationDialog opens (modal, progress bar, Close disabled)
         ↓
-ValidateWorker (SwingWorker) starts on background thread
-        ↓
+ValidateWorker (SwingWorker) on background thread:
 VersionHistoryServiceClient.validateSetting(toGitSettingsProperties())
         ↓  HTTP POST /plugins/version-history/validateSetting
-VersionHistoryPluginServlet.validateSetting(properties)
-        ↓
 VersionHistoryService.validateGitConnection(properties)
-        ├─ new VersionHistoryProperties(properties)   [temporary — does not mutate live config]
+        ├─ new VersionHistoryProperties(properties)   [temporary — does NOT mutate live config]
         └─ GitRepositoryService.validateSSHConnection(gitSettings)
-               ├─ buildSshSessionFactory(gitSettings)  [inline key bytes OR file path]
+               ├─ buildSshSessionFactory(gitSettings)
                ├─ Git.cloneRepository().setNoCheckout(true).call()
                │      → temp dir: <appData>/version-control-validate-<timestamp>/
                ├─ tempGit.close()
-               └─ FileUtils.deleteDirectory(tempDir)   [always, in finally]
+               └─ FileUtils.deleteDirectory(tempDir)  [always, in finally]
         ↓
-null (success) → "Successfully connected…" string
-error string   → returned as-is
-        ↓
-done() on EDT:
+null (success) / error string  →  done() on EDT:
   success → green "✓ Connection successful", Close enabled
-  failure → red "✗ <error message>",       Close enabled
+  failure → red "✗ <error>",                Close enabled
 ```
 
 ### 6.6 Load Git Status Tab
 
 ```
-User selects "Git Status" tab (or tab becomes visible)
+User selects "Git Status" tab (tab becomes visible)
         ↓
 HierarchyListener fires (SHOWING_CHANGED && isShowing())
         ↓
 GitStatusTabPanel.loadData()
-  ├─ loadingBar visible, Refresh disabled, all values cleared to "—"
+  ├─ loadingBar visible, Refresh disabled, values cleared to "—"
   └─ new LoadDataWorker().execute()
-        ↓ (background thread — both calls sequential)
+        ↓ (background thread — sequential)
 VersionHistoryServiceClient.getRepoInfo()
-        ↓  HTTP GET /plugins/version-history/repoInfo
-VersionHistoryService.getRepoInfo()  →  GitRepositoryService.getRepoInfo()
+        ↓  HTTP GET /repoInfo
+GitRepositoryService.getRepoInfo()
         ├─ FileUtils.sizeOfDirectory(repositoryDirectory)
-        ├─ scan top-level dirs (skip .git): build RepoFolder per dir
-        │    └─ per folder: build RepoFile per file (name + sizeBytes)
-        └─ return RepoInfo(localRepoPath, remoteUrl, branch, totalSizeBytes, folders)
+        ├─ scan top-level dirs (skip .git): RepoFolder per dir
+        │    └─ per folder: RepoFile per file (name + sizeBytes)
+        └─ RepoInfo(localRepoPath, remoteUrl, branch, totalSizeBytes, folders)
 
 VersionHistoryServiceClient.getRepoChanges()
-        ↓  HTTP GET /plugins/version-history/repoChanges
-VersionHistoryService.getRepoChanges()  →  GitRepositoryService.getRepoChanges()
-        └─ GitOperations.getRepoChanges()
-               ├─ git.status().call()
-               ├─ modifiedFiles  = status.getModified()
-               ├─ deletedFiles   = status.getRemoved() + status.getMissing()
-               └─ untrackedFiles = status.getUntracked()
+        ↓  HTTP GET /repoChanges
+GitOperations.getRepoChanges()
+        ├─ git.status().call()
+        ├─ modifiedFiles  = status.getModified()
+        ├─ deletedFiles   = status.getRemoved() ∪ status.getMissing()
+        └─ untrackedFiles = status.getUntracked()
 
         ↓ (EDT via done())
 exitLoadedState(info, changes):
-  ├─ Repository Info panel: localRepoPath, remoteUrl, branch, size populated
+  ├─ Repository Info: 4 label rows populated
   ├─ File Browser JTree rebuilt from RepoInfo.folders/files (all rows expanded)
-  │    └─ leaf nodes store FileNode{displayText, relativePath} for double-click lookup
-  └─ Working Tree Changes JTree rebuilt:
-       ├─ "Changed (N)" group: [M] modifiedFiles + [D] deletedFiles (ChangesCellRenderer colours)
-       └─ "Unversioned Files (N)" group: [U] untrackedFiles
+  │    └─ leaf nodes store FileNode{displayText, relativePath}
+  └─ Changes JTree rebuilt:
+       ├─ "Changed (N)": [M] modified + [D] deleted (ChangesCellRenderer)
+       └─ "Unversioned Files (N)": [U] untracked
 ```
 
 ### 6.7 Open File Content (double-click in Git Status Tab)
 
 ```
-User double-clicks a file node in File Browser or Changes JTree
+User double-clicks a node
         ↓
 SwingWorker starts; setCursor(WAIT_CURSOR)
         ↓ (background thread)
-  File Browser node:
-    VersionHistoryServiceClient.getFileContent(relativePath)
-        ↓  HTTP GET /plugins/version-history/fileContent?filePath=…
-        ↓  FileOperations.readFileContent(relativePath)  →  UTF-8 string
-
-  [M] node:
-    getFileContentAtHead(filePath)  +  getFileContent(filePath)
-        ↓  GET /fileContentAtHead  +  GET /fileContent
-
-  [D] node:
-    getFileContentAtHead(filePath)
-        ↓  GET /fileContentAtHead
-
-  [U] node:
-    getFileContent(filePath)
-        ↓  GET /fileContent
+  File Browser:    getFileContent(relativePath)
+  [M] node:        getFileContentAtHead(path)  +  getFileContent(path)
+  [D] node:        getFileContentAtHead(path)
+  [U] node:        getFileContent(path)
 
         ↓ (EDT via done()); setCursor(DEFAULT_CURSOR)
 Binary check (scan first 8 KB for '\0'):
   → true   → JOptionPane error: "Cannot display binary file: {name}"
-  → false  → text content:
-       not XML (trimmed doesn't start with '<'):
-         → showTextViewer(title, content)  [800×600 modal JDialog, monospaced JTextArea]
-       XML:
-         → path routing:  codetemplate / libraries / library  →  CodeTemplateDiffDialog
-                          otherwise                            →  ChannelDiffDialog
-         → VersionInfo built per side (isCurrent=true for "Current" / "Deleted")
-         → dialog.setVisible(true)
+  → false  → XML check (trimmed content starts with '<'):
+       not XML → showTextViewer(title, content)
+               [800×600 modal JDialog, monospaced JTextArea, ESC closes]
+       XML     → path routing → ChannelDiffDialog or CodeTemplateDiffDialog
+               → VersionInfo built per case (isCurrent for working tree)
+               → dialog.setVisible(true)
 ```
 
 ### 6.8 Diff Dialog Version Auto-Sort
@@ -393,17 +404,16 @@ Binary check (scan first 8 KB for '\0'):
 ```
 ChannelDiffDialog / CodeTemplateDiffDialog constructor
         ↓
-sortVersions(version1, version2, xml1, xml2)
-  ├─ version1.isCurrent() && !version2.isCurrent()  →  version1 goes RIGHT
-  ├─ version2.isCurrent() && !version1.isCurrent()  →  version2 goes RIGHT
-  ├─ both not current: version1.timestamp.after(version2.timestamp) →  version1 goes RIGHT
+sortVersions(version1, version2, xml1, xml2):
+  ├─ version1.isCurrent() && !version2.isCurrent()  → version1 goes RIGHT
+  ├─ version2.isCurrent() && !version1.isCurrent()  → version2 goes RIGHT
+  ├─ both not current: version1.timestamp.after(v2) → version1 goes RIGHT
   └─ default: keep original order
         ↓
 DiffComparisonPanel(leftVersion, rightVersion)
 diffPanel.updateDiff(leftXml, rightXml)
-        ↓
-ScriptDiffEngine.diff(leftLines, rightLines)  →  DiffResult
-DiffTextPane (left) + DiffTextPane (right) rendered with colour-coded lines
+  ├─ ScriptDiffEngine.computeDiff()    → DiffResult  →  left/right DiffTextPane
+  └─ ScriptDiffEngine.computeUnifiedDiff() → List<DiffLine> → unifiedPane
 ```
 
 ---
@@ -424,10 +434,10 @@ Base path: `/plugins/version-history`
 | `GET` | `/code_template_on_repo` | — | All code template metadata from the repo |
 | `GET` | `/libraries_and_templates` | — | Libraries + template metadata |
 | `POST` | `/saveLibraries` | body: List\<CodeTemplateLibrary\>, `message`, `userId` | Save libraries batch |
-| `GET` | `/repoInfo` | — | Local repo path, remote URL, branch, size, and two-level file tree |
-| `GET` | `/repoChanges` | — | Working tree changes: modified, deleted, and untracked file lists |
-| `GET` | `/fileContent` | `filePath` | Raw file content from working tree (UTF-8); 404 if not found |
-| `GET` | `/fileContentAtHead` | `filePath` | Raw file content at HEAD revision (UTF-8); 404 if not found at HEAD |
+| `GET` | `/repoInfo` | — | Repo path, remote URL, branch, size, two-level file tree |
+| `GET` | `/repoChanges` | — | Working tree changes: modified, deleted, untracked lists |
+| `GET` | `/fileContent` | `filePath` | Raw file content from working tree (UTF-8); 404 if absent |
+| `GET` | `/fileContentAtHead` | `filePath` | Raw file content at HEAD revision; 404 if absent at HEAD |
 
 **HTTP error codes:**
 
@@ -454,10 +464,10 @@ Base path: `/plugins/version-history`
 | `versionHistory.remote.branch` | `""` | Branch name |
 | `versionHistory.remote.ssh.key` | `""` | SSH private key content (inline) |
 | `versionHistory.remote.ssh.keyPath` | `""` | Path to SSH private key file on server |
-| `versionHistory.remote.authType` | `"SSH"` | Authentication type: `SSH` or `HTTPS` (default `SSH` for backward compatibility) |
-| `versionHistory.remote.https.username` | `""` | HTTPS username (direct input) |
-| `versionHistory.remote.https.password` | `""` | HTTPS password or PAT (direct input) |
-| `versionHistory.remote.https.credentialsPath` | `""` | Path to credentials file on server (`username:password`) |
+| `versionHistory.remote.authType` | `"SSH"` | Authentication type: `SSH` or `HTTPS` |
+| `versionHistory.remote.https.username` | `""` | HTTPS username |
+| `versionHistory.remote.https.password` | `""` | HTTPS password or PAT |
+| `versionHistory.remote.https.credentialsPath` | `""` | Path to `username:password` credentials file |
 
 ---
 
@@ -472,7 +482,7 @@ Example:
 Channel name: PatientDataChannel. Message: Fixed validation logic. Server Name: Production. Server Id: 123e4567-e89b-12d3-a456-426614174000
 ```
 
-`CommitMessageUtil` provides static methods to extract each field; backward-compatible with the older format that omitted `Server Name`.
+`CommitMessageUtil` provides static extraction methods for each field. Backward-compatible with older format that omitted `Server Name`. Server Id is validated as UUID; falls back to a default if invalid. The inner `BatchLibraries` class handles batch library commits by joining names with commas, truncated at 200 characters.
 
 ---
 
@@ -487,7 +497,7 @@ Channel name: PatientDataChannel. Message: Fixed validation logic. Server Name: 
 | `v460` | 4.6.0 | 17 |
 | `v2630` | 26.3.0 | 17 |
 
-**Output artifact** (`distribution` module):
+**Output artifact:**
 ```
 innovarhealthcare-channel-history-v3.0.0-bl4.6.1.zip
 ├── channelHistory-server.jar
@@ -495,11 +505,11 @@ innovarhealthcare-channel-history-v3.0.0-bl4.6.1.zip
 ├── channelHistory-client.jar
 ├── plugin.xml
 └── libs/
-    ├── jgit-*.jar
-    ├── jackson-*.jar
-    ├── objmeld-*.jar
-    ├── ognl-*.jar
-    └── java-diff-utils-*.jar
+    ├── org.eclipse.jgit-5.13.5.*.jar
+    ├── org.eclipse.jgit.ssh.jsch-5.13.5.*.jar
+    ├── jackson-databind-2.14.3.jar + jackson-core + jackson-annotations
+    ├── java-diff-utils-4.12.jar
+    └── (commons-lang3, commons-io, commons-beanutils — provided by Mirth)
 ```
 
 **Key runtime dependencies:**
@@ -507,12 +517,18 @@ innovarhealthcare-channel-history-v3.0.0-bl4.6.1.zip
 | Library | Purpose |
 |---|---|
 | JGit 5.13.5 | Git operations |
-| JSch (via JGit) | SSH transport |
+| JSch (via JGit SSH transport) | SSH transport |
 | Jackson 2.14.3 | JSON serialisation |
-| Apache Commons (Lang3, Collections4, IO, BeanUtils) | Utilities |
-| OGNL 3.2.15 | Object field introspection |
-| ObjMeld 3.4.0 | Object graph comparison |
-| Java-diff-utils 4.12 | Line diff generation |
+| java-diff-utils 4.12 | Line diff generation |
+| Apache Commons (Lang3, Collections4, IO, BeanUtils) | Utilities (provided by Mirth) |
+| MigLayout | Swing layout manager (provided by Mirth) |
+| SwingX (`JXTaskPane`) | Extended Swing components (provided by Mirth) |
+
+**Plugin registration** (`plugin.xml`):
+
+- Client classes: `VersionHistorySettingPlugin`, `ChannelHistoryTabPlugin`, `VersionHistoryTaskPlugin`
+- Server classes: `VersionHistoryPlugin`, `CodeTemplateVersionPlugin`, `ChannelVersionPlugin`
+- API providers: `VersionHistoryServletInterface` (SERVLET_INTERFACE), `VersionHistoryPluginServlet` (SERVER_CLASS)
 
 ---
 
@@ -520,20 +536,32 @@ innovarhealthcare-channel-history-v3.0.0-bl4.6.1.zip
 
 - `GitRepositoryService` — all public methods are `synchronized`.
 - `GitRepositoryController` — singleton creation is `synchronized`.
-- `VersionHistoryService` — **not** internally synchronised; callers (the servlet) are responsible.
-- `VersionHistoryProperties` — mutable; concurrent updates to configuration during plugin `update()` could cause a brief inconsistency window.
+- `VersionHistoryService` — **not** internally synchronized; relies on the servlet container serializing requests or on `GitRepositoryService`'s own synchronization.
+- `VersionHistoryProperties` — mutable; `fromProperties()` is called from `GitRepositoryController.update()` on the Mirth plugin update thread. If a request arrives concurrently during update, a brief inconsistency window exists.
+- All Swing UI updates (EDT safety): `LoadDataWorker`, `ValidateWorker`, all other SwingWorker subclasses post results via `done()` which runs on the EDT.
 
 ---
 
-## 12. Known Limitations
+## 12. Known Limitations & Future Tasks
 
-- **Exception handling inconsistency** — The service layer (`GitRepositoryService`, `VersionHistoryService`) mixes checked and unchecked exceptions across methods without a uniform policy. Some methods declare checked exceptions in their signatures; others throw unchecked `GitOperationException` silently. Needs a full audit and standardisation against the `GitRepositoryException` hierarchy.
-- **Sensitive fields stored as plain text** — SSH private key content and HTTPS password are stored as plain text in the plugin properties file. A future task will implement XStream-based encryption/masking to prevent credentials appearing in logs and exports.
-- **HTTPS validation not yet implemented** — `validateSSHConnection()` only exercises the SSH transport path. When `authType = "HTTPS"`, the method attempts a clone with the default session factory and will likely fail with a generic authentication error rather than a meaningful message.
-- **`DiffComparisonPanel` — synchronized scrolling uses `!e.getValueIsAdjusting()` guard** — The left/right scroll panes are linked via `AdjustmentListener`. The `!isAdjusting` guard prevents infinite feedback loops but means the opposite pane only snaps into sync on the final scroll event (mouse release), not during live drag. This can feel slightly laggy on large diffs.
-- **`DiffComparisonPanel` — no blank-line padding for alignment** — Deleted lines on the left have no corresponding blank placeholder on the right (and vice versa), so matching context lines fall out of vertical alignment when diffs are large.
-- **`ChannelDiffDialog` — visual view TBD** — The second tab ("Channel") still shows a placeholder `JLabel("TBD")`. A structured visual comparison (rendered channel properties, connector list, etc.) is not yet implemented. `CodeTemplateDiffDialog`'s second tab is fully implemented via `CodeTemplateFunctionDiffPanel`.
-- **`FunctionListCellRenderer` / `ScriptListCellRenderer` — Substance LAF overrides `setForeground()`** — Mirth Connect's Substance-based Look and Feel overrides the cell foreground colour during painting, causing `DefaultListCellRenderer.setForeground()` to have no visible effect. Workaround (applied in `FunctionListCellRenderer`): embed colour in the label text using HTML `<font color='#XXXXXX'>`, which the HTML renderer applies before Substance can interfere. `ScriptListCellRenderer` has the same underlying issue but has not yet been migrated to HTML coloring.
-- **`GitRepositoryController.isGitConnected()` stub** — Currently returns a hardcoded value; live status detection is not fully implemented.
-- **SSH strict host key checking disabled** — Acceptable for internal use but a security consideration for public deployments.
+- **Exception handling inconsistency** — The service/repository layer mixes checked (`GitOperationException`, `GitPushFailedException`) and unchecked (`GitNotConnectedException`, `GitFileNotFoundException`) exceptions inconsistently across methods. Needs a full audit and standardization.
+
+- **Sensitive fields stored as plain text** — SSH private key and HTTPS password are stored unencrypted in plugin properties. A future task: XStream-based encryption to prevent credentials appearing in logs/exports.
+
+- **HTTPS connection validation not fully implemented** — `validateSSHConnection()` only tests the SSH transport path. For `authType = "HTTPS"`, the validation clone will likely fail with a generic error rather than a meaningful message.
+
+- **`ChannelDiffDialog` Tab 2 TBD** — The "Channel" second tab shows a `JLabel("TBD")` placeholder. A structured visual comparison (rendered connector list, channel properties) is not yet implemented.
+
+- **`ScriptListCellRenderer` — Substance LAF color issue** — Uses `setForeground()` which Mirth Connect's Substance LAF overrides during cell painting, causing colors to display as black. `FunctionListCellRenderer` already fixed this via HTML text (`<font color='#XXXXXX'>`). `ScriptListCellRenderer` needs the same treatment.
+
+- **`DiffComparisonPanel` — scroll sync uses `!isAdjusting` guard** — Left/right panes sync via `AdjustmentListener` with `!e.getValueIsAdjusting()`. The opposite pane only snaps into position on final scroll event (mouse release), not during live drag. Can feel laggy on large diffs.
+
+- **`DiffComparisonPanel` — no blank-line padding** — Deleted lines on the left have no corresponding blank line on the right (and vice versa), so matching context lines fall out of vertical alignment on large diffs.
+
+- **`GitRepositoryController.isGitConnected()` stub** — Returns a hardcoded value; live status detection not fully implemented.
+
+- **SSH strict host key checking disabled** — Acceptable for internal deployments; a security consideration for public-facing repositories.
+
 - **No merge conflict resolution** — Conflicting pushes are rejected with HTTP 409 and must be resolved manually outside the plugin.
+
+- **`BaseRepository.postCommit()` stub** — The hook is called after commit but before push; currently a no-op in all subclasses. Intended for tracking per-channel last commit ID in Mirth, but the implementation is commented out.

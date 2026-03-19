@@ -23,7 +23,8 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
-import com.innovarhealthcare.channelHistory.client.dialog.VersionComparisonDialog;
+import com.innovarhealthcare.channelHistory.client.dialog.ChannelDiffDialog;
+import com.innovarhealthcare.channelHistory.client.diff.model.VersionInfo;
 import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClientException;
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CommitMetaDataTableModel;
@@ -437,12 +438,12 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         // Build VersionInfo objects
         String channelName = currentChannel.getName();
 
-        VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createCurrent(channelName, currentUserName);
+        VersionInfo leftVersion = VersionInfo.createCurrent(channelName, currentUserName);
 
-        VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(channelName, historicalVersion.getHash().substring(0, 7), historicalVersion.getCommitter(), new Date(historicalVersion.getTimestamp()));
+        VersionInfo rightVersion = VersionInfo.createHistorical(channelName, historicalVersion.getHash().substring(0, 7), historicalVersion.getCommitter(), new Date(historicalVersion.getTimestamp()));
 
         // Show comparison dialog
-        VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, currentChannel, historicalData.getChannel(), currentXml, historicalData.getRawContent(), parent);
+        new ChannelDiffDialog(parent, leftVersion, rightVersion, currentXml, historicalData.getRawContent()).setVisible(true);
     }
 
     /**
@@ -463,13 +464,13 @@ public class ChannelHistoryTabPanel extends AbstractChannelTabPanel {
         Channel rightChannel = rightData.getChannel();
 
         // Build VersionInfo for left side
-        VersionComparisonDialog.VersionInfo leftVersion = VersionComparisonDialog.VersionInfo.createHistorical(leftChannel.getName(), version1.getHash().substring(0, 7), version1.getCommitter(), new Date(version1.getTimestamp()));
+        VersionInfo leftVersion = VersionInfo.createHistorical(leftChannel.getName(), version1.getHash().substring(0, 7), version1.getCommitter(), new Date(version1.getTimestamp()));
 
         // Build VersionInfo for right side
-        VersionComparisonDialog.VersionInfo rightVersion = VersionComparisonDialog.VersionInfo.createHistorical(rightChannel.getName(), version2.getHash().substring(0, 7), version2.getCommitter(), new Date(version2.getTimestamp()));
+        VersionInfo rightVersion = VersionInfo.createHistorical(rightChannel.getName(), version2.getHash().substring(0, 7), version2.getCommitter(), new Date(version2.getTimestamp()));
 
         // Show comparison dialog
-        VersionComparisonDialog.create("Channel Version Comparison", leftVersion, rightVersion, leftChannel, rightChannel, leftData.getRawContent(), rightData.getRawContent(), parent);
+        new ChannelDiffDialog(parent, leftVersion, rightVersion, leftData.getRawContent(), rightData.getRawContent()).setVisible(true);
     }
 
 
