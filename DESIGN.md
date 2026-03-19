@@ -149,12 +149,12 @@ VersionHistoryApiException  (WebApplicationException) — carries HTTP status + 
 | `ChannelHistoryOperations` | Channel task-pane operations |
 | `CodeTemplateOperations` | Code-template task-pane operations |
 | `GlobalScriptOperations` | Global-script task-pane operations |
-| `ChannelDiffDialog` | Modal `JDialog` (1200×800); `JTabbedPane`: **XML Diff** (`DiffComparisonPanel`) + **Channel** (TBD placeholder); auto-sorts versions (current always right, newer timestamp right); ESC closes |
+| `ChannelDiffDialog` | Modal `JDialog` (1200×800); `JTabbedPane`: **XML Diff** (`DiffComparisonPanel`) + **Channel** (`ChannelDiffPanel`); auto-sorts versions (current always right, newer timestamp right); ESC closes |
 | `CodeTemplateDiffDialog` | Modal `JDialog` (1200×800); `JTabbedPane`: **XML Diff** (`DiffComparisonPanel`) + **Code Template** (`CodeTemplateFunctionDiffPanel`); same sort/ESC behaviour; opened by `CodeTemplateHistoryDialog`, `CodeTemplateHistoryDialogWithTaskPane`, `GitStatusTabPanel` |
 | `CodeTemplateHistoryDialog` | Code-template history: commit table; "Diff" → current vs. selected (`showDiffLastChangeWindow`); right-click "Show Diff" → two selected revisions (`showDiffWindow`); both paths open `CodeTemplateDiffDialog` |
 | `CodeTemplateHistoryDialogWithTaskPane` | Alternate code-template history with `JXTaskPane` action panel; Diff action supports 1-row (vs. current) or 2-row (vs. each other); opens `CodeTemplateDiffDialog` |
 | `GlobalScriptsHistoryDialog` | Global scripts history + `GlobalScriptsDiffPanel` |
-| `DiffComparisonPanel` | Generic `public` diff panel; `DiffComparisonPanel(VersionInfo left, VersionInfo right)`; `updateDiff(leftText, rightText)` renders both split and unified every call; **Split/Unified toggle** (CardLayout: `"SPLIT"` GridLayout 1×2 / `"UNIFIED"` single pane); synchronized vertical scrolling; all scroll panes reset to top on `updateDiff()` |
+| `DiffComparisonPanel` | Generic `public` diff panel; `DiffComparisonPanel(VersionInfo left, VersionInfo right)`; `updateDiff(leftText, rightText)` renders both split and unified; **▲ Prev / ▼ Next** navigation buttons jump between change blocks (consecutive ADDED/DELETED runs); on `updateDiff()` auto-scrolls to first change block and enables/disables buttons accordingly (both disabled when no changes); navIndex resets per `updateDiff()` and on Split/Unified toggle; split mode scrolls left pane only (sync listener propagates to right); `modelToView()` called inside double `invokeLater` to ensure layout is complete; **Split/Unified toggle** (CardLayout: `"SPLIT"` GridLayout 1×2 / `"UNIFIED"` single pane); synchronized vertical scrolling |
 | `ScriptDiffEngine` | Line-based diff via java-diff-utils; `computeDiff(leftText, rightText)` → `DiffResult` (left+right `DiffLine` lists for split view); `computeUnifiedDiff(leftText, rightText)` → `List<DiffLine>` (interleaved DELETED/ADDED/UNCHANGED for unified view) |
 | `DiffTextPane` | `JTextPane` subclass rendering `List<DiffLine>` with colour-coded backgrounds |
 | `DiffLine` | Fields: `lineNumber`, `content`, `changeType` (ChangeType enum) |
@@ -166,6 +166,12 @@ VersionHistoryApiException  (WebApplicationException) — carries HTTP status + 
 | `CodeTemplateFunctionDiffPanel` | "Code Template" tab panel; `JSplitPane` (left: `JList<ScriptEntry>`, divider=250; right: `DiffComparisonPanel` re-created per selection via `setRightComponent`); `buildChangedEntries()` unions function names, skips UNCHANGED; ADDED: left code/version=""; DELETED: right code/version="Deleted"; auto-selects index 0 |
 | `FunctionListCellRenderer` | Cell renderer for `CodeTemplateFunctionDiffPanel` list; HTML colour coding (`<font color='#CC6600'>` [M], `<font color='#009900'>` [A], `<font color='#CC0000'>` [D]) to bypass Substance LAF `setForeground()` override; plain text when selected |
 | `ScriptListCellRenderer` | Cell renderer for `GlobalScriptsDiffPanel` list; uses `setForeground()` (has Substance LAF color issue — not yet migrated to HTML) |
+| `ChannelComponentParser` | Parses Mirth channel XML into structural components for diff; uses `DocumentBuilderFactory` with XXE-prevention feature flags; **Channel Info**: direct-child `<name>`, `<description>`, `<revision>` formatted as labelled text block; **Source**: direct-child `<sourceConnector>` → `ChannelConnector(transportName, xmlContent)`; **Destinations**: direct children of `<destinationConnectors>` keyed by connector `<name>`, display label from `<transportName>`; `directChildText()` avoids picking up nested `<name>` elements from connectors |
+| `ChannelConnector` | Package-private DTO: `transportName` (String), `xmlContent` (String) |
+| `ChannelComponents` | Package-private container: `channelInfo` (String), `sourceConnector` (ChannelConnector), `destinations` (LinkedHashMap\<String, ChannelConnector\> keyed by connector name) |
+| `ChannelEntry` | Package-private JList item DTO: `label`, `changeType`, `leftContent`, `rightContent`, `leftVersionOverride`, `rightVersionOverride`; null overrides mean use outer dialog VersionInfo unchanged |
+| `ChannelEntryListCellRenderer` | Package-private cell renderer for `ChannelDiffPanel` component list; HTML colour coding for [M]/[A]/[D] (same hex constants as `FunctionListCellRenderer`) to bypass Substance LAF; unchanged items shown as muted gray (`#777777`) HTML text; plain text when selected |
+| `ChannelDiffPanel` | "Channel" tab panel for `ChannelDiffDialog`; `JSplitPane` (divider=250, resizeWeight=0.2): left — `JList<ChannelEntry>` showing **all** components (Channel Info always present, Source Connector, each Destination) with [M]/[A]/[D]/unchanged indicators; right — `DiffComparisonPanel` re-created per selection; **Channel Info**: always shown, [M] if differs; **Source**: same-transportName=[M]/unchanged, different-transportName=[D]+[A]; **Destinations**: matched by connector `<name>` — [M]/unchanged/[A]/[D]; auto-selects first changed entry or index 0 if all unchanged |
 | `GlobalScriptsDiffPanel` | Global scripts diff: `JList` of script types on left, `DiffComparisonPanel` on right; similar structure to `CodeTemplateFunctionDiffPanel` |
 | `CommitMetaDataTable` | JTable displaying commit history |
 | `ChannelRepoTable` | JTable for channels in repository |
@@ -549,8 +555,6 @@ innovarhealthcare-channel-history-v3.0.0-bl4.6.1.zip
 - **Sensitive fields stored as plain text** — SSH private key and HTTPS password are stored unencrypted in plugin properties. A future task: XStream-based encryption to prevent credentials appearing in logs/exports.
 
 - **HTTPS connection validation not fully implemented** — `validateSSHConnection()` only tests the SSH transport path. For `authType = "HTTPS"`, the validation clone will likely fail with a generic error rather than a meaningful message.
-
-- **`ChannelDiffDialog` Tab 2 TBD** — The "Channel" second tab shows a `JLabel("TBD")` placeholder. A structured visual comparison (rendered connector list, channel properties) is not yet implemented.
 
 - **`ScriptListCellRenderer` — Substance LAF color issue** — Uses `setForeground()` which Mirth Connect's Substance LAF overrides during cell painting, causing colors to display as black. `FunctionListCellRenderer` already fixed this via HTML text (`<font color='#XXXXXX'>`). `ScriptListCellRenderer` needs the same treatment.
 

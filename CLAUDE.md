@@ -159,7 +159,7 @@ The flow is: write file → `pullWithOverwrite()` → stage → commit → push.
 
 | Item | Location | Status |
 |---|---|---|
-| `ChannelDiffDialog` Tab 2 "Channel" | `ChannelDiffDialog.setupLayout()` | Placeholder `JLabel("TBD")` — structured visual view not implemented |
+| `DiffComparisonPanel` "▼ Next" first-click no-scroll | `client/diff/DiffComparisonPanel.java` | First click does not scroll; subsequent clicks work. Cause: `modelToView` returns null before layout is committed on first tab activation. Workaround: double `invokeLater` applied — may still fail if pane has never been painted |
 | `ScriptListCellRenderer` Substance LAF fix | `client/diff/ScriptListCellRenderer.java` | Still uses `setForeground()` — needs HTML color migration |
 | HTTPS connection validation | `GitRepositoryService.validateSSHConnection()` | Method name is a misnomer; HTTPS path not tested |
 | `BaseRepository.postCommit()` | `server/repository/BaseRepository.java` | Hook exists but is a no-op in all subclasses; intended for per-channel commit ID tracking |

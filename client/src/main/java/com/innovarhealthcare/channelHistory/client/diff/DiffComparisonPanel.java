@@ -16,9 +16,13 @@ import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.Rectangle;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
+import com.innovarhealthcare.channelHistory.client.diff.model.ChangeType;
 import com.innovarhealthcare.channelHistory.client.diff.model.DiffLine;
 import com.innovarhealthcare.channelHistory.client.diff.model.DiffResult;
 import com.innovarhealthcare.channelHistory.client.diff.model.ScriptDiffEngine;
@@ -48,11 +52,21 @@ public class DiffComparisonPanel extends JPanel {
     private final CardLayout    cardLayout;
     private final JPanel        contentArea;
     private final JButton       toggleButton;
+    private final JButton       prevButton;
+    private final JButton       nextButton;
 
     // ── State ─────────────────────────────────────────────────────────────────
-    private boolean isSplitMode     = true;
-    private String  currentLeftText  = "";
-    private String  currentRightText = "";
+    private boolean      isSplitMode       = true;
+    private String       currentLeftText   = "";
+    private String       currentRightText  = "";
+
+    // ── Navigation state ──────────────────────────────────────────────────────
+    private List<Integer> splitChangedBlocks   = Collections.emptyList();
+    private List<Integer> unifiedChangedBlocks = Collections.emptyList();
+    private List<DiffLine> lastLeftLines       = Collections.emptyList();
+    private List<DiffLine> lastRightLines      = Collections.emptyList();
+    private List<DiffLine> lastUnifiedLines    = Collections.emptyList();
+    private int            navIndex            = -1;
 
     public DiffComparisonPanel(VersionInfo leftVersion, VersionInfo rightVersion) {
         setLayout(new BorderLayout());
@@ -62,16 +76,32 @@ public class DiffComparisonPanel extends JPanel {
         unifiedPane = new DiffTextPane();
 
         // ── Toolbar ───────────────────────────────────────────────────────────
+        prevButton   = new JButton("\u25b2 Prev");
+        nextButton   = new JButton("\u25bc Next");
         toggleButton = new JButton("Unified");
+
+        prevButton.setEnabled(false);
+        nextButton.setEnabled(false);
+
+        prevButton.addActionListener(e -> navigatePrev());
+        nextButton.addActionListener(e -> navigateNext());
         toggleButton.addActionListener(e -> toggleMode());
 
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        JPanel navPanel    = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        navPanel.add(prevButton);
+        navPanel.add(nextButton);
+
+        JPanel togglePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+        togglePanel.add(toggleButton);
+
+        JPanel toolbar = new JPanel(new BorderLayout());
         toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR));
-        toolbar.add(toggleButton);
+        toolbar.add(navPanel,    BorderLayout.WEST);
+        toolbar.add(togglePanel, BorderLayout.EAST);
 
         // ── Split content ─────────────────────────────────────────────────────
         JPanel splitContent = new JPanel(new GridLayout(1, 2, 1, 0));
-        splitContent.add(createPanelWithHeader(leftPane, leftVersion, true));
+        splitContent.add(createPanelWithHeader(leftPane,  leftVersion,  true));
         splitContent.add(createPanelWithHeader(rightPane, rightVersion, false));
 
         // ── Unified content ───────────────────────────────────────────────────
@@ -97,6 +127,8 @@ public class DiffComparisonPanel extends JPanel {
         isSplitMode = !isSplitMode;
         cardLayout.show(contentArea, isSplitMode ? CARD_SPLIT : CARD_UNIFIED);
         toggleButton.setText(isSplitMode ? "Unified" : "Split");
+        navIndex = -1;
+        updateNavButtons();
     }
 
     // ── Diff rendering ────────────────────────────────────────────────────────
@@ -108,26 +140,136 @@ public class DiffComparisonPanel extends JPanel {
         try {
             // Split diff
             DiffResult diff = ScriptDiffEngine.computeDiff(currentLeftText, currentRightText);
-            leftPane.setDiffLines(diff.getLeftLines());
-            rightPane.setDiffLines(diff.getRightLines());
+            lastLeftLines  = diff.getLeftLines();
+            lastRightLines = diff.getRightLines();
+            leftPane.setDiffLines(lastLeftLines);
+            rightPane.setDiffLines(lastRightLines);
 
             // Unified diff
-            List<DiffLine> unified = ScriptDiffEngine.computeUnifiedDiff(currentLeftText, currentRightText);
-            unifiedPane.setDiffLines(unified);
+            lastUnifiedLines = ScriptDiffEngine.computeUnifiedDiff(currentLeftText, currentRightText);
+            unifiedPane.setDiffLines(lastUnifiedLines);
 
-            // Scroll all to top
-            SwingUtilities.invokeLater(() -> {
-                leftScroll.getVerticalScrollBar().setValue(0);
-                rightScroll.getVerticalScrollBar().setValue(0);
-                unifiedScroll.getVerticalScrollBar().setValue(0);
-            });
+            // Build navigation block lists (one entry per consecutive changed run)
+            splitChangedBlocks   = buildSplitChangedBlocks(lastLeftLines, lastRightLines);
+            unifiedChangedBlocks = buildChangedBlocks(lastUnifiedLines);
+
+            // Auto-scroll to first change block; scroll to top when no changes exist
+            List<Integer> activeBlocks = activeChangedBlocks();
+            if (!activeBlocks.isEmpty()) {
+                navIndex = 0;
+                updateNavButtons();
+                scrollToBlock(activeBlocks.get(0));
+            } else {
+                navIndex = -1;
+                updateNavButtons();
+                SwingUtilities.invokeLater(() -> {
+                    leftScroll.getVerticalScrollBar().setValue(0);
+                    rightScroll.getVerticalScrollBar().setValue(0);
+                    unifiedScroll.getVerticalScrollBar().setValue(0);
+                });
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
             leftPane.setText("Error computing diff: " + e.getMessage());
             rightPane.setText("");
             unifiedPane.setText("Error computing diff: " + e.getMessage());
+            splitChangedBlocks   = Collections.emptyList();
+            unifiedChangedBlocks = Collections.emptyList();
+            navIndex = -1;
+            updateNavButtons();
         }
+    }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+
+    private void navigateNext() {
+        List<Integer> blocks = activeChangedBlocks();
+        if (blocks.isEmpty()) return;
+        navIndex = Math.min(navIndex + 1, blocks.size() - 1);
+        scrollToBlock(blocks.get(navIndex));
+        updateNavButtons();
+    }
+
+    private void navigatePrev() {
+        List<Integer> blocks = activeChangedBlocks();
+        if (blocks.isEmpty()) return;
+        navIndex = Math.max(navIndex - 1, 0);
+        scrollToBlock(blocks.get(navIndex));
+        updateNavButtons();
+    }
+
+    private void scrollToBlock(int rowIndex) {
+        if (isSplitMode) {
+            // Scroll only left; the sync listener propagates to right
+            scrollPaneToBlock(leftPane, leftScroll, rowIndex);
+        } else {
+            scrollPaneToBlock(unifiedPane, unifiedScroll, rowIndex);
+        }
+    }
+
+    private void scrollPaneToBlock(DiffTextPane pane, JScrollPane scroll, int rowIndex) {
+        // Double invokeLater: first pass lets any pending layout/paint events drain,
+        // second pass runs after layout is complete so modelToView returns a valid rect.
+        SwingUtilities.invokeLater(() -> SwingUtilities.invokeLater(() -> {
+            try {
+                javax.swing.text.Element root = pane.getDocument().getDefaultRootElement();
+                if (rowIndex < 0 || rowIndex >= root.getElementCount()) return;
+                int offset = root.getElement(rowIndex).getStartOffset();
+                Rectangle rect = pane.modelToView(offset);
+                if (rect == null) return;
+                int viewH = scroll.getViewport().getHeight();
+                int y = Math.max(0, rect.y - viewH / 2);
+                scroll.getVerticalScrollBar().setValue(y);
+            } catch (Exception ex) {
+                // ignore
+            }
+        }));
+    }
+
+    private void updateNavButtons() {
+        List<Integer> rows = activeChangedBlocks();
+        prevButton.setEnabled(!rows.isEmpty() && navIndex > 0);
+        nextButton.setEnabled(!rows.isEmpty() && navIndex < rows.size() - 1);
+    }
+
+    private List<Integer> activeChangedBlocks() {
+        return isSplitMode ? splitChangedBlocks : unifiedChangedBlocks;
+    }
+
+    // ── Block builders ────────────────────────────────────────────────────────
+    // Each entry is the start row index of a consecutive run of changed lines.
+
+    private static List<Integer> buildSplitChangedBlocks(List<DiffLine> left, List<DiffLine> right) {
+        List<Integer> result = new ArrayList<>();
+        int n = Math.min(left.size(), right.size());
+        boolean inBlock = false;
+        for (int i = 0; i < n; i++) {
+            boolean changed = left.get(i).getType() != ChangeType.UNCHANGED
+                    || right.get(i).getType() != ChangeType.UNCHANGED;
+            if (changed && !inBlock) {
+                result.add(i);
+                inBlock = true;
+            } else if (!changed) {
+                inBlock = false;
+            }
+        }
+        return result;
+    }
+
+    private static List<Integer> buildChangedBlocks(List<DiffLine> lines) {
+        List<Integer> result = new ArrayList<>();
+        boolean inBlock = false;
+        for (int i = 0; i < lines.size(); i++) {
+            boolean changed = lines.get(i).getType() != ChangeType.UNCHANGED;
+            if (changed && !inBlock) {
+                result.add(i);
+                inBlock = true;
+            } else if (!changed) {
+                inBlock = false;
+            }
+        }
+        return result;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -182,7 +324,7 @@ public class DiffComparisonPanel extends JPanel {
         }
 
         if (version.getAuthor() != null && !version.getAuthor().isEmpty()) {
-            sb.append(" • ").append(version.getAuthor());
+            sb.append(" \u2022 ").append(version.getAuthor());
         }
 
         return sb.toString();
