@@ -597,6 +597,145 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
         }
     }
 
+    @Override
+    public String getRepoLog(int maxCount) {
+        logger.info("getRepoLog: maxCount={}", maxCount);
+        try {
+            return JsonUtils.toJson(getService().getRepoLog(maxCount));
+
+        } catch (GitNotConnectedException e) {
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed getting repo log", e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.GIT_OPERATION_ERROR, "Failed to get repository log: " + e.getMessage());
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting repo log", e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to get repository log: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String getCommitChanges(String commitHash) {
+        if (commitHash == null || commitHash.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Commit hash is required");
+        }
+
+        logger.info("getCommitChanges: commitHash={}", commitHash);
+
+        try {
+            return JsonUtils.toJson(getService().getCommitChanges(commitHash));
+
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: commitHash={}", commitHash);
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitFileNotFoundException e) {
+            logger.warn("Commit not found: commitHash={}", commitHash);
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.FILE_NOT_FOUND, "Commit not found: " + commitHash);
+
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed: commitHash={}", commitHash, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.GIT_OPERATION_ERROR, "Failed to get commit changes: " + e.getMessage());
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting commit changes: commitHash={}", commitHash, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to get commit changes: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String getFileHistory(String filePath) {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST,
+                    VersionHistoryErrorCodes.INVALID_REQUEST, "File path is required");
+        }
+
+        logger.info("getFileHistory: filePath={}", filePath);
+
+        try {
+            return JsonUtils.toJson(getService().getFileHistory(filePath));
+
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: filePath={}", filePath);
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE,
+                    VersionHistoryErrorCodes.GIT_NOT_CONNECTED,
+                    "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitFileNotFoundException e) {
+            logger.warn("File not found: filePath={}", filePath);
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND,
+                    VersionHistoryErrorCodes.FILE_NOT_FOUND, "File not found: " + filePath);
+
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed: filePath={}", filePath, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR,
+                    VersionHistoryErrorCodes.GIT_OPERATION_ERROR,
+                    "Failed to get file history: " + e.getMessage());
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting file history: filePath={}", filePath, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR,
+                    VersionHistoryErrorCodes.UNKNOWN_ERROR,
+                    "Failed to get file history: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String getFileContentAtRevision(String filePath, String commitHash) {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST,
+                    VersionHistoryErrorCodes.INVALID_REQUEST, "File path is required");
+        }
+        if (commitHash == null || commitHash.trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST,
+                    VersionHistoryErrorCodes.INVALID_REQUEST, "Commit hash is required");
+        }
+
+        logger.info("getFileContentAtRevision: filePath={}, commitHash={}", filePath, commitHash);
+
+        try {
+            return getService().getFileContentAtRevision(filePath, commitHash);
+
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: filePath={}, commitHash={}", filePath, commitHash);
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE,
+                    VersionHistoryErrorCodes.GIT_NOT_CONNECTED,
+                    "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitFileNotFoundException e) {
+            logger.warn("File not found: filePath={}, commitHash={}", filePath, commitHash);
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND,
+                    VersionHistoryErrorCodes.FILE_NOT_FOUND,
+                    "File not found: " + filePath + " at revision: " + commitHash);
+
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed: filePath={}, commitHash={}", filePath, commitHash, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR,
+                    VersionHistoryErrorCodes.GIT_OPERATION_ERROR,
+                    "Failed to get file content at revision: " + e.getMessage());
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error getting file content at revision: filePath={}, commitHash={}", filePath, commitHash, e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR,
+                    VersionHistoryErrorCodes.UNKNOWN_ERROR,
+                    "Failed to get file content at revision: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
     private VersionHistoryService getService() {
         return GitRepositoryController.getInstance().getVersionHistoryService();
     }

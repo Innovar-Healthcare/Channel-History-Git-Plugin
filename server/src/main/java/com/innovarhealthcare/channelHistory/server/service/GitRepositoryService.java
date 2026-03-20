@@ -19,6 +19,8 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFile;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFolder;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemChange;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.GitSettings;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.jcraft.jsch.JSch;
@@ -379,6 +381,106 @@ public class GitRepositoryService {
             throw e;
         } catch (Exception e) {
             throw new GitOperationException("Failed to read file at HEAD: " + filePath + " — " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the commit history for a specific file path.
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc.xml")
+     * @return List of commit metadata, newest first
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitFileNotFoundException if filePath is blank
+     * @throws GitOperationException    if the log command fails
+     */
+    public synchronized List<CommitMetaData> getFileHistory(String filePath) throws GitOperationException {
+        ensureStarted();
+        ensureGitAvailable();
+        if (filePath == null || filePath.isBlank()) {
+            throw new GitFileNotFoundException("File path is required");
+        }
+        try {
+            return gitOperations.getFileHistory(filePath);
+        } catch (Exception e) {
+            throw new GitOperationException("Failed to get file history for: " + filePath + " — " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the raw content of a file at a specific commit revision.
+     *
+     * @param filePath   Relative path from repository root (e.g., "Channels/abc.xml")
+     * @param commitHash Commit SHA to read the file at
+     * @return File content as UTF-8 string
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitFileNotFoundException if filePath or commitHash is blank, or file not found
+     * @throws GitOperationException    if the Git read operation fails
+     */
+    public synchronized String getFileContentAtRevision(String filePath, String commitHash) throws GitFileNotFoundException, GitOperationException {
+        ensureStarted();
+        ensureGitAvailable();
+        if (filePath == null || filePath.isBlank()) {
+            throw new GitFileNotFoundException("File path is required");
+        }
+        if (commitHash == null || commitHash.isBlank()) {
+            throw new GitFileNotFoundException("Commit hash is required");
+        }
+        try {
+            return gitOperations.getFileContentAtRevision(filePath, commitHash);
+        } catch (GitFileNotFoundException e) {
+            throw e;
+        } catch (GitOperationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitOperationException("Failed to read file '" + filePath + "' at revision '" + commitHash + "': " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the commit log for the entire repository.
+     *
+     * @param maxCount Maximum number of commits to return
+     * @return List of commit metadata, newest first
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitOperationException    if the log command fails
+     */
+    public synchronized List<CommitMetaData> getRepoLog(int maxCount) throws GitOperationException {
+        ensureStarted();
+        ensureGitAvailable();
+        try {
+            return gitOperations.getRepoLog(maxCount);
+        } catch (GitOperationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitOperationException("Failed to get repository log: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the list of files changed in a specific commit.
+     *
+     * @param commitHash Commit SHA to inspect
+     * @return List of file changes with path and change type
+     * @throws IllegalStateException    if service not started
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitFileNotFoundException if commitHash is blank
+     * @throws GitOperationException    if the diff operation fails
+     */
+    public synchronized List<RepoItemChange> getCommitChanges(String commitHash) throws GitOperationException {
+        ensureStarted();
+        ensureGitAvailable();
+        if (commitHash == null || commitHash.isBlank()) {
+            throw new GitFileNotFoundException("Commit hash is required");
+        }
+        try {
+            return gitOperations.getCommitChanges(commitHash);
+        } catch (GitOperationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitOperationException("Failed to get commit changes: " + e.getMessage(), e);
         }
     }
 

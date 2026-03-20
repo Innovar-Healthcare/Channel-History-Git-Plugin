@@ -12,6 +12,7 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemChange;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
@@ -567,6 +568,116 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to load code template from repository: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get repository commit log
+     *
+     * @param maxCount Maximum number of commits to return
+     * @return List of commit metadata entries (newest first)
+     * @throws ClientException if Git is not connected or an error occurs
+     */
+    public List<CommitMetaData> getRepoLog(int maxCount) throws ClientException {
+        try {
+            String jsonResponse = getServlet().getRepoLog(maxCount);
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get repository log: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get list of files changed in a specific commit
+     *
+     * @param commitHash Full SHA of the commit
+     * @return List of changed files with their change type (ADDED/MODIFIED/DELETED)
+     * @throws ClientException if commit not found, Git is not connected, or an error occurs
+     */
+    public List<RepoItemChange> getCommitChanges(String commitHash) throws ClientException {
+        try {
+            String jsonResponse = getServlet().getCommitChanges(commitHash);
+            return JsonUtils.fromJsonList(jsonResponse, RepoItemChange.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get commit changes: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get commit history for a specific file path (works for any file type in the repo)
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc-123.xml")
+     * @return List of commit metadata entries (newest first)
+     * @throws ClientException if file not found, Git is not connected, or an error occurs
+     */
+    public List<CommitMetaData> getFileHistory(String filePath) throws ClientException {
+        try {
+            String jsonResponse = getServlet().getFileHistory(filePath);
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get file history: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get raw file content at a specific commit revision (works for any file type)
+     *
+     * @param filePath   Relative path from repository root (e.g., "Channels/abc-123.xml")
+     * @param commitHash Full SHA of the commit
+     * @return Raw file content as string
+     * @throws ClientException if file not found at revision, Git is not connected, or an error occurs
+     */
+    public String getFileContentAtRevision(String filePath, String commitHash) throws ClientException {
+        try {
+            return getServlet().getFileContentAtRevision(filePath, commitHash);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get file content at revision: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get commit history for a specific item (channel, code template, global scripts)
+     *
+     * @param id   Item identifier (UUID for channels/templates, "scripts" for global scripts)
+     * @param mode One of the MODE_* constants from VersionControlConstants
+     * @return List of commit metadata entries (newest first)
+     * @throws ClientException if item not found or Git is not connected
+     */
+    public List<CommitMetaData> getHistory(String id, String mode) throws ClientException {
+        try {
+            String jsonResponse = getServlet().getHistory(id, mode);
+            return JsonUtils.fromJsonList(jsonResponse, CommitMetaData.class);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get history: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get raw file content at a specific revision
+     *
+     * @param id       Item identifier (UUID for channels/templates, "scripts" for global scripts)
+     * @param revision Git commit hash or revision spec (e.g. "abc1234^" for parent)
+     * @param mode     One of the MODE_* constants from VersionControlConstants
+     * @return Raw file content as string
+     * @throws ClientException if item not found at revision or Git is not connected
+     */
+    public String getContentAtRevision(String id, String revision, String mode) throws ClientException {
+        try {
+            return getServlet().getContentAtRevision(id, revision, mode);
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to get content at revision: " + e.getMessage(), e);
         }
     }
 

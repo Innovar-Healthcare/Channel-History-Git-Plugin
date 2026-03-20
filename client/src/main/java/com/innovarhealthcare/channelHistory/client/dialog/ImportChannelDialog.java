@@ -28,7 +28,6 @@ import com.innovarhealthcare.channelHistory.client.service.VersionHistoryService
 import com.innovarhealthcare.channelHistory.client.table.ChannelRepoTable;
 import com.innovarhealthcare.channelHistory.client.util.VersionControlUtil;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
-import com.innovarhealthcare.channelHistory.shared.interfaces.VersionHistoryServletInterface;
 import com.mirth.connect.client.core.Client;
 import com.mirth.connect.client.core.ClientException;
 import com.mirth.connect.client.ui.Frame;
@@ -55,9 +54,7 @@ public class ImportChannelDialog extends MirthDialog {
     // Footer-left loader
     private JProgressBar loadingBar;
     private JLabel loadingLabel;
-    private boolean loading = false;
 
-    private VersionHistoryServletInterface gitServlet;
     private final Frame parent;
 
     public ImportChannelDialog(Frame parent) {
@@ -183,13 +180,11 @@ public class ImportChannelDialog extends MirthDialog {
 
     // ----- Loading state -----
     private void enterLoadingState() {
-        loading = true;
         okButton.setEnabled(false);
         setLoadingVisible(true);
     }
 
     private void exitLoadingState() {
-        loading = false;
         setLoadingVisible(false);
         okButton.setEnabled(channelRepoTable.getRowCount() > 0);
     }

@@ -18,6 +18,7 @@ package com.innovarhealthcare.channelHistory.shared.interfaces;
 
 
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -357,6 +358,102 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
             @Param("filePath")
             @Parameter(description = "Relative file path from repository root (e.g., 'Channels/abc-123.xml')", required = true)
             @QueryParam("filePath") String filePath
+    ) throws ClientException;
+
+    @GET
+    @Path("/fileHistory")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get commit history for a specific file path",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getFileHistory",
+            display = "Get File Commit History",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    String getFileHistory(
+            @Param("filePath")
+            @Parameter(description = "Relative file path from repository root (e.g., 'Channels/abc-123.xml')", required = true)
+            @QueryParam("filePath") String filePath
+    ) throws ClientException;
+
+    @GET
+    @Path("/fileContentAtRevision")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get file content at a specific commit revision",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getFileContentAtRevision",
+            display = "Get File Content At Revision",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    String getFileContentAtRevision(
+            @Param("filePath")
+            @Parameter(description = "Relative file path from repository root (e.g., 'Channels/abc-123.xml')", required = true)
+            @QueryParam("filePath") String filePath,
+
+            @Param("commitHash")
+            @Parameter(description = "The commit hash to read the file at", required = true)
+            @QueryParam("commitHash") String commitHash
+    ) throws ClientException;
+
+    @GET
+    @Path("/repoLog")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get commit log for the entire repository",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getRepoLog",
+            display = "Get Repository Commit Log",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    String getRepoLog(
+            @Param("maxCount")
+            @Parameter(description = "Maximum number of commits to return", required = false)
+            @QueryParam("maxCount") @DefaultValue("200") int maxCount
+    ) throws ClientException;
+
+    @GET
+    @Path("/commitChanges")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Get files changed in a specific commit",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "getCommitChanges",
+            display = "Get Files Changed in Commit",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    String getCommitChanges(
+            @Param("commitHash")
+            @Parameter(description = "The commit hash to inspect", required = true)
+            @QueryParam("commitHash") String commitHash
     ) throws ClientException;
 }
 

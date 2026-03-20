@@ -1,0 +1,478 @@
+package com.innovarhealthcare.channelHistory.client.panel.gitstatus;
+
+import com.innovarhealthcare.channelHistory.client.service.VersionHistoryServiceClient;
+import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFile;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFolder;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
+import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.mirth.connect.client.ui.UIConstants;
+import net.miginfocom.swing.MigLayout;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextArea;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.KeyEvent;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.function.Consumer;
+
+/**
+ * Left-panel tab for the Files browser in the Git Status view.
+ * Owns the file browser JTree and the FILE_INFO / EMPTY right cards.
+ *
+ * @author Thai Tran
+ */
+public class FilesTabPanel extends JPanel {
+
+    private static final String CARD_EMPTY     = "EMPTY";
+    private static final String CARD_FILE_INFO = "FILE_INFO";
+
+    private final VersionHistoryServiceClient client;
+    private final Consumer<String>            onViewFullHistoryCallback;
+
+    // ── File tree ──────────────────────────────────────────────────────────────
+    private JTree       fileTree;
+    private JScrollPane fileTreeScrollPane;
+
+    // ── Right cards ────────────────────────────────────────────────────────────
+    private JPanel     rightCards;
+    private CardLayout rightCardLayout;
+    private JLabel     emptyLabel;
+
+    // FILE_INFO card fields
+    private JLabel  fileInfoNameValue;
+    private JLabel  fileInfoPathValue;
+    private JLabel  fileInfoSizeValue;
+    private JPanel  fileInfoCommitSection;
+    private JLabel  fileInfoCommitHashValue;
+    private JLabel  fileInfoCommitAuthorValue;
+    private JLabel  fileInfoCommitDateValue;
+    private JLabel  fileInfoCommitMsgValue;
+    private JPanel  fileInfoButtonSection;
+    private JButton viewContentButton;
+    private JButton viewFullHistoryButton;
+    private String  currentFilePath;
+
+    // ── Split pane ─────────────────────────────────────────────────────────────
+    private JSplitPane splitPane;
+
+    public FilesTabPanel(VersionHistoryServiceClient client,
+                         Consumer<String> onViewFullHistoryCallback) {
+        this.client                    = client;
+        this.onViewFullHistoryCallback = onViewFullHistoryCallback;
+        initComponents();
+        initLayout();
+        initListeners();
+    }
+
+    // ========== Public API ==========
+
+    /**
+     * Called by the shell's JTabbedPane ChangeListener when this tab becomes active.
+     * Re-fires any existing selection; shows EMPTY card if nothing is selected.
+     */
+    public void onTabSelected() {
+        TreePath path = fileTree.getSelectionPath();
+        if (path != null) {
+            fileTree.clearSelection();
+            fileTree.setSelectionPath(path);
+        } else {
+            emptyLabel.setText("Select a file from the tree to view its details and commit history");
+            showCard(CARD_EMPTY);
+        }
+    }
+
+    /**
+     * Populates the file tree from the loaded RepoInfo. Shows the EMPTY card.
+     * Called by the shell after LoadDataWorker completes.
+     */
+    public void populate(RepoInfo info) {
+        buildFileTree(info);
+        currentFilePath = null;
+        emptyLabel.setText("Select a file from the tree to view its details and commit history");
+        showCard(CARD_EMPTY);
+    }
+
+    /**
+     * Resets to empty/loading state. Called before a new data load begins.
+     */
+    public void clear() {
+        fileTree.setModel(new DefaultTreeModel(new DefaultMutableTreeNode()));
+        currentFilePath = null;
+        emptyLabel.setText("Select a file from the tree to view its details and commit history");
+        showCard(CARD_EMPTY);
+    }
+
+    // ========== Initialization ==========
+
+    private void initComponents() {
+        setBackground(UIConstants.BACKGROUND_COLOR);
+
+        fileTree = new JTree(new DefaultMutableTreeNode());
+        fileTree.setRootVisible(false);
+        fileTree.setShowsRootHandles(true);
+        fileTreeScrollPane = new JScrollPane(fileTree,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+
+        rightCardLayout = new CardLayout();
+        rightCards = new JPanel(rightCardLayout);
+        rightCards.setBackground(UIConstants.BACKGROUND_COLOR);
+
+        emptyLabel = new JLabel(
+                "Select a file from the tree to view its details and commit history",
+                JLabel.CENTER);
+        emptyLabel.setForeground(new Color(150, 150, 150));
+        emptyLabel.setFont(new Font("Tahoma", Font.ITALIC, 12));
+        rightCards.add(emptyLabel, CARD_EMPTY);
+
+        rightCards.add(buildFileInfoCard(), CARD_FILE_INFO);
+    }
+
+    private JPanel buildFileInfoCard() {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(UIConstants.BACKGROUND_COLOR);
+
+        JPanel form = new JPanel(
+                new MigLayout("insets 8, novisualpadding, hidemode 3", "[right]12[grow,fill]"));
+        form.setBackground(UIConstants.BACKGROUND_COLOR);
+
+        fileInfoNameValue = new JLabel("—");
+        fileInfoPathValue = new JLabel("—");
+        fileInfoSizeValue = new JLabel("—");
+
+        form.add(new JLabel("Name:"));
+        form.add(fileInfoNameValue, "growx, wrap");
+        form.add(new JLabel("Path:"));
+        form.add(fileInfoPathValue, "growx, wrap");
+        form.add(new JLabel("Size:"));
+        form.add(fileInfoSizeValue, "growx, wrap");
+
+        // Last commit section
+        fileInfoCommitSection = new JPanel(
+                new MigLayout("insets 8 0 0 0, novisualpadding", "[right]12[grow,fill]"));
+        fileInfoCommitSection.setBackground(UIConstants.BACKGROUND_COLOR);
+
+        JLabel sectionTitle = new JLabel("Last Commit");
+        sectionTitle.setFont(new Font("Tahoma", Font.BOLD, 11));
+        fileInfoCommitSection.add(sectionTitle, "span 2, wrap");
+
+        fileInfoCommitHashValue   = new JLabel("—");
+        fileInfoCommitAuthorValue = new JLabel("—");
+        fileInfoCommitDateValue   = new JLabel("—");
+        fileInfoCommitMsgValue    = new JLabel("—");
+
+        fileInfoCommitSection.add(new JLabel("Hash:"));
+        fileInfoCommitSection.add(fileInfoCommitHashValue,   "growx, wrap");
+        fileInfoCommitSection.add(new JLabel("Author:"));
+        fileInfoCommitSection.add(fileInfoCommitAuthorValue, "growx, wrap");
+        fileInfoCommitSection.add(new JLabel("Date:"));
+        fileInfoCommitSection.add(fileInfoCommitDateValue,   "growx, wrap");
+        fileInfoCommitSection.add(new JLabel("Message:"));
+        fileInfoCommitSection.add(fileInfoCommitMsgValue,    "growx, wrap");
+
+        form.add(fileInfoCommitSection, "span 2, growx, hidemode 3, wrap");
+
+        // Buttons
+        fileInfoButtonSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
+        fileInfoButtonSection.setBackground(UIConstants.BACKGROUND_COLOR);
+        viewContentButton     = new JButton("View Content");
+        viewFullHistoryButton = new JButton("View Full History");
+        fileInfoButtonSection.add(viewContentButton);
+        fileInfoButtonSection.add(viewFullHistoryButton);
+
+        form.add(fileInfoButtonSection, "span 2, growx, hidemode 3, wrap");
+
+        card.add(form, BorderLayout.NORTH);
+        return card;
+    }
+
+    private void initLayout() {
+        setLayout(new BorderLayout());
+
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, fileTreeScrollPane, rightCards);
+        splitPane.setResizeWeight(0.3);
+        splitPane.setDividerSize(6);
+        splitPane.setBorder(null);
+        splitPane.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                splitPane.setDividerLocation(0.3);
+                splitPane.removeComponentListener(this);
+            }
+        });
+
+        add(splitPane, BorderLayout.CENTER);
+    }
+
+    private void initListeners() {
+        fileTree.addTreeSelectionListener(e -> {
+            TreePath path = fileTree.getSelectionPath();
+            if (path == null) {
+                emptyLabel.setText(
+                        "Select a file from the tree to view its details and commit history");
+                showCard(CARD_EMPTY);
+                return;
+            }
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+            Object obj = node.getUserObject();
+            if (obj instanceof FileNode) {
+                onFileSelected((FileNode) obj);
+            } else {
+                onFolderSelected(String.valueOf(obj));
+            }
+        });
+
+        viewContentButton.addActionListener(e -> {
+            if (currentFilePath != null) openFileContentView(currentFilePath);
+        });
+        viewFullHistoryButton.addActionListener(e -> {
+            if (currentFilePath != null && onViewFullHistoryCallback != null) {
+                onViewFullHistoryCallback.accept(currentFilePath);
+            }
+        });
+    }
+
+    // ========== Selection Handlers ==========
+
+    private void onFileSelected(FileNode fileNode) {
+        currentFilePath = fileNode.relativePath;
+
+        fileInfoNameValue.setText(getFileName(fileNode.relativePath));
+        fileInfoPathValue.setText(fileNode.relativePath);
+        fileInfoSizeValue.setText(fileNode.sizeBytes >= 0 ? formatBytes(fileNode.sizeBytes) : "—");
+
+        fileInfoCommitSection.setVisible(true);
+        fileInfoButtonSection.setVisible(true);
+        fileInfoCommitHashValue.setText("Loading…");
+        fileInfoCommitAuthorValue.setText("—");
+        fileInfoCommitDateValue.setText("—");
+        fileInfoCommitMsgValue.setText("—");
+        showCard(CARD_FILE_INFO);
+
+        String id   = extractId(fileNode.relativePath);
+        String mode = detectMode(fileNode.relativePath);
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        new SwingWorker<List<CommitMetaData>, Void>() {
+            @Override protected List<CommitMetaData> doInBackground() throws Exception {
+                return client.getHistory(id, mode);
+            }
+            @Override protected void done() {
+                setCursor(Cursor.getDefaultCursor());
+                try {
+                    List<CommitMetaData> history = get();
+                    if (history != null && !history.isEmpty()) {
+                        CommitMetaData last = history.get(0);
+                        fileInfoCommitHashValue.setText(last.getShortHash());
+                        fileInfoCommitAuthorValue.setText(last.getCommitter());
+                        fileInfoCommitDateValue.setText(formatTimestamp(last.getTimestamp()));
+                        fileInfoCommitMsgValue.setText(trimMessage(last.getMessage()));
+                    } else {
+                        fileInfoCommitHashValue.setText("No commits");
+                        fileInfoCommitAuthorValue.setText("—");
+                        fileInfoCommitDateValue.setText("—");
+                        fileInfoCommitMsgValue.setText("—");
+                    }
+                } catch (Exception ex) {
+                    fileInfoCommitHashValue.setText("Error");
+                }
+            }
+        }.execute();
+    }
+
+    private void onFolderSelected(String folderName) {
+        currentFilePath = null;
+        fileInfoNameValue.setText(folderName);
+        fileInfoPathValue.setText(folderName + "/");
+        fileInfoSizeValue.setText("—");
+        fileInfoCommitSection.setVisible(false);
+        fileInfoButtonSection.setVisible(false);
+        showCard(CARD_FILE_INFO);
+    }
+
+    // ========== File Content Viewer ==========
+
+    private void openFileContentView(String filePath) {
+        String fileName = getFileName(filePath);
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        new SwingWorker<String, Void>() {
+            @Override protected String doInBackground() throws Exception {
+                return client.getFileContent(filePath);
+            }
+            @Override protected void done() {
+                setCursor(Cursor.getDefaultCursor());
+                try {
+                    String content = get();
+                    if (isBinary(content)) {
+                        JOptionPane.showMessageDialog(FilesTabPanel.this,
+                                "Cannot display binary file: " + fileName,
+                                "Binary File", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+                    showTextViewer(fileName, content);
+                } catch (Exception ex) {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    JOptionPane.showMessageDialog(FilesTabPanel.this,
+                            "Failed to fetch file content: " + cause.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void showTextViewer(String title, String content) {
+        Frame frame = (Frame) SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(frame, title, true);
+
+        JTextArea textArea = new JTextArea(content);
+        textArea.setEditable(false);
+        textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        textArea.setCaretPosition(0);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton closeButton = new JButton("Close");
+        closeButton.addActionListener(e -> dialog.dispose());
+        buttonPanel.add(closeButton);
+
+        dialog.setLayout(new BorderLayout());
+        dialog.add(new JScrollPane(textArea), BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.setSize(800, 600);
+        dialog.setLocationRelativeTo(frame);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.getRootPane().registerKeyboardAction(
+                e -> dialog.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW);
+        dialog.setVisible(true);
+    }
+
+    // ========== Tree Building ==========
+
+    private void buildFileTree(RepoInfo info) {
+        DefaultMutableTreeNode root = new DefaultMutableTreeNode("root");
+        if (info.getFolders() != null) {
+            for (RepoFolder folder : info.getFolders()) {
+                DefaultMutableTreeNode folderNode = new DefaultMutableTreeNode(
+                        folder.getName() + "  (" + folder.getFileCount() + " files)");
+                if (folder.getFiles() != null) {
+                    for (RepoFile file : folder.getFiles()) {
+                        String relativePath = folder.getName() + "/" + file.getName();
+                        String displayText  = file.getName() + "  ("
+                                + formatBytes(file.getSizeBytes()) + ")";
+                        folderNode.add(new DefaultMutableTreeNode(
+                                new FileNode(displayText, relativePath, file.getSizeBytes())));
+                    }
+                }
+                root.add(folderNode);
+            }
+        }
+        fileTree.setModel(new DefaultTreeModel(root));
+        expandAll(fileTree);
+    }
+
+    // ========== Helpers ==========
+
+    private void showCard(String cardName) {
+        rightCardLayout.show(rightCards, cardName);
+    }
+
+    private void expandAll(JTree tree) {
+        for (int i = 0; i < tree.getRowCount(); i++) {
+            tree.expandRow(i);
+        }
+    }
+
+    private static String detectMode(String relativePath) {
+        String lower = relativePath.toLowerCase();
+        if (lower.startsWith("channels/"))      return VersionControlConstants.MODE_CHANNEL;
+        if (lower.startsWith("codetemplates/")) return VersionControlConstants.MODE_CODE_TEMPLATE;
+        if (lower.startsWith("libraries/"))     return VersionControlConstants.MODE_CODE_TEMPLATE_LIBRARY;
+        if (lower.startsWith("globalscripts/")) return VersionControlConstants.MODE_GLOBAL_SCRIPTS;
+        if (lower.contains("codetemplate") || lower.contains("libraries")
+                || lower.contains("library")) {
+            return VersionControlConstants.MODE_CODE_TEMPLATE;
+        }
+        return VersionControlConstants.MODE_CHANNEL;
+    }
+
+    private static String extractId(String relativePath) {
+        int slash = relativePath.lastIndexOf('/');
+        String filename = slash >= 0 ? relativePath.substring(slash + 1) : relativePath;
+        if (filename.endsWith(".xml")) {
+            filename = filename.substring(0, filename.length() - 4);
+        }
+        return filename;
+    }
+
+    private static String getFileName(String filePath) {
+        int lastSlash = filePath.lastIndexOf('/');
+        return lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
+    }
+
+    private static String formatTimestamp(long millis) {
+        return new SimpleDateFormat("MMM dd, yyyy HH:mm").format(new Date(millis));
+    }
+
+    private static String trimMessage(String message) {
+        if (message == null) return "—";
+        return message.replace("\n", " ").trim();
+    }
+
+    private static boolean isBinary(String content) {
+        int limit = Math.min(content.length(), 8192);
+        for (int i = 0; i < limit; i++) {
+            if (content.charAt(i) == '\0') return true;
+        }
+        return false;
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024L)            return bytes + " B";
+        if (bytes < 1024L * 1024)     return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024L * 1024 * 1024) return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+    }
+
+    // ========== Inner Classes ==========
+
+    static final class FileNode {
+        final String displayText;
+        final String relativePath;
+        final long   sizeBytes;
+
+        FileNode(String displayText, String relativePath, long sizeBytes) {
+            this.displayText  = displayText;
+            this.relativePath = relativePath;
+            this.sizeBytes    = sizeBytes;
+        }
+
+        @Override
+        public String toString() { return displayText; }
+    }
+}

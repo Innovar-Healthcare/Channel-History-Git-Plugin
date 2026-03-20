@@ -18,6 +18,7 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemp
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibraryMetadata;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemChange;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemMetadata;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
@@ -754,6 +755,90 @@ public class VersionHistoryService {
         }
 
         return gitRepositoryService.getFileContentAtHead(filePath);
+    }
+
+    /**
+     * Gets commit history for a specific file path.
+     *
+     * @param filePath Relative path from repository root (e.g., "Channels/abc.xml")
+     * @return List of commit metadata, newest first
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitFileNotFoundException if filePath is blank
+     * @throws GitOperationException    if Git operation fails
+     */
+    public List<CommitMetaData> getFileHistory(String filePath) throws GitNotConnectedException, GitFileNotFoundException, GitOperationException {
+        logger.info("getFileHistory called: filePath={}", filePath);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getFileHistory(filePath);
+    }
+
+    /**
+     * Returns the raw content of a file at a specific commit revision.
+     *
+     * @param filePath   Relative path from repository root (e.g., "Channels/abc.xml")
+     * @param commitHash Commit SHA to read the file at
+     * @return File content as UTF-8 string
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitFileNotFoundException if filePath or commitHash is blank, or file not found
+     * @throws GitOperationException    if Git operation fails
+     */
+    public String getFileContentAtRevision(String filePath, String commitHash) throws GitNotConnectedException, GitFileNotFoundException, GitOperationException {
+        logger.info("getFileContentAtRevision called: filePath={}, commitHash={}", filePath, commitHash);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getFileContentAtRevision(filePath, commitHash);
+    }
+
+    /**
+     * Gets commit log for the entire repository.
+     *
+     * @param maxCount Maximum number of commits to return
+     * @return List of commit metadata, newest first
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitOperationException    if Git operation fails
+     */
+    public List<CommitMetaData> getRepoLog(int maxCount) throws GitNotConnectedException, GitOperationException {
+        logger.info("getRepoLog called, maxCount={}", maxCount);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getRepoLog(maxCount);
+    }
+
+    /**
+     * Gets files changed in a specific commit.
+     *
+     * @param commitHash Commit SHA to inspect
+     * @return List of file changes
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitFileNotFoundException if commitHash is blank
+     * @throws GitOperationException    if Git operation fails
+     */
+    public List<RepoItemChange> getCommitChanges(String commitHash) throws GitNotConnectedException, GitFileNotFoundException, GitOperationException {
+        logger.info("getCommitChanges called, commitHash={}", commitHash);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git is not available: " + reason);
+        }
+
+        return gitRepositoryService.getCommitChanges(commitHash);
     }
 
     // ========== Status Methods ==========

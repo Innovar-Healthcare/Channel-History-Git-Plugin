@@ -70,8 +70,8 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
     }
 
     private void initLayout() {
-        setLayout(new MigLayout("hidemode 3, novisualpadding, insets 12", "[grow]"));
-        add(tabbedPane, "grow, sx");
+        setLayout(new MigLayout("fill, hidemode 3, novisualpadding, insets 12", "[grow]", "[grow]"));
+        add(tabbedPane, "grow, push, sx");
     }
 
     public void visibleFields(boolean isVisible) {
@@ -136,6 +136,12 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
         return valid;
     }
 
+    private void resetPanels() {
+        tabbedPane.setSelectedIndex(0);
+        gitStatusTabPanel.reset();
+        resetInvalidSettings();
+    }
+
     public void resetInvalidSettings() {
         gitSettingsTabPanel.resetInvalidState();
         gitBehaviorTabPanel.resetInvalidState();
@@ -161,7 +167,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
             return;
         }
 
-        resetInvalidSettings();
+        resetPanels();
 
         final String workingId = getFrame().startWorking("Loading " + getTabName() + " properties...");
 
@@ -184,6 +190,8 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
             @Override
             public void done() {
                 setProperties(serverProperties);
+                tabbedPane.setSelectedIndex(0);
+                gitStatusTabPanel.reset();
                 getFrame().stopWorking(workingId);
             }
         };
@@ -213,6 +221,7 @@ public class VersionHistorySettingPanel extends AbstractSettingsPanel {
             @Override
             public void done() {
                 setSaveEnabled(false);
+                resetPanels();
                 getFrame().stopWorking(workingId);
             }
         };

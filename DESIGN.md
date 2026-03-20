@@ -42,7 +42,9 @@ Channel-History-Git-Plugin/
 ├── client/                          # Swing UI — dialogs, panels, task pane, tables
 │   └── src/main/java/com/innovarhealthcare/channelHistory/client/
 │       ├── panel/                   # VersionHistorySettingPanel, tab panels,
-│       │                            #   ChannelHistoryTabPanel
+│       │   │                        #   ChannelHistoryTabPanel
+│       │   └── gitstatus/           # FilesTabPanel, ChangesTabPanel,
+│       │                            #   HistoryTabPanel
 │       ├── dialog/                  # History dialogs, diff dialogs, import dialogs
 │       ├── taskpane/                # VersionHistoryTaskPane, contexts, operations
 │       ├── table/                   # CommitMetaDataTable, repo item tables + models
@@ -91,6 +93,7 @@ Channel-History-Git-Plugin/
 | `RepoFolder` | DTO: `name`, `fileCount`, `files` (List\<RepoFile\>, defaults to empty) |
 | `RepoInfo` | DTO: `localRepoPath`, `remoteUrl`, `branch`, `totalSizeBytes`, `folders` (List\<RepoFolder\>) |
 | `RepoChanges` | DTO: `modifiedFiles` (from `Status.getModified()`), `deletedFiles` (from `Status.getRemoved()` + `Status.getMissing()`), `untrackedFiles` (from `Status.getUntracked()`); all List\<String\>, default empty |
+| `RepoItemChange` | DTO: `path` (String), `changeType` (String — `"MODIFIED"` \| `"ADDED"` \| `"DELETED"`); `@JsonCreator` + `@JsonProperty`; `equals`/`hashCode` via `EqualsBuilder`/`HashCodeBuilder(17,37)` |
 | `RepoItemMetadata` | DTO: `id`, `name`, `path`, `lastCommitId`; equals/hashCode via Apache Commons builders |
 | `LibraryMetadata` | DTO: `id`, `name`, `codeTemplateIds` (List\<String\>) |
 | `LibrariesAndTemplatesResponse` | DTO: `libraries` (List\<LibraryMetadata\>), `templates` (List\<RepoItemMetadata\>) |
@@ -142,7 +145,10 @@ VersionHistoryApiException  (WebApplicationException) — carries HTTP status + 
 | `GeneralTabPanel` | Plugin enable/disable toggle |
 | `GitSettingsTabPanel` | Remote URL, branch, SSH key (paste / file-path radio toggle); "Validate Connection" → `GitValidationDialog` (inner class); inner dialog: progress bar + `ValidateWorker` SwingWorker; Close disabled during validation; success = green `✓`, failure = red `✗ <message>` |
 | `GitBehaviorTabPanel` | Auto Commit section (enable, prompt, default message) + Sync Delete section |
-| `GitStatusTabPanel` | Repository Info panel (4 labeled rows); `JSplitPane` — left: File Browser `JTree` (folder→file, `FileNode{displayText, relativePath}`); right: Changes `JTree` ([M]/[D]/[U], `ChangesCellRenderer`); `LoadDataWorker` SwingWorker fetches `getRepoInfo()` + `getRepoChanges()`; double-click logic (see §6.7) |
+| `GitStatusTabPanel` | Shell panel (~230 lines); owns header bar (4-field repo info strip: local path, remote URL, branch, size), `JTabbedPane` with 3 tabs (Files, Changes, History), and `LoadDataWorker`; `LoadDataWorker` fetches `getRepoInfo()` + `getRepoChanges()` in parallel via `CompletableFuture`; delegates all tab logic to 3 sub-panels via `onTabSelected()`; `dataLoaded` flag prevents redundant reloads on re-entry; `reset()` clears state after save/refresh |
+| `FilesTabPanel` | Files tab (under `gitstatus/`); owns file browser `JTree`, `FILE_INFO` card, `EMPTY` card; `onTabSelected()`; `populate(RepoInfo)`; \[View Full History\] button callback → `GitStatusTabPanel.onViewFullHistory(relativePath)` |
+| `ChangesTabPanel` | Changes tab (under `gitstatus/`); owns changes `JTree` (`ChangesCellRenderer`), embedded `DiffComparisonPanel`, `EMPTY` card; `onTabSelected()`; `populate(RepoChanges)`; single-click selection loads inline diff |
+| `HistoryTabPanel` | History tab (under `gitstatus/`); owns `JList<CommitMetaData>` (`CommitListCellRenderer` with HTML colors), `JList<RepoItemChange>` (changed files), embedded `DiffComparisonPanel`, filter label, Clear filter button, `JProgressBar`; `onTabSelected()` → `loadRepoLog()`; `loadHistory(relativePath)` for file-filtered view; `setModel()` for batch list updates (Java 8 compatible, fires single event); all API calls are file-path-based (not Mirth entity ID) |
 | `ChannelHistoryTabPanel` | Channel history tab; commit table + XML preview; diff buttons open `ChannelDiffDialog` |
 | `VersionHistoryTaskPane` | Context-sensitive task pane (channels, code templates, global scripts) |
 | `TaskPaneContextManager` | Manages active `TaskPaneContext` |
@@ -444,6 +450,10 @@ Base path: `/plugins/version-history`
 | `GET` | `/repoChanges` | — | Working tree changes: modified, deleted, untracked lists |
 | `GET` | `/fileContent` | `filePath` | Raw file content from working tree (UTF-8); 404 if absent |
 | `GET` | `/fileContentAtHead` | `filePath` | Raw file content at HEAD revision; 404 if absent at HEAD |
+| `GET` | `/repoLog` | `maxCount` | Repo-wide commit log, newest first |
+| `GET` | `/commitChanges` | `commitHash` | Files changed in a specific commit |
+| `GET` | `/fileHistory` | `filePath` | Git commit history for a specific file path |
+| `GET` | `/fileContentAtRevision` | `filePath`, `commitHash` | Raw file content at a specific commit |
 
 **HTTP error codes:**
 

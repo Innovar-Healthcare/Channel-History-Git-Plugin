@@ -9,6 +9,7 @@ import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundExce
 import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
 import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
+import com.innovarhealthcare.channelHistory.shared.dto.response.RepoItemChange;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,9 +20,12 @@ import org.eclipse.jgit.api.PushCommand;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -34,8 +38,11 @@ import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.SshSessionFactory;
 import org.eclipse.jgit.transport.SshTransport;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.EmptyTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.eclipse.jgit.util.io.DisabledOutputStream;
 
 /**
  * Handles all Git operations for the version history plugin.
@@ -222,6 +229,27 @@ public class GitOperations {
 
         logger.info("Found {} commits for file: {}", history.size(), filePath);
         return history;
+    }
+
+    /**
+     * Gets file content at a specific commit revision as a UTF-8 string.
+     *
+     * @param filePath   Relative file path from repository root
+     * @param commitHash Commit SHA to read the file at
+     * @return File content as string, or empty string if not found
+     * @throws GitFileNotFoundException if the file does not exist at that revision
+     * @throws GitOperationException    if the Git operation fails
+     */
+    public String getFileContentAtRevision(String filePath, String commitHash) throws GitFileNotFoundException, GitOperationException {
+        try {
+            byte[] bytes = readFileAtRevision(filePath, commitHash);
+            return bytes != null ? new String(bytes, StandardCharsets.UTF_8) : "";
+        } catch (GitFileNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitOperationException(
+                    "Failed to read file '" + filePath + "' at revision '" + commitHash + "': " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -480,6 +508,93 @@ public class GitOperations {
      */
     public boolean hasCommits() throws IOException {
         return git.getRepository().resolve("HEAD") != null;
+    }
+
+    /**
+     * Gets commit log for the entire repository
+     *
+     * @param maxCount Maximum number of commits to return
+     * @return List of commit metadata, newest first
+     * @throws GitOperationException if git operation fails
+     */
+    public List<CommitMetaData> getRepoLog(int maxCount) throws GitOperationException {
+        logger.debug("Getting repository log, maxCount={}", maxCount);
+        try {
+            List<CommitMetaData> result = new ArrayList<>();
+            for (RevCommit commit : git.log().setMaxCount(maxCount).call()) {
+                String hash      = commit.getId().getName();
+                String committer = commit.getCommitterIdent() != null ? commit.getCommitterIdent().getName() : "Unknown";
+                long   timestamp = commit.getCommitTime() * 1000L;
+                String message   = commit.getFullMessage() != null ? commit.getFullMessage() : "";
+                result.add(new CommitMetaData(hash, committer, timestamp, message));
+            }
+            logger.info("getRepoLog returned {} commits", result.size());
+            return result;
+        } catch (GitAPIException e) {
+            throw new GitOperationException("Failed to get repository log: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Gets the list of files changed in a specific commit
+     *
+     * @param commitHash Full or abbreviated commit SHA
+     * @return List of file changes with path and change type
+     * @throws GitOperationException if git operation fails or hash cannot be resolved
+     */
+    public List<RepoItemChange> getCommitChanges(String commitHash) throws GitOperationException {
+        logger.debug("Getting commit changes for hash: {}", commitHash);
+        Repository repo = git.getRepository();
+        try (RevWalk revWalk = new RevWalk(repo);
+             DiffFormatter formatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+
+            formatter.setRepository(repo);
+
+            ObjectId objectId = repo.resolve(commitHash);
+            if (objectId == null) {
+                throw new GitOperationException("Cannot resolve commit hash: " + commitHash);
+            }
+
+            RevCommit commit = revWalk.parseCommit(objectId);
+            List<DiffEntry> diffs;
+
+            if (commit.getParentCount() > 0) {
+                RevCommit parent = revWalk.parseCommit(commit.getParent(0).getId());
+                diffs = formatter.scan(parent.getTree(), commit.getTree());
+            } else {
+                // Initial commit — compare against empty tree
+                try (ObjectReader reader = repo.newObjectReader()) {
+                    CanonicalTreeParser newTreeParser = new CanonicalTreeParser();
+                    newTreeParser.reset(reader, commit.getTree());
+                    diffs = formatter.scan(new EmptyTreeIterator(), newTreeParser);
+                }
+            }
+
+            List<RepoItemChange> result = new ArrayList<>();
+            for (DiffEntry diff : diffs) {
+                String path       = diff.getChangeType() == DiffEntry.ChangeType.DELETE
+                        ? diff.getOldPath() : diff.getNewPath();
+                String changeType = mapChangeType(diff.getChangeType());
+                result.add(new RepoItemChange(path, changeType));
+            }
+
+            logger.info("getCommitChanges: {} changes for commit {}", result.size(), commitHash);
+            return result;
+
+        } catch (GitOperationException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new GitOperationException("Failed to get commit changes for: " + commitHash, e);
+        }
+    }
+
+    private String mapChangeType(DiffEntry.ChangeType changeType) {
+        switch (changeType) {
+            case ADD:    return "ADDED";
+            case DELETE: return "DELETED";
+            case MODIFY: return "MODIFIED";
+            default:     return "MODIFIED";
+        }
     }
 
     /**
