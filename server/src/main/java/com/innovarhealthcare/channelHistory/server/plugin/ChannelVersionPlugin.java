@@ -2,6 +2,8 @@ package com.innovarhealthcare.channelHistory.server.plugin;
 
 import com.innovarhealthcare.channelHistory.server.controller.GitRepositoryController;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
+import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
+import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
 import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 import com.kaurpalang.mirth.annotationsplugin.annotation.MirthServerClass;
@@ -38,19 +40,59 @@ public class ChannelVersionPlugin implements ChannelPlugin {
 
     @Override
     public void save(Channel channel, ServerEventContext sec) {
+        VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
+
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available, skipping channel save");
+            return;
+        }
+
+        if (!service.isAutoCommitEnabled()) {
+            service.writeChannelToRepo(channel);
+            return;
+        }
+
+        User user;
+        try {
+            user = ControllerFactory.getFactory().createUserController().getUser(sec.getUserId(), null);
+            if (user == null) {
+                logger.error("User not found: {}", sec.getUserId());
+                return;
+            }
+        } catch (ControllerException e) {
+            logger.error("User not found: {}. Exception: {}", sec.getUserId(), e.getMessage());
+            return;
+        }
+
+        try {
+            service.saveChannelAndPush(channel, "", user);
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: {}", e.getMessage());
+        } catch (GitPushFailedException e) {
+            logger.error("Push failed: {}", e.getMessage());
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed: {}", e.getMessage(), e);
+        } catch (Exception e) {
+            logger.error("Unexpected error saving channel", e);
+        }
     }
 
     @Override
     public void remove(Channel channel, ServerEventContext sec) {
         VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
 
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available, skipping channel remove");
+            return;
+        }
+
         if (!service.isEnableSyncDelete()) {
             logger.debug("Sync Delete is disabled.");
             return;
         }
 
-        if (!service.isGitAvailable()) {
-            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
+        if (!service.isAutoCommitEnabled()) {
+            service.deleteChannelFromRepo(channel);
             return;
         }
 
@@ -66,7 +108,6 @@ public class ChannelVersionPlugin implements ChannelPlugin {
             logger.error("User not found: {}. Exception: {}", sec.getUserId(), e.getMessage());
             return;
         }
-
 
         try {
             service.deleteChannelAndPush(channel, "Remove Channel", user);

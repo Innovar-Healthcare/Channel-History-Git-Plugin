@@ -96,6 +96,58 @@ public class VersionHistoryService {
         return versionHistoryProperties.isEnableSyncDelete();
     }
 
+    public void writeChannelToRepo(Channel channel) {
+        if (!gitRepositoryService.isGitAvailable()) {
+            logger.debug("Git not available, skipping write channel to repo");
+            return;
+        }
+        try {
+            gitRepositoryService.getChannelRepository().save(channel);
+            logger.info("Wrote channel '{}' to repo (no commit)", channel.getName());
+        } catch (Exception e) {
+            logger.error("Failed to write channel to repo: {}", e.getMessage(), e);
+        }
+    }
+
+    public void writeCodeTemplateToRepo(CodeTemplate ct) {
+        if (!gitRepositoryService.isGitAvailable()) {
+            logger.debug("Git not available, skipping write code template to repo");
+            return;
+        }
+        try {
+            gitRepositoryService.getCodeTemplateRepository().save(ct);
+            logger.info("Wrote code template '{}' to repo (no commit)", ct.getName());
+        } catch (Exception e) {
+            logger.error("Failed to write code template to repo: {}", e.getMessage(), e);
+        }
+    }
+
+    public void deleteChannelFromRepo(Channel channel) {
+        if (!gitRepositoryService.isGitAvailable()) {
+            logger.debug("Git not available, skipping delete channel from repo");
+            return;
+        }
+        try {
+            gitRepositoryService.getChannelRepository().delete(channel.getId());
+            logger.info("Deleted channel '{}' from repo (no commit)", channel.getName());
+        } catch (Exception e) {
+            logger.error("Failed to delete channel from repo: {}", e.getMessage(), e);
+        }
+    }
+
+    public void deleteCodeTemplateFromRepo(CodeTemplate ct) {
+        if (!gitRepositoryService.isGitAvailable()) {
+            logger.debug("Git not available, skipping delete code template from repo");
+            return;
+        }
+        try {
+            gitRepositoryService.getCodeTemplateRepository().delete(ct.getId());
+            logger.info("Deleted code template '{}' from repo (no commit)", ct.getName());
+        } catch (Exception e) {
+            logger.error("Failed to delete code template from repo: {}", e.getMessage(), e);
+        }
+    }
+
     /**
      * Saves a SINGLE channel and commits/pushes to git repository
      *

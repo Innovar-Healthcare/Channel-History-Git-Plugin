@@ -43,13 +43,18 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
     public void remove(CodeTemplate ct, ServerEventContext sec) {
         VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
 
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
+            return;
+        }
+
         if (!service.isEnableSyncDelete()) {
             logger.debug("Sync Delete is disabled.");
             return;
         }
 
-        if (!service.isGitAvailable()) {
-            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
+        if (!service.isAutoCommitEnabled()) {
+            service.deleteCodeTemplateFromRepo(ct);
             return;
         }
 
@@ -84,13 +89,13 @@ public class CodeTemplateVersionPlugin implements CodeTemplateServerPlugin {
         // Check Git configuration
         VersionHistoryService service = GitRepositoryController.getInstance().getVersionHistoryService();
 
-        if (!service.isAutoCommitEnabled()) {
-            logger.debug("Auto-commit is disabled, skipping auto-commit.");
+        if (!service.isGitAvailable()) {
+            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
             return;
         }
 
-        if (!service.isGitAvailable()) {
-            logger.debug("Git not available: {}", service.getGitStatus().getMessage());
+        if (!service.isAutoCommitEnabled()) {
+            service.writeCodeTemplateToRepo(ct);
             return;
         }
 

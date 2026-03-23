@@ -105,7 +105,7 @@ Channel-History-Git-Plugin/
 |---|---|
 | `GitRepositoryController` | Singleton entry point; `init(Properties)`, `start()`, `update(Properties)`, `stop()`; wires `GitRepositoryService` and `VersionHistoryService`; `update()` calls `VersionHistoryProperties.fromProperties()` then `GitRepositoryService.startGit()` |
 | `GitRepositoryService` | Thread-safe singleton managing JGit lifecycle; `startGit()` — clones or opens repo, sets `gitAvailable`; never throws (swallows failures into `gitUnavailableReason`); `getRepoInfo()` scans top two directory levels (skips `.git`); `getRepoChanges()` delegates to GitOperations; `getFileContent(filePath)` via FileOperations; `getFileContentAtHead(filePath)` via GitOperations; `validateSSHConnection(GitSettings)` clones to temp dir (`--no-checkout`) then deletes |
-| `VersionHistoryService` | **Non-thread-safe** business logic facade; all mutating methods guard with `isGitAvailable()` → `GitNotConnectedException`; `saveChannelAndPush`, `saveCodeTemplateAndPush`, `saveLibrariesAndPush`, `saveGlobalScriptsAndPush`; history and content-at-revision queries; `validateGitConnection(Properties)` creates a temporary `VersionHistoryProperties` without mutating the live one |
+| `VersionHistoryService` | **Non-thread-safe** business logic facade; all mutating methods guard with `isGitAvailable()` → `GitNotConnectedException`; `saveChannelAndPush`, `saveCodeTemplateAndPush`, `saveLibrariesAndPush`, `saveGlobalScriptsAndPush`; `writeChannelToRepo(channel)`, `writeCodeTemplateToRepo(ct)` — write file to working tree only (no commit); `deleteChannelFromRepo(channel)`, `deleteCodeTemplateFromRepo(ct)` — delete file from working tree only (no commit); history and content-at-revision queries; `validateGitConnection(Properties)` creates a temporary `VersionHistoryProperties` without mutating the live one |
 | `GitOperations` | Low-level JGit wrapper; constructed with `(Git, branch, SshSessionFactory)`; `readFileAtRevision(path, revision)` → byte[]; `getRepoChanges()` → RepoChanges via `git.status().call()`; `getFileHistory(path)` → List\<CommitMetaData\>; `stageFiles`, `commit`, `push(forcePush)`; `pullWithOverwrite()` — fetch + hard reset to remote; `hasRemoteChanges()` |
 | `FileOperations` | File I/O via Mirth's `ObjectXMLSerializer`; `writeXml`, `readXml`, `deserializeXml`; `readFileContent(relativePath)` — UTF-8 string from working tree via `Files.readString()`; `listFiles`, `deleteFile`, `fileExists` |
 | `BaseRepository<T>` | Abstract template: `save()`, `saveAndPush()` (save → pull-with-overwrite → commit → push), `load()`, `delete()`, `deleteAndPush()`, `loadMetadata()`, `getHistory()`, `getContent()`; subclasses override `extractId`, `extractName`, `getEntityClass`, `deserializeAndVerify`, `generateFilename`, `postCommit` |
@@ -116,8 +116,8 @@ Channel-History-Git-Plugin/
 | `GitCommitterHelper` | Static `fromUser(User)` and `fromUser(User, domain)` → JGit `PersonIdent` |
 | `VersionHistoryPluginServlet` | JAX-RS servlet; maps requests → VersionHistoryService; maps exceptions → HTTP codes (see below); `getRepoInfo()` / `getRepoChanges()` serialize DTOs to JSON; `getFileContent` / `getFileContentAtHead` return raw strings |
 | `VersionHistoryPlugin` | `ServicePlugin` entry point: `init`, `start`, `stop`, `update`; `getDefaultProperties()` |
-| `ChannelVersionPlugin` | Channel-save event listener → triggers auto-commit if enabled |
-| `CodeTemplateVersionPlugin` | Code-template-save event listener → triggers auto-commit if enabled |
+| `ChannelVersionPlugin` | Channel-save event listener → if `autoCommit = true`: commit + push; if `autoCommit = false`: write file to working tree only; `remove()` respects same logic for sync-delete |
+| `CodeTemplateVersionPlugin` | Code-template-save event listener → same logic as `ChannelVersionPlugin`; `remove(CodeTemplateLibrary)` is empty |
 
 **Exception hierarchy:**
 ```
@@ -426,6 +426,24 @@ DiffComparisonPanel(leftVersion, rightVersion)
 diffPanel.updateDiff(leftXml, rightXml)
   ├─ ScriptDiffEngine.computeDiff()    → DiffResult  →  left/right DiffTextPane
   └─ ScriptDiffEngine.computeUnifiedDiff() → List<DiffLine> → unifiedPane
+```
+
+---
+
+### 6.9 Save Channel/CodeTemplate with autoCommit = false
+
+```
+User saves channel in Mirth UI
+        ↓
+ChannelVersionPlugin.save()
+  ├─ isGitAvailable() = false → return (no-op)
+  ├─ isAutoCommitEnabled() = false
+  │    └─ VersionHistoryService.writeChannelToRepo(channel)
+  │         └─ ChannelRepository.save(channel)
+  │              └─ FileOperations.writeXml("channels", channelId, channel)
+  │    → file appears as [M] or [U] in Git Status Changes tab
+  └─ isAutoCommitEnabled() = true
+       └─ VersionHistoryService.saveChannelAndPush(...)  ← existing flow (see 6.1)
 ```
 
 ---
