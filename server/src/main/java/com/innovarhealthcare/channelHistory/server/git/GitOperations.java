@@ -588,6 +588,30 @@ public class GitOperations {
         }
     }
 
+    /**
+     * Pulls, stages the given files, commits, and pushes in one operation.
+     *
+     * @param filePaths  Relative paths of files to stage and commit
+     * @param message    Commit message
+     * @param committer  Person making the commit
+     * @throws GitOperationException  if any Git operation fails
+     * @throws GitPushFailedException if the push is rejected
+     */
+    public void commitAndPushFiles(List<String> filePaths, String message, PersonIdent committer)
+            throws GitOperationException, GitPushFailedException {
+        try {
+            pullWithOverwrite();
+            stageFiles(filePaths);
+            commit(message, committer);
+            push(false);
+        } catch (GitPushFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitOperationException(
+                    "Failed to commit and push files: " + e.getMessage(), e);
+        }
+    }
+
     private String mapChangeType(DiffEntry.ChangeType changeType) {
         switch (changeType) {
             case ADD:    return "ADDED";

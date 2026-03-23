@@ -8,6 +8,7 @@ import com.innovarhealthcare.channelHistory.client.exception.VersionHistoryClien
 import com.innovarhealthcare.channelHistory.client.model.ChannelWithRaw;
 import com.innovarhealthcare.channelHistory.client.model.CodeTemplateWithRaw;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import com.innovarhealthcare.channelHistory.shared.dto.request.CommitFilesRequest;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
@@ -678,6 +679,26 @@ public class VersionHistoryServiceClient {
             throw rethrowParsedClientError(e, true);
         } catch (Exception e) {
             throw new ClientException("Failed to get content at revision: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Commits and pushes a specific set of files directly by path.
+     * Works for any file type in the repo — not limited to Mirth entities.
+     *
+     * @param filePaths Relative file paths to stage and commit
+     * @param message   Commit message
+     * @param userId    ID of the committing user
+     * @throws ClientException if Git is not connected, push is rejected, or an error occurs
+     */
+    public void commitAndPushFiles(List<String> filePaths, String message, String userId) throws ClientException {
+        try {
+            CommitFilesRequest request = new CommitFilesRequest(filePaths, message, userId);
+            getServlet().commitAndPushFiles(JsonUtils.toJson(request));
+        } catch (ClientException e) {
+            throw rethrowParsedClientError(e, true);
+        } catch (Exception e) {
+            throw new ClientException("Failed to commit and push files: " + e.getMessage(), e);
         }
     }
 

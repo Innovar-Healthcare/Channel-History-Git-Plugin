@@ -455,6 +455,36 @@ public interface VersionHistoryServletInterface extends BaseServletInterface {
             @Parameter(description = "The commit hash to inspect", required = true)
             @QueryParam("commitHash") String commitHash
     ) throws ClientException;
+
+    @POST
+    @Path("/commitAndPushFiles")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Commit and push selected files",
+            content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                    @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+            }
+    )
+    @MirthOperation(
+            name = "commitAndPushFiles",
+            display = "Commit and Push Selected Files",
+            permission = Permissions.CHANNELS_VIEW,
+            type = Operation.ExecuteType.SYNC,
+            auditable = false
+    )
+    String commitAndPushFiles(
+            @Param("requestJson")
+            @RequestBody(
+                    description = "JSON-serialized CommitFilesRequest containing file paths, message, and user ID",
+                    required = true,
+                    content = {
+                            @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = String.class)),
+                            @Content(mediaType = MediaType.APPLICATION_XML, schema = @Schema(implementation = String.class))
+                    }
+            )
+            String requestJson
+    ) throws ClientException;
 }
 
 //@formatter:on

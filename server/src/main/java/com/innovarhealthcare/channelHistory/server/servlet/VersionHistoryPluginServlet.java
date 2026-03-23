@@ -17,6 +17,7 @@ import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedExcept
 import com.innovarhealthcare.channelHistory.server.exception.VersionHistoryApiException;
 import com.innovarhealthcare.channelHistory.server.service.VersionHistoryService;
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
+import com.innovarhealthcare.channelHistory.shared.dto.request.CommitFilesRequest;
 import com.innovarhealthcare.channelHistory.shared.dto.response.ErrorResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.LibrariesAndTemplatesResponse;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoChanges;
@@ -733,6 +734,63 @@ public class VersionHistoryPluginServlet extends MirthServlet implements Version
             throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR,
                     VersionHistoryErrorCodes.UNKNOWN_ERROR,
                     "Failed to get file content at revision: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
+        }
+    }
+
+    @Override
+    public String commitAndPushFiles(String requestJson) {
+        CommitFilesRequest request;
+        try {
+            request = JsonUtils.fromJson(requestJson, CommitFilesRequest.class);
+        } catch (Exception e) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Invalid request JSON: " + e.getMessage());
+        }
+        if (request == null || request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Commit message is required");
+        }
+        if (request.getFilePaths() == null || request.getFilePaths().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "At least one file path is required");
+        }
+        if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "User ID is required");
+        }
+
+        User user;
+        try {
+            user = userController.getUser(Integer.valueOf(request.getUserId()), null);
+            if (user == null) {
+                throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.INVALID_REQUEST, "User not found: " + request.getUserId());
+            }
+        } catch (NumberFormatException e) {
+            throw new VersionHistoryApiException(Response.Status.BAD_REQUEST, VersionHistoryErrorCodes.INVALID_REQUEST, "Invalid user ID format: " + request.getUserId());
+        } catch (ControllerException e) {
+            throw new VersionHistoryApiException(Response.Status.NOT_FOUND, VersionHistoryErrorCodes.INVALID_REQUEST, "User not found: " + request.getUserId());
+        }
+
+        logger.info("commitAndPushFiles: {} file(s), userId={}", request.getFilePaths().size(), request.getUserId());
+
+        try {
+            getService().commitAndPushFiles(request.getFilePaths(), request.getMessage(), user);
+            return JsonUtils.toJson("OK");
+
+        } catch (GitNotConnectedException e) {
+            logger.error("Git not connected: commitAndPushFiles");
+            throw new VersionHistoryApiException(Response.Status.SERVICE_UNAVAILABLE, VersionHistoryErrorCodes.GIT_NOT_CONNECTED, "Git repository is not connected. Please configure git connection first.");
+
+        } catch (GitPushFailedException e) {
+            logger.error("Push failed: {}", e.getMessage());
+            throw new VersionHistoryApiException(Response.Status.CONFLICT, VersionHistoryErrorCodes.PUSH_REJECTED, "Push rejected: " + e.getMessage());
+
+        } catch (GitOperationException e) {
+            logger.error("Git operation failed: {}", e.getMessage(), e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.GIT_OPERATION_ERROR, "Git operation failed: " + e.getMessage());
+
+        } catch (VersionHistoryApiException e) {
+            throw e;
+
+        } catch (Exception e) {
+            logger.error("Unexpected error committing files", e);
+            throw new VersionHistoryApiException(Response.Status.INTERNAL_SERVER_ERROR, VersionHistoryErrorCodes.UNKNOWN_ERROR, "Failed to commit files: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 

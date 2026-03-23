@@ -9,8 +9,11 @@ import java.util.List;
 import com.innovarhealthcare.channelHistory.server.exception.GitFileNotFoundException;
 import com.innovarhealthcare.channelHistory.server.exception.GitNotConnectedException;
 import com.innovarhealthcare.channelHistory.server.exception.GitOperationException;
+import com.innovarhealthcare.channelHistory.server.exception.GitPushFailedException;
 import com.innovarhealthcare.channelHistory.server.file.FileOperations;
+import com.innovarhealthcare.channelHistory.server.util.GitCommitterHelper;
 import com.innovarhealthcare.channelHistory.server.git.GitOperations;
+import com.mirth.connect.model.User;
 import com.innovarhealthcare.channelHistory.server.repository.ChannelRepository;
 import com.innovarhealthcare.channelHistory.server.repository.CodeTemplateRepository;
 import com.innovarhealthcare.channelHistory.server.repository.GlobalScriptRepository;
@@ -482,6 +485,29 @@ public class GitRepositoryService {
         } catch (Exception e) {
             throw new GitOperationException("Failed to get commit changes: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Pulls, stages the given files, commits with the user's identity, and pushes.
+     *
+     * @param filePaths Relative file paths to stage and commit
+     * @param message   Commit message
+     * @param user      Committer user
+     * @throws GitNotConnectedException if Git is not available
+     * @throws GitOperationException    if filePaths/message invalid or a Git operation fails
+     * @throws GitPushFailedException   if the push is rejected
+     */
+    public synchronized void commitAndPushFiles(List<String> filePaths, String message, User user)
+            throws GitOperationException, GitPushFailedException {
+        ensureStarted();
+        ensureGitAvailable();
+        if (filePaths == null || filePaths.isEmpty()) {
+            throw new GitFileNotFoundException("At least one file path is required");
+        }
+        if (message == null || message.isBlank()) {
+            throw new GitOperationException("Commit message is required");
+        }
+        gitOperations.commitAndPushFiles(filePaths, message, GitCommitterHelper.fromUser(user));
     }
 
     // ========== Connection Validation ==========

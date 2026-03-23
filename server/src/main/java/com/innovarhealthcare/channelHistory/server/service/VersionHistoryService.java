@@ -975,6 +975,29 @@ public class VersionHistoryService {
         }
     }
 
+    /**
+     * Commits and pushes a specific set of files directly by path.
+     *
+     * @param filePaths Relative file paths to stage and commit
+     * @param message   Commit message
+     * @param user      Committer user
+     * @throws GitNotConnectedException if Git repository is not available
+     * @throws GitOperationException    if filePaths/message invalid or a Git operation fails
+     * @throws GitPushFailedException   if the push is rejected
+     */
+    public void commitAndPushFiles(List<String> filePaths, String message, User user)
+            throws GitNotConnectedException, GitOperationException, GitPushFailedException {
+        logger.info("commitAndPushFiles called, {} file(s)", filePaths != null ? filePaths.size() : 0);
+
+        if (!gitRepositoryService.isGitAvailable()) {
+            String reason = gitRepositoryService.getGitUnavailableReason();
+            logger.error("Git not available: {}", reason);
+            throw new GitNotConnectedException("Git repository is not available: " + reason);
+        }
+
+        gitRepositoryService.commitAndPushFiles(filePaths, message, user);
+    }
+
     private void validateRevision(String revision) {
         if (revision == null || revision.trim().isEmpty()) {
             throw new IllegalArgumentException("Revision cannot be null or empty");
