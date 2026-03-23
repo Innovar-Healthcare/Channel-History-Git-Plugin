@@ -2,151 +2,240 @@ package com.innovarhealthcare.channelHistory.shared.util;
 
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
 import com.mirth.connect.model.codetemplates.CodeTemplateLibrary;
 
 /**
- * Utility class for creating and parsing commit messages
- * Handles both formatting (creation) and parsing (extraction) of commit message strings
+ * Utility class for creating and parsing commit messages.
+ * <p>
+ * New format (line 1: subject, line 2: blank, line 3: JSON metadata):
+ * <pre>
+ * Fixed mapping logic
+ *
+ * {"type":"Channel","name":"ADT Listener","serverName":"prod-01","serverId":"550e8400-..."}
+ * </pre>
+ * <p>
+ * Auto-commit (empty user message):
+ * <pre>
+ * Auto-commit: Channel 'ADT Listener'
+ *
+ * {"type":"Channel","name":"ADT Listener","serverName":"prod-01","serverId":"550e8400-..."}
+ * </pre>
+ * <p>
+ * Old format (single-line, kept for backward-compatible parsing):
+ * <pre>
+ * Channel name: ADT Listener. Message: Fixed mapping logic. Server Name: prod-01. Server Id: 550e8400-...
+ * </pre>
  */
 public class CommitMessageUtil {
 
-    // Message format constants
+    public static final String DEFAULT_SERVER_ID = "00000000-0000-0000-0000-000000000000";
+
+    // Legacy format constants — kept for backward-compatible parsing only
     private static final String NAME_SEPARATOR = " name: ";
     private static final String MESSAGE_PREFIX = "Message: ";
     private static final String SERVER_NAME_PREFIX = "Server Name: ";
     private static final String SERVER_ID_PREFIX = "Server Id: ";
     private static final int SERVER_ID_LENGTH = 36;
-    public static final String DEFAULT_SERVER_ID = "00000000-0000-0000-0000-000000000000";
+
+    // ==================== Inner DTO ====================
+
+    private static class CommitMetadata {
+        @JsonProperty("type")
+        String type;
+        @JsonProperty("name")
+        String name;
+        @JsonProperty("serverName")
+        String serverName;
+        @JsonProperty("serverId")
+        String serverId;
+    }
 
     // ==================== FORMATTING (Creation) ====================
 
     /**
-     * Create a formatted commit message string
+     * Creates a formatted commit message.
      *
-     * @param object      The object being committed (Channel, CodeTemplate, etc.)
-     * @param userMessage The commit message from user
+     * @param entity      The entity being committed (Channel, CodeTemplate, etc.)
+     * @param userMessage The commit message from user (null or blank = auto-commit subject)
      * @param serverId    The server identifier
      * @param serverName  The server name (optional)
-     * @return Formatted commit message string
+     * @return Formatted commit message in new two-section format
      */
-    public static String create(Object object, String userMessage, String serverId, String serverName) {
-        String objectType = determineObjectType(object);
-        String objectName = getObjectName(object);
+    public static String create(Object entity, String userMessage, String serverId, String serverName) {
+        String type = determineObjectType(entity);
+        String name = getObjectName(entity);
 
-        StringBuilder formattedMessage = new StringBuilder();
-        formattedMessage.append(objectType).append(NAME_SEPARATOR).append(objectName).append(". ").append(MESSAGE_PREFIX).append(userMessage);
-
-        if (serverName != null && !serverName.trim().isEmpty()) {
-            formattedMessage.append(". ").append(SERVER_NAME_PREFIX).append(serverName).append(". ").append(SERVER_ID_PREFIX).append(serverId);
+        String subject;
+        if (userMessage == null || userMessage.trim().isEmpty()) {
+            subject = "Auto-commit: " + type + " '" + name + "'";
         } else {
-            formattedMessage.append(". ").append(SERVER_ID_PREFIX).append(serverId);
+            subject = userMessage.trim();
         }
 
-        return formattedMessage.toString();
+        CommitMetadata meta = new CommitMetadata();
+        meta.type = type;
+        meta.name = name;
+        meta.serverName = serverName;
+        meta.serverId = serverId;
+
+        String metaJson;
+        try {
+            metaJson = JsonUtils.toJson(meta);
+        } catch (Exception e) {
+            // Fallback: hand-build minimal JSON if serialization fails
+            metaJson = "{\"type\":\"" + type + "\",\"name\":\"" + name + "\",\"serverId\":\"" + serverId + "\"}";
+        }
+
+        return subject + "\n\n" + metaJson;
     }
 
     /**
-     * Overloaded create method without server name
+     * Overloaded create without server name.
      */
-    public static String create(Object object, String userMessage, String serverId) {
-        return create(object, userMessage, serverId, null);
+    public static String create(Object entity, String userMessage, String serverId) {
+        return create(entity, userMessage, serverId, null);
     }
 
-    // ==================== PARSING (Extraction) ====================
+    // ==================== PARSING — Public API ====================
 
     /**
-     * Extracts the user message content from the formatted message
-     * Format: "ObjectType name: ObjectName. Message: UserMessage. Server ..."
+     * Extracts the user-visible subject line from a commit message.
+     * New format: returns line 1. Old format: returns the Message field.
      */
-    public static String extractContent(String rawMessage) {
+    public static String extractContent(String commitMessage) {
+        if (commitMessage == null) {
+            return "";
+        }
+        String[] lines = commitMessage.split("\n", 3);
+        if (lines.length >= 3 && lines[1].trim().isEmpty() && lines[2].trim().startsWith("{")) {
+            return lines[0].trim();
+        }
+        return extractContentLegacy(commitMessage);
+    }
+
+    /**
+     * Extracts the entity name from a commit message.
+     */
+    public static String extractName(String commitMessage) {
+        CommitMetadata meta = tryParseMetadata(commitMessage);
+        if (meta != null) {
+            return meta.name;
+        }
+        return extractNameLegacy(commitMessage);
+    }
+
+    /**
+     * Extracts the entity type from a commit message (e.g. "Channel", "Code Template").
+     */
+    public static String extractType(String commitMessage) {
+        CommitMetadata meta = tryParseMetadata(commitMessage);
+        if (meta != null) {
+            return meta.type;
+        }
+        return extractTypeLegacy(commitMessage);
+    }
+
+    /**
+     * Extracts the server ID from a commit message.
+     * Returns {@link #DEFAULT_SERVER_ID} if not found or invalid UUID.
+     */
+    public static String extractServerId(String commitMessage) {
+        CommitMetadata meta = tryParseMetadata(commitMessage);
+        if (meta != null) {
+            return meta.serverId != null ? meta.serverId : DEFAULT_SERVER_ID;
+        }
+        return extractServerIdLegacy(commitMessage);
+    }
+
+    /**
+     * Extracts the server name from a commit message, or null if absent.
+     */
+    public static String extractServerName(String commitMessage) {
+        CommitMetadata meta = tryParseMetadata(commitMessage);
+        if (meta != null) {
+            return meta.serverName;
+        }
+        return extractServerNameLegacy(commitMessage);
+    }
+
+    /**
+     * Returns true if the message contains a server name field.
+     */
+    public static boolean hasServerName(String commitMessage) {
+        return extractServerName(commitMessage) != null;
+    }
+
+    /**
+     * Returns true if the message follows either the new or old recognized format.
+     */
+    public static boolean isValidFormat(String commitMessage) {
+        if (commitMessage == null || commitMessage.trim().isEmpty()) {
+            return false;
+        }
+        if (tryParseMetadata(commitMessage) != null) {
+            return true;
+        }
+        return isValidFormatLegacy(commitMessage);
+    }
+
+    // ==================== PARSING — New Format (private) ====================
+
+    private static CommitMetadata tryParseMetadata(String commitMessage) {
+        if (commitMessage == null) {
+            return null;
+        }
+        String[] lines = commitMessage.split("\n", 3);
+        if (lines.length >= 3 && lines[1].trim().isEmpty() && lines[2].trim().startsWith("{")) {
+            try {
+                return JsonUtils.fromJson(lines[2].trim(), CommitMetadata.class);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    // ==================== PARSING — Legacy Format (private) ====================
+
+    private static String extractContentLegacy(String rawMessage) {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return "";
         }
-
         try {
             int messageStart = rawMessage.indexOf(MESSAGE_PREFIX);
             int serverStart = rawMessage.indexOf(". " + SERVER_NAME_PREFIX);
             if (serverStart == -1) {
                 serverStart = rawMessage.indexOf(". " + SERVER_ID_PREFIX);
             }
-
             if (messageStart == -1 || serverStart == -1 || messageStart >= serverStart) {
                 return rawMessage;
             }
-
             return rawMessage.substring(messageStart + MESSAGE_PREFIX.length(), serverStart).trim();
         } catch (Exception e) {
             return rawMessage;
         }
     }
 
-    /**
-     * Extracts the server ID from the message
-     * Works for both old and new formats
-     */
-    public static String extractServerId(String rawMessage) {
-        if (rawMessage == null || rawMessage.isEmpty()) {
-            return DEFAULT_SERVER_ID;
-        }
-
-        try {
-            int serverIdStart = rawMessage.indexOf(SERVER_ID_PREFIX);
-            if (serverIdStart == -1) {
-                return DEFAULT_SERVER_ID;
-            }
-
-            int idStart = serverIdStart + SERVER_ID_PREFIX.length();
-            if (idStart + SERVER_ID_LENGTH > rawMessage.length()) {
-                return DEFAULT_SERVER_ID;
-            }
-
-            String serverId = rawMessage.substring(idStart, idStart + SERVER_ID_LENGTH);
-
-            if (serverId.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}")) {
-                return serverId;
-            }
-
-            return DEFAULT_SERVER_ID;
-        } catch (Exception e) {
-            return DEFAULT_SERVER_ID;
-        }
-    }
-
-    /**
-     * Extracts the server name from the message (if available)
-     * Returns null if message uses old format (no Server Name field)
-     */
-    public static String extractServerName(String rawMessage) {
+    private static String extractNameLegacy(String rawMessage) {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return null;
         }
-
         try {
-            int serverNameStart = rawMessage.indexOf(". " + SERVER_NAME_PREFIX);
-            if (serverNameStart == -1) {
-                return null; // Old format, no server name
-            }
-
-            int serverIdStart = rawMessage.indexOf(". " + SERVER_ID_PREFIX, serverNameStart);
-            if (serverIdStart == -1) {
+            int nameStart = rawMessage.indexOf(NAME_SEPARATOR);
+            int messageStart = rawMessage.indexOf(". " + MESSAGE_PREFIX);
+            if (nameStart == -1 || messageStart == -1 || nameStart >= messageStart) {
                 return null;
             }
-
-            String serverName = rawMessage.substring(serverNameStart + 2 + SERVER_NAME_PREFIX.length(), serverIdStart).trim();
-
-            return serverName.isEmpty() ? null : serverName;
+            return rawMessage.substring(nameStart + NAME_SEPARATOR.length(), messageStart).trim();
         } catch (Exception e) {
             return null;
         }
     }
 
-    /**
-     * Extracts the object type from the message
-     * Format: "ObjectType name: ..."
-     */
-    public static String extractObjectType(String rawMessage) {
+    private static String extractTypeLegacy(String rawMessage) {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return null;
         }
@@ -161,103 +250,97 @@ public class CommitMessageUtil {
         }
     }
 
-    /**
-     * Extracts the object name from the message
-     * Format: "... name: ObjectName. Message: ..."
-     */
-    public static String extractObjectName(String rawMessage) {
+    private static String extractServerIdLegacy(String rawMessage) {
+        if (rawMessage == null || rawMessage.isEmpty()) {
+            return DEFAULT_SERVER_ID;
+        }
+        try {
+            int serverIdStart = rawMessage.indexOf(SERVER_ID_PREFIX);
+            if (serverIdStart == -1) {
+                return DEFAULT_SERVER_ID;
+            }
+            int idStart = serverIdStart + SERVER_ID_PREFIX.length();
+            if (idStart + SERVER_ID_LENGTH > rawMessage.length()) {
+                return DEFAULT_SERVER_ID;
+            }
+            String serverId = rawMessage.substring(idStart, idStart + SERVER_ID_LENGTH);
+            if (serverId.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}")) {
+                return serverId;
+            }
+            return DEFAULT_SERVER_ID;
+        } catch (Exception e) {
+            return DEFAULT_SERVER_ID;
+        }
+    }
+
+    private static String extractServerNameLegacy(String rawMessage) {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return null;
         }
         try {
-            int nameStart = rawMessage.indexOf(NAME_SEPARATOR);
-            int messageStart = rawMessage.indexOf(". " + MESSAGE_PREFIX);
-
-            if (nameStart == -1 || messageStart == -1 || nameStart >= messageStart) {
+            int serverNameStart = rawMessage.indexOf(". " + SERVER_NAME_PREFIX);
+            if (serverNameStart == -1) {
                 return null;
             }
-
-            return rawMessage.substring(nameStart + NAME_SEPARATOR.length(), messageStart).trim();
+            int serverIdStart = rawMessage.indexOf(". " + SERVER_ID_PREFIX, serverNameStart);
+            if (serverIdStart == -1) {
+                return null;
+            }
+            String serverName = rawMessage.substring(serverNameStart + 2 + SERVER_NAME_PREFIX.length(), serverIdStart).trim();
+            return serverName.isEmpty() ? null : serverName;
         } catch (Exception e) {
             return null;
         }
     }
 
-    /**
-     * Checks if the message contains server name (new format)
-     */
-    public static boolean hasServerName(String rawMessage) {
-        return extractServerName(rawMessage) != null;
-    }
-
-    /**
-     * Validates if the message follows the expected format
-     */
-    public static boolean isValidFormat(String rawMessage) {
-        return extractObjectType(rawMessage) != null && extractObjectName(rawMessage) != null && extractContent(rawMessage) != null && extractServerId(rawMessage) != null;
+    private static boolean isValidFormatLegacy(String rawMessage) {
+        return extractTypeLegacy(rawMessage) != null && extractNameLegacy(rawMessage) != null && extractServerIdLegacy(rawMessage) != null;
     }
 
     // ==================== Private Helper Methods ====================
 
-    /**
-     * Determines the type of the object
-     */
     private static String determineObjectType(Object object) {
         if (object instanceof Channel) {
             return "Channel";
         }
-
         if (object instanceof CodeTemplate) {
             return "Code Template";
         }
-
         if (object instanceof CodeTemplateLibrary) {
             return "Library";
         }
-
         if (object instanceof BatchLibraries) {
-            return "Batch Libraries";
+            return "Library";
         }
-
         if (object instanceof Map) {
             return "Global Scripts";
         }
-
         return "Object";
     }
 
-    /**
-     * Extracts the name from the object
-     */
     private static String getObjectName(Object object) {
         if (object instanceof Channel) {
             return ((Channel) object).getName();
         }
-
         if (object instanceof CodeTemplate) {
             return ((CodeTemplate) object).getName();
         }
-
         if (object instanceof CodeTemplateLibrary) {
             return ((CodeTemplateLibrary) object).getName();
         }
-
         if (object instanceof BatchLibraries) {
             return ((BatchLibraries) object).getNames();
         }
-
         if (object instanceof Map) {
             return "Global Scripts";
         }
-        
         return "Unknown";
     }
 
     // ==================== Batch Libraries Support ====================
 
     /**
-     * Wrapper class to represent batch of libraries for commit message formatting.
-     * Used internally by CommitMessageUtil.
+     * Wrapper representing a batch of libraries for commit message formatting.
      */
     public static class BatchLibraries {
         private final String names;

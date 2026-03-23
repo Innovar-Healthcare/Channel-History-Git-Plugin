@@ -6,6 +6,7 @@ import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFile;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoFolder;
 import com.innovarhealthcare.channelHistory.shared.dto.response.RepoInfo;
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.util.CommitMessageUtil;
 import com.mirth.connect.client.ui.UIConstants;
 import net.miginfocom.swing.MigLayout;
 
@@ -17,6 +18,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTree;
@@ -72,7 +74,11 @@ public class FilesTabPanel extends JPanel {
     private JLabel  fileInfoCommitHashValue;
     private JLabel  fileInfoCommitAuthorValue;
     private JLabel  fileInfoCommitDateValue;
-    private JLabel  fileInfoCommitMsgValue;
+    private JLabel     fileInfoCommitMsgValue;
+    private JSeparator fileInfoCommitSeparator;
+    private JLabel     fileInfoCommitTypeLabel,   fileInfoCommitTypeValue;
+    private JLabel     fileInfoCommitNameLabel,   fileInfoCommitNameValue;
+    private JLabel     fileInfoCommitServerLabel, fileInfoCommitServerValue;
     private JPanel  fileInfoButtonSection;
     private JButton viewContentButton;
     private JButton viewFullHistoryButton;
@@ -175,7 +181,7 @@ public class FilesTabPanel extends JPanel {
 
         // Last commit section
         fileInfoCommitSection = new JPanel(
-                new MigLayout("insets 8 0 0 0, novisualpadding", "[right]12[grow,fill]"));
+                new MigLayout("insets 8 0 0 0, novisualpadding, hidemode 3", "[right]12[grow,fill]"));
         fileInfoCommitSection.setBackground(UIConstants.BACKGROUND_COLOR);
 
         JLabel sectionTitle = new JLabel("Last Commit");
@@ -187,6 +193,22 @@ public class FilesTabPanel extends JPanel {
         fileInfoCommitDateValue   = new JLabel("—");
         fileInfoCommitMsgValue    = new JLabel("—");
 
+        fileInfoCommitSeparator   = new JSeparator();
+        fileInfoCommitTypeLabel   = new JLabel("Type:");
+        fileInfoCommitTypeValue   = new JLabel("—");
+        fileInfoCommitNameLabel   = new JLabel("Name:");
+        fileInfoCommitNameValue   = new JLabel("—");
+        fileInfoCommitServerLabel = new JLabel("Server:");
+        fileInfoCommitServerValue = new JLabel("—");
+
+        fileInfoCommitSeparator.setVisible(false);
+        fileInfoCommitTypeLabel.setVisible(false);
+        fileInfoCommitTypeValue.setVisible(false);
+        fileInfoCommitNameLabel.setVisible(false);
+        fileInfoCommitNameValue.setVisible(false);
+        fileInfoCommitServerLabel.setVisible(false);
+        fileInfoCommitServerValue.setVisible(false);
+
         fileInfoCommitSection.add(new JLabel("Hash:"));
         fileInfoCommitSection.add(fileInfoCommitHashValue,   "growx, wrap");
         fileInfoCommitSection.add(new JLabel("Author:"));
@@ -195,6 +217,13 @@ public class FilesTabPanel extends JPanel {
         fileInfoCommitSection.add(fileInfoCommitDateValue,   "growx, wrap");
         fileInfoCommitSection.add(new JLabel("Message:"));
         fileInfoCommitSection.add(fileInfoCommitMsgValue,    "growx, wrap");
+        fileInfoCommitSection.add(fileInfoCommitSeparator,   "span 2, growx, wrap");
+        fileInfoCommitSection.add(fileInfoCommitTypeLabel);
+        fileInfoCommitSection.add(fileInfoCommitTypeValue,   "growx, wrap");
+        fileInfoCommitSection.add(fileInfoCommitNameLabel);
+        fileInfoCommitSection.add(fileInfoCommitNameValue,   "growx, wrap");
+        fileInfoCommitSection.add(fileInfoCommitServerLabel);
+        fileInfoCommitSection.add(fileInfoCommitServerValue, "growx, wrap");
 
         form.add(fileInfoCommitSection, "span 2, growx, hidemode 3, wrap");
 
@@ -292,11 +321,36 @@ public class FilesTabPanel extends JPanel {
                         fileInfoCommitAuthorValue.setText(last.getCommitter());
                         fileInfoCommitDateValue.setText(formatTimestamp(last.getTimestamp()));
                         fileInfoCommitMsgValue.setText(trimMessage(last.getMessage()));
+
+                        String raw = last.getMessage();
+                        boolean hasMeta = CommitMessageUtil.isValidFormat(raw);
+                        fileInfoCommitSeparator.setVisible(hasMeta);
+                        fileInfoCommitTypeLabel.setVisible(hasMeta);
+                        fileInfoCommitTypeValue.setVisible(hasMeta);
+                        fileInfoCommitNameLabel.setVisible(hasMeta);
+                        fileInfoCommitNameValue.setVisible(hasMeta);
+                        fileInfoCommitServerLabel.setVisible(hasMeta);
+                        fileInfoCommitServerValue.setVisible(hasMeta);
+                        if (hasMeta) {
+                            fileInfoCommitTypeValue.setText(CommitMessageUtil.extractType(raw));
+                            fileInfoCommitNameValue.setText(CommitMessageUtil.extractName(raw));
+                            String serverName = CommitMessageUtil.extractServerName(raw);
+                            String serverId   = CommitMessageUtil.extractServerId(raw);
+                            fileInfoCommitServerValue.setText(
+                                    serverName != null ? serverName + " (" + serverId + ")" : serverId);
+                        }
                     } else {
                         fileInfoCommitHashValue.setText("No commits");
                         fileInfoCommitAuthorValue.setText("—");
                         fileInfoCommitDateValue.setText("—");
                         fileInfoCommitMsgValue.setText("—");
+                        fileInfoCommitSeparator.setVisible(false);
+                        fileInfoCommitTypeLabel.setVisible(false);
+                        fileInfoCommitTypeValue.setVisible(false);
+                        fileInfoCommitNameLabel.setVisible(false);
+                        fileInfoCommitNameValue.setVisible(false);
+                        fileInfoCommitServerLabel.setVisible(false);
+                        fileInfoCommitServerValue.setVisible(false);
                     }
                 } catch (Exception ex) {
                     fileInfoCommitHashValue.setText("Error");
@@ -441,7 +495,7 @@ public class FilesTabPanel extends JPanel {
 
     private static String trimMessage(String message) {
         if (message == null) return "—";
-        return message.replace("\n", " ").trim();
+        return CommitMessageUtil.extractContent(message);
     }
 
     private static boolean isBinary(String content) {

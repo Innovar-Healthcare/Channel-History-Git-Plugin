@@ -85,7 +85,7 @@ Channel-History-Git-Plugin/
 | `VersionHistoryProperties` | **Mutable** configuration loaded from Java `Properties`; `fromProperties(Properties)` updates all fields **in-place** (preserves live service references — never replaced); `toProperties()` converts back |
 | `CommitMetaData` | Commit hash, committer, timestamp (long ms), message; `getShortHash()`, `getMessageContent()`, `getServerId()`, `getServerName()` |
 | `VersionHistoryErrorCodes` | Static error code string constants (`INVALID_REQUEST`, `GIT_NOT_CONNECTED`, `GIT_AUTH_FAILED`, `PUSH_REJECTED`, `FILE_NOT_FOUND`, etc.) |
-| `CommitMessageUtil` | Parses and formats structured commit messages: `"{Type} name: {Name}. Message: {Msg}. Server Name: {SrvName}. Server Id: {SrvId}"`; static extraction methods for each field; backward-compatible with old format omitting Server Name; inner `BatchLibraries` wrapper for batch library commits |
+| `CommitMessageUtil` | Parses and formats structured commit messages in **new format**: subject line + blank line + JSON metadata (`{"type","name","serverName","serverId"}`); static extraction methods (`extractType`, `extractName`, `extractServerName`, `extractServerId`, `extractContent`); **legacy single-line format** (`"{Type} name: {Name}. Message: {Msg}. Server Name: {SrvName}. Server Id: {SrvId}"`) still supported via `*Legacy` methods; `isValidFormat()` accepts both; inner `BatchLibraries` wrapper for batch library commits (type stored as `"Library"`) |
 | `JsonUtils` | Static Jackson `ObjectMapper` (ISO 8601 dates, unknown properties ignored); `fromJson`, `toJson`, `toJsonPretty`, `fromJsonList` |
 | `ErrorResponseFactory` | `build(code, message)` → `ErrorResponse` with UTC timestamp |
 | `VersionHistoryServletInterface` | JAX-RS interface declaring all plugin REST endpoints with `@MirthOperation` metadata |
@@ -146,9 +146,9 @@ VersionHistoryApiException  (WebApplicationException) — carries HTTP status + 
 | `GitSettingsTabPanel` | Remote URL, branch, SSH key (paste / file-path radio toggle); "Validate Connection" → `GitValidationDialog` (inner class); inner dialog: progress bar + `ValidateWorker` SwingWorker; Close disabled during validation; success = green `✓`, failure = red `✗ <message>` |
 | `GitBehaviorTabPanel` | Auto Commit section (enable, prompt, default message) + Sync Delete section |
 | `GitStatusTabPanel` | Shell panel (~230 lines); owns header bar (4-field repo info strip: local path, remote URL, branch, size), `JTabbedPane` with 3 tabs (Files, Changes, History), and `LoadDataWorker`; `LoadDataWorker` fetches `getRepoInfo()` + `getRepoChanges()` in parallel via `CompletableFuture`; delegates all tab logic to 3 sub-panels via `onTabSelected()`; `dataLoaded` flag prevents redundant reloads on re-entry; `reset()` clears state after save/refresh |
-| `FilesTabPanel` | Files tab (under `gitstatus/`); owns file browser `JTree`, `FILE_INFO` card, `EMPTY` card; `onTabSelected()`; `populate(RepoInfo)`; \[View Full History\] button callback → `GitStatusTabPanel.onViewFullHistory(relativePath)` |
+| `FilesTabPanel` | Files tab (under `gitstatus/`); owns file browser `JTree`, `FILE_INFO` card, `EMPTY` card; `onTabSelected()`; `populate(RepoInfo)`; \[View Full History\] button callback → `GitStatusTabPanel.onViewFullHistory(relativePath)`; `FILE_INFO` last-commit block shows Hash/Author/Date/Message + collapsible Type/Name/Server rows (visible only when `CommitMessageUtil.isValidFormat()` is true); message displayed via `extractContent()` |
 | `ChangesTabPanel` | Changes tab (under `gitstatus/`); owns changes `JTree` (`ChangesCellRenderer`), embedded `DiffComparisonPanel`, `EMPTY` card; `onTabSelected()`; `populate(RepoChanges)`; single-click selection loads inline diff |
-| `HistoryTabPanel` | History tab (under `gitstatus/`); owns `JList<CommitMetaData>` (`CommitListCellRenderer` with HTML colors), `JList<RepoItemChange>` (changed files), embedded `DiffComparisonPanel`, filter label, Clear filter button, `JProgressBar`; `onTabSelected()` → `loadRepoLog()`; `loadHistory(relativePath)` for file-filtered view; `setModel()` for batch list updates (Java 8 compatible, fires single event); all API calls are file-path-based (not Mirth entity ID) |
+| `HistoryTabPanel` | History tab (under `gitstatus/`); owns `JList<CommitMetaData>` (`CommitListCellRenderer` — hash + message + author + relative timestamp), `JList<RepoItemChange>` (changed files), embedded `DiffComparisonPanel`; two mutually exclusive modes: **filter mode** (search box message-only + filter popup with Author/Type/Name/Server/Within fields, AND logic; orange filter indicator label showing X/Y count, click to reopen popup) and **file-history mode** (file path bar + Clear button, hides search/filter UI); right panel shows Hash/Author/Date/Message + collapsible Type/Name/Server metadata rows; `onTabSelected()` → `loadRepoLog()`; `loadHistory(relativePath)` switches to file-history mode |
 | `ChannelHistoryTabPanel` | Channel history tab; commit table + XML preview; diff buttons open `ChannelDiffDialog` |
 | `VersionHistoryTaskPane` | Context-sensitive task pane (channels, code templates, global scripts) |
 | `TaskPaneContextManager` | Manages active `TaskPaneContext` |
@@ -507,16 +507,26 @@ Base path: `/plugins/version-history`
 
 ## 9. Commit Message Format
 
+**New format** (current):
 ```
-{ObjectType} name: {ObjectName}. Message: {UserMessage}. Server Name: {ServerName}. Server Id: {ServerId}
+{UserMessage or "Auto-commit: {Type} '{Name}'"}
+
+{"type":"{Type}","name":"{Name}","serverName":"{ServerName}","serverId":"{ServerId}"}
 ```
 
 Example:
 ```
-Channel name: PatientDataChannel. Message: Fixed validation logic. Server Name: Production. Server Id: 123e4567-e89b-12d3-a456-426614174000
+Fixed validation logic
+
+{"type":"Channel","name":"PatientDataChannel","serverName":"Production","serverId":"123e4567-e89b-12d3-a456-426614174000"}
 ```
 
-`CommitMessageUtil` provides static extraction methods for each field. Backward-compatible with older format that omitted `Server Name`. Server Id is validated as UUID; falls back to a default if invalid. The inner `BatchLibraries` class handles batch library commits by joining names with commas, truncated at 200 characters.
+**Legacy format** (still parsed for backward compatibility):
+```
+{ObjectType} name: {ObjectName}. Message: {UserMessage}. Server Name: {ServerName}. Server Id: {ServerId}
+```
+
+`CommitMessageUtil` provides static extraction methods for each field (`extractContent`, `extractType`, `extractName`, `extractServerName`, `extractServerId`). `isValidFormat()` accepts both formats. Server Id is validated as UUID; falls back to a default if invalid. The inner `BatchLibraries` class handles batch library commits (type stored as `"Library"`) by joining names with commas, truncated at 200 characters.
 
 ---
 
