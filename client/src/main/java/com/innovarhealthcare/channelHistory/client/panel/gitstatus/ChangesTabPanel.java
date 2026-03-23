@@ -59,6 +59,9 @@ public class ChangesTabPanel extends JPanel {
     // ── Changes tree ───────────────────────────────────────────────────────────
     private JTree changesTree;
     private JScrollPane changesTreeScrollPane;
+    private JPanel treeAreaCards;
+    private CardLayout treeAreaCardLayout;
+    private JLabel noChangesLabel;
 
     /**
      * Paths (without [M]/[D]/[U] prefix) of currently checked leaf nodes.
@@ -139,6 +142,10 @@ public class ChangesTabPanel extends JPanel {
         changesTree.setCellRenderer(new CheckBoxNodeRenderer());
         changesTreeScrollPane = new JScrollPane(changesTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
+        noChangesLabel = new JLabel("No changes in working tree", JLabel.CENTER);
+        noChangesLabel.setForeground(new Color(150, 150, 150));
+        noChangesLabel.setFont(new Font("Tahoma", Font.ITALIC, 12));
+
         rightCardLayout = new CardLayout();
         rightCards = new JPanel(rightCardLayout);
         rightCards.setBackground(UIConstants.BACKGROUND_COLOR);
@@ -184,8 +191,13 @@ public class ChangesTabPanel extends JPanel {
         actionBar.add(new JLabel(), "growx");
         actionBar.add(commitButton, "w 120!");
 
+        treeAreaCardLayout = new CardLayout();
+        treeAreaCards = new JPanel(treeAreaCardLayout);
+        treeAreaCards.add(changesTreeScrollPane, "TREE");
+        treeAreaCards.add(noChangesLabel, "NO_CHANGES");
+
         JPanel leftPanel = new JPanel(new MigLayout("insets 0, novisualpadding, fill", "[grow,fill]", "[grow,fill][]"));
-        leftPanel.add(changesTreeScrollPane, "grow, push, wrap");
+        leftPanel.add(treeAreaCards, "grow, push, wrap");
         leftPanel.add(actionBar, "growx, wrap");
 
         splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightCards);
@@ -448,11 +460,18 @@ public class ChangesTabPanel extends JPanel {
             }
         }
 
-        root.add(changedGroup);
-        root.add(untrackedGroup);
+        if (changedCount > 0) root.add(changedGroup);
+        if (untrackedCount > 0) root.add(untrackedGroup);
+
         changesTree.setModel(new DefaultTreeModel(root));
         expandAll(changesTree);
         updateCommitButton();
+
+        if (root.getChildCount() == 0) {
+            treeAreaCardLayout.show(treeAreaCards, "NO_CHANGES");
+        } else {
+            treeAreaCardLayout.show(treeAreaCards, "TREE");
+        }
     }
 
     // ========== Helpers ==========
