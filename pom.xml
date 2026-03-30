@@ -404,6 +404,18 @@
         <!-- Version 4.6.0 -->
         <profile>
             <id>v460</id>
+            <properties>
+                <maven.compiler.source>17</maven.compiler.source>
+                <maven.compiler.target>17</maven.compiler.target>
+
+                <mirth.version>4.6.0</mirth.version>
+                <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
+                <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
+            </properties>
+        </profile>
+        <!-- Version 4.6.1 -->
+        <profile>
+            <id>v461</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
@@ -411,7 +423,7 @@
                 <maven.compiler.source>17</maven.compiler.source>
                 <maven.compiler.target>17</maven.compiler.target>
 
-                <mirth.version>4.6.0</mirth.version>
+                <mirth.version>4.6.1</mirth.version>
                 <plugin.mirthVersion>${mirth.version}</plugin.mirthVersion>
                 <plugin.archive.name>innovarhealthcare-channel-history-arch-${mirth.version}</plugin.archive.name>
             </properties>

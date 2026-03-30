@@ -12,6 +12,9 @@ public class VersionHistoryProperties {
     public static final String VERSION_HISTORY_REMOTE_REPO_URL = "versionHistory.remote.url";
     public static final String VERSION_HISTORY_REMOTE_BRANCH = "versionHistory.remote.branch";
     public static final String VERSION_HISTORY_REMOTE_SSH_KEY = "versionHistory.remote.ssh.key";
+    public static final String VERSION_HISTORY_TRANSPORT_TYPE = "versionHistory.remote.transportType";
+    public static final String VERSION_HISTORY_HTTPS_USERNAME = "versionHistory.remote.https.username";
+    public static final String VERSION_HISTORY_HTTPS_PAT = "versionHistory.remote.https.pat";
 
     private boolean enableVersionHistory;
     private boolean enableAutoCommit;
@@ -26,6 +29,7 @@ public class VersionHistoryProperties {
         enableAutoCommitPrompt = false;
         autoCommitMsg = "";
         enableSyncDelete = false;
+        gitSettings = new GitSettings("", "", "");
     }
 
     public VersionHistoryProperties(Properties properties) {
@@ -44,6 +48,9 @@ public class VersionHistoryProperties {
         properties.setProperty(VERSION_HISTORY_REMOTE_REPO_URL, gitSettings.getRemoteRepositoryUrl());
         properties.setProperty(VERSION_HISTORY_REMOTE_BRANCH, gitSettings.getBranchName());
         properties.setProperty(VERSION_HISTORY_REMOTE_SSH_KEY, gitSettings.getSshPrivateKey());
+        properties.setProperty(VERSION_HISTORY_TRANSPORT_TYPE, gitSettings.getTransportType().name());
+        properties.setProperty(VERSION_HISTORY_HTTPS_USERNAME, gitSettings.getHttpsUsername());
+        properties.setProperty(VERSION_HISTORY_HTTPS_PAT, gitSettings.getHttpsPersonalAccessToken());
 
         return properties;
     }
@@ -89,7 +96,22 @@ public class VersionHistoryProperties {
             sshPrivateKey = properties.getProperty(VERSION_HISTORY_REMOTE_SSH_KEY);
         }
 
-        gitSettings = new GitSettings(remoteRepositoryUrl, branchName, sshPrivateKey);
+        TransportType transportType = TransportType.SSH;
+        if (properties.getProperty(VERSION_HISTORY_TRANSPORT_TYPE) != null && !properties.getProperty(VERSION_HISTORY_TRANSPORT_TYPE).equals("")) {
+            transportType = TransportType.fromString(properties.getProperty(VERSION_HISTORY_TRANSPORT_TYPE));
+        }
+
+        String httpsUsername = "";
+        if (properties.getProperty(VERSION_HISTORY_HTTPS_USERNAME) != null && !properties.getProperty(VERSION_HISTORY_HTTPS_USERNAME).equals("")) {
+            httpsUsername = properties.getProperty(VERSION_HISTORY_HTTPS_USERNAME);
+        }
+
+        String httpsPersonalAccessToken = "";
+        if (properties.getProperty(VERSION_HISTORY_HTTPS_PAT) != null && !properties.getProperty(VERSION_HISTORY_HTTPS_PAT).equals("")) {
+            httpsPersonalAccessToken = properties.getProperty(VERSION_HISTORY_HTTPS_PAT);
+        }
+
+        gitSettings = new GitSettings(remoteRepositoryUrl, branchName, transportType, sshPrivateKey, httpsUsername, httpsPersonalAccessToken);
     }
 
     public boolean isEnableAutoCommit() {

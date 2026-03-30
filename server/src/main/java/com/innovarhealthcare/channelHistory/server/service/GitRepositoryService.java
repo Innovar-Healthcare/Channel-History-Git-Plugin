@@ -2,6 +2,7 @@ package com.innovarhealthcare.channelHistory.server.service;
 
 import com.innovarhealthcare.channelHistory.shared.VersionControlConstants;
 
+import com.innovarhealthcare.channelHistory.shared.model.TransportType;
 import com.innovarhealthcare.channelHistory.shared.model.VersionHistoryProperties;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.jcraft.jsch.JSch;
@@ -40,6 +41,8 @@ import org.eclipse.jgit.transport.SshTransport;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.transport.URIish;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.treewalk.TreeWalk;
@@ -81,8 +84,12 @@ public class GitRepositoryService {
     private boolean autoCommit;
     private String remoteRepoUrl;
     private String remoteRepoBranch;
+    private TransportType transportType;
     private byte[] sshKeyBytes = new byte[0];
     private SshSessionFactory sshSessionFactory;
+    private String httpsUsername;
+    private String httpsPersonalAccessToken;
+    private CredentialsProvider credentialsProvider;
 
     private ChannelService channelService;
     private CodeTemplateService codeTemplateService;
@@ -107,7 +114,7 @@ public class GitRepositoryService {
         dir = new File(Donkey.getInstance().getConfiguration().getAppData(), DATA_DIR);
 
         if (enable) {
-            if (validateGitConnected(remoteRepoUrl, remoteRepoBranch, sshKeyBytes) == null) {
+            if (validateConnection() == null) {
                 initGitRepo(false);
             }
         }
@@ -137,6 +144,14 @@ public class GitRepositoryService {
         return sshSessionFactory;
     }
 
+    public TransportType getTransportType() {
+        return transportType;
+    }
+
+    public CredentialsProvider getCredentialsProvider() {
+        return credentialsProvider;
+    }
+
     public VersionHistoryProperties getVersionHistoryProperties() {
         return versionHistoryProperties;
     }
@@ -148,7 +163,7 @@ public class GitRepositoryService {
         closeGit();
 
         if (enable) {
-            if (validateGitConnected(remoteRepoUrl, remoteRepoBranch, sshKeyBytes) == null) {
+            if (validateConnection() == null) {
                 initGitRepo(true);
             }
         }
@@ -157,11 +172,19 @@ public class GitRepositoryService {
     public String validateSettings(Properties properties) throws Exception {
         VersionHistoryProperties props = new VersionHistoryProperties(properties);
 
-        byte[] ssh = props.getGitSettings().getSshPrivateKey().getBytes(CHARSET_UTF_8);
         String url = props.getGitSettings().getRemoteRepositoryUrl();
         String branch = props.getGitSettings().getBranchName();
+        TransportType type = props.getGitSettings().getTransportType();
 
-        String ret = validateGitConnected(url, branch, ssh);
+        String ret;
+        if (type == TransportType.HTTPS) {
+            String username = props.getGitSettings().getHttpsUsername();
+            String pat = props.getGitSettings().getHttpsPersonalAccessToken();
+            ret = validateGitConnectedHttps(url, branch, username, pat);
+        } else {
+            byte[] ssh = props.getGitSettings().getSshPrivateKey().getBytes(CHARSET_UTF_8);
+            ret = validateGitConnectedSsh(url, branch, ssh);
+        }
 
         if (ret == null) {
             return "Successfully connected to the remote repository. Remember to save your changes.";
@@ -170,7 +193,15 @@ public class GitRepositoryService {
         return ret;
     }
 
-    private String validateGitConnected(String url, String branch, byte[] ssh) {
+    private String validateConnection() {
+        if (transportType == TransportType.HTTPS) {
+            return validateGitConnectedHttps(remoteRepoUrl, remoteRepoBranch, httpsUsername, httpsPersonalAccessToken);
+        } else {
+            return validateGitConnectedSsh(remoteRepoUrl, remoteRepoBranch, sshKeyBytes);
+        }
+    }
+
+    private String validateGitConnectedSsh(String url, String branch, byte[] ssh) {
         SshSessionFactory sshSession = new JschConfigSessionFactory() {
             @Override
             protected void configure(OpenSshConfig.Host host, Session session) {
@@ -189,7 +220,7 @@ public class GitRepositoryService {
         try {
             tempDir = FileUtils.createTempDir("version_history_", "", new File(Donkey.getInstance().getConfiguration().getAppData(), "temp"));
         } catch (Exception e) {
-            logger.warn("Failed to create temp directory. Error: " + e);
+            logger.warn("Failed to create temp directory. Error: {}", e.getMessage());
             return "Failed to create temp directory. Error: " + e;
         }
 
@@ -217,7 +248,42 @@ public class GitRepositoryService {
         try {
             FileUtils.delete(tempDir, 13);
         } catch (Exception e) {
-            logger.warn("Failed to remove temp directory. Error: " + e);
+            logger.warn("Failed to remove temp directory. Error: {}", e.getMessage());
+        }
+
+        return ret;
+    }
+
+    private String validateGitConnectedHttps(String url, String branch, String username, String pat) {
+        File tempDir;
+        try {
+            tempDir = FileUtils.createTempDir("version_history_", "", new File(Donkey.getInstance().getConfiguration().getAppData(), "temp"));
+        } catch (Exception e) {
+            logger.warn("Failed to create temp directory. Error: {}", e.getMessage());
+            return "Failed to create temp directory. Error: " + e;
+        }
+
+        CredentialsProvider credentials = new UsernamePasswordCredentialsProvider(username, pat);
+
+        CloneCommand cloneCommand = Git.cloneRepository();
+        cloneCommand.setURI(url);
+        cloneCommand.setDirectory(tempDir);
+        cloneCommand.setBranch(branch);
+        cloneCommand.setCredentialsProvider(credentials);
+        cloneCommand.setNoCheckout(true);
+
+        String ret = null;
+        try {
+            Git git = cloneCommand.call();
+            git.close();
+        } catch (Exception e) {
+            ret = "Failed to connect to the remote repository. Error: " + e;
+        }
+
+        try {
+            FileUtils.delete(tempDir, 13);
+        } catch (Exception e) {
+            logger.warn("Failed to remove temp directory. Error: {}", e.getMessage());
         }
 
         return ret;
@@ -225,20 +291,25 @@ public class GitRepositoryService {
 
     public void initGitRepo(boolean force) throws Exception {
         try {
-            // init ssh session
-            sshSessionFactory = new JschConfigSessionFactory() {
-                @Override
-                protected void configure(OpenSshConfig.Host host, Session session) {
-                    session.setConfig("StrictHostKeyChecking", "no");
-                }
+            if (transportType == TransportType.HTTPS) {
+                credentialsProvider = new UsernamePasswordCredentialsProvider(httpsUsername, httpsPersonalAccessToken);
+                sshSessionFactory = null;
+            } else {
+                sshSessionFactory = new JschConfigSessionFactory() {
+                    @Override
+                    protected void configure(OpenSshConfig.Host host, Session session) {
+                        session.setConfig("StrictHostKeyChecking", "no");
+                    }
 
-                @Override
-                protected JSch createDefaultJSch(FS fs) throws JSchException {
-                    JSch defaultJSch = super.createDefaultJSch(fs);
-                    defaultJSch.addIdentity("mirthVersionHistoryKey", sshKeyBytes, null, null);
-                    return defaultJSch;
-                }
-            };
+                    @Override
+                    protected JSch createDefaultJSch(FS fs) throws JSchException {
+                        JSch defaultJSch = super.createDefaultJSch(fs);
+                        defaultJSch.addIdentity("mirthVersionHistoryKey", sshKeyBytes, null, null);
+                        return defaultJSch;
+                    }
+                };
+                credentialsProvider = null;
+            }
 
             // init repo directory
             dir = new File(Donkey.getInstance().getConfiguration().getAppData(), DATA_DIR);
@@ -261,6 +332,7 @@ public class GitRepositoryService {
 
             isGitConnected = true;
         } catch (Exception e) {
+            logger.error("Failed to initialize Git repository. Transport: {}, Error: {}", transportType, e.getMessage(), e);
             isGitConnected = false;
         }
     }
@@ -339,8 +411,8 @@ public class GitRepositoryService {
             return responseUtil.fail(operationDetails, "Remote repository URL cannot be empty.");
         }
 
-        if (sshSessionFactory == null) {
-            return responseUtil.fail(operationDetails, "SSH session factory cannot be null.");
+        if (!isTransportConfigured()) {
+            return responseUtil.fail(operationDetails, "Transport not configured (SSH session factory or HTTPS credentials required).");
         }
 
         try {
@@ -377,12 +449,7 @@ public class GitRepositoryService {
                 FetchCommand fetchCommand = git.fetch();
                 fetchCommand.setRemote("origin");
                 fetchCommand.setRefSpecs(new RefSpec("refs/heads/" + branch + ":refs/remotes/origin/" + branch));
-                fetchCommand.setTransportConfigCallback(transport -> {
-                    if (transport instanceof SshTransport) {
-                        SshTransport sshTransport = (SshTransport) transport;
-                        sshTransport.setSshSessionFactory(sshSessionFactory);
-                    }
-                });
+                configureTransport(fetchCommand);
                 FetchResult fetchResult = fetchCommand.call();
                 operationDetails.append("  Fetch: ").append(fetchResult.getMessages()).append(System.lineSeparator());
 
@@ -442,8 +509,8 @@ public class GitRepositoryService {
         if (branch == null || branch.trim().isEmpty()) {
             return responseUtil.fail(operationDetails, "Branch cannot be empty.");
         }
-        if (sshSessionFactory == null) {
-            return responseUtil.fail(operationDetails, "SSH session factory cannot be null.");
+        if (!isTransportConfigured()) {
+            return responseUtil.fail(operationDetails, "Transport not configured (SSH session factory or HTTPS credentials required).");
         }
 
         try {
@@ -488,11 +555,7 @@ public class GitRepositoryService {
             pushCommand.setRemote("origin");
             pushCommand.setRefSpecs(new RefSpec("refs/heads/" + branch));
             pushCommand.setForce(allowForcePush);
-            pushCommand.setTransportConfigCallback(transport -> {
-                if (transport instanceof SshTransport) {
-                    ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
-                }
-            });
+            configureTransport(pushCommand);
 
             Iterable<PushResult> pushResults = pushCommand.call();
             Iterator<PushResult> iterator = pushResults.iterator();
@@ -565,12 +628,7 @@ public class GitRepositoryService {
         FetchCommand fetchCommand = git.fetch();
         fetchCommand.setRemote("origin");
         fetchCommand.setRefSpecs(new RefSpec("refs/heads/" + branch + ":refs/remotes/origin/" + branch));
-        fetchCommand.setTransportConfigCallback(transport -> {
-            if (transport instanceof SshTransport) {
-                SshTransport sshTransport = (SshTransport) transport;
-                sshTransport.setSshSessionFactory(sshSessionFactory);
-            }
-        });
+        configureTransport(fetchCommand);
         FetchResult fetchResult = fetchCommand.call();
 
         // Get remote and local branch refs
@@ -614,13 +672,7 @@ public class GitRepositoryService {
         PullCommand pullCommand = git.pull();
         pullCommand.setRemote("origin");
         pullCommand.setRemoteBranchName(remoteRepoBranch);
-        pullCommand.setTransportConfigCallback(new TransportConfigCallback() {
-            @Override
-            public void configure(Transport transport) {
-                SshTransport sshTransport = (SshTransport) transport;
-                sshTransport.setSshSessionFactory(sshSessionFactory);
-            }
-        });
+        configureTransport(pullCommand);
         pullCommand.call();
     }
 
@@ -629,28 +681,74 @@ public class GitRepositoryService {
         cloneCommand.setURI(remoteRepoUrl);
         cloneCommand.setDirectory(dir);
         cloneCommand.setBranch(remoteRepoBranch);
-        cloneCommand.setTransportConfigCallback(new TransportConfigCallback() {
-            @Override
-            public void configure(Transport transport) {
-                SshTransport sshTransport = (SshTransport) transport;
-                sshTransport.setSshSessionFactory(sshSessionFactory);
-            }
-        });
-
+        configureTransport(cloneCommand);
         return cloneCommand.call();
+    }
+
+    private void configureTransport(PullCommand command) {
+        if (transportType == TransportType.HTTPS) {
+            command.setCredentialsProvider(credentialsProvider);
+        } else {
+            command.setTransportConfigCallback(transport -> {
+                if (transport instanceof SshTransport) {
+                    ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
+                }
+            });
+        }
+    }
+
+    private void configureTransport(CloneCommand command) {
+        if (transportType == TransportType.HTTPS) {
+            command.setCredentialsProvider(credentialsProvider);
+        } else {
+            command.setTransportConfigCallback(transport -> {
+                if (transport instanceof SshTransport) {
+                    ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
+                }
+            });
+        }
+    }
+
+    private void configureTransport(FetchCommand command) {
+        if (transportType == TransportType.HTTPS) {
+            command.setCredentialsProvider(credentialsProvider);
+        } else {
+            command.setTransportConfigCallback(transport -> {
+                if (transport instanceof SshTransport) {
+                    ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
+                }
+            });
+        }
+    }
+
+    private void configureTransport(PushCommand command) {
+        if (transportType == TransportType.HTTPS) {
+            command.setCredentialsProvider(credentialsProvider);
+        } else {
+            command.setTransportConfigCallback(transport -> {
+                if (transport instanceof SshTransport) {
+                    ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
+                }
+            });
+        }
+    }
+
+    private boolean isTransportConfigured() {
+        if (transportType == TransportType.HTTPS) {
+            return credentialsProvider != null;
+        } else {
+            return sshSessionFactory != null;
+        }
     }
 
     private void closeGit() {
         if (git != null) {
             git.close();
-
             git = null;
         }
 
-        if (sshSessionFactory != null) {
-            sshSessionFactory = null;
-        }
-
+        sshSessionFactory = null;
+        credentialsProvider = null;
         isGitConnected = false;
     }
 
@@ -678,8 +776,12 @@ public class GitRepositoryService {
         enable = versionHistoryProperties.isEnableVersionHistory();
         autoCommit = versionHistoryProperties.isEnableAutoCommit();
 
-        sshKeyBytes = versionHistoryProperties.getGitSettings().getSshPrivateKey().getBytes(CHARSET_UTF_8);
         remoteRepoUrl = versionHistoryProperties.getGitSettings().getRemoteRepositoryUrl();
         remoteRepoBranch = versionHistoryProperties.getGitSettings().getBranchName();
+        transportType = versionHistoryProperties.getGitSettings().getTransportType();
+
+        sshKeyBytes = versionHistoryProperties.getGitSettings().getSshPrivateKey().getBytes(CHARSET_UTF_8);
+        httpsUsername = versionHistoryProperties.getGitSettings().getHttpsUsername();
+        httpsPersonalAccessToken = versionHistoryProperties.getGitSettings().getHttpsPersonalAccessToken();
     }
 }

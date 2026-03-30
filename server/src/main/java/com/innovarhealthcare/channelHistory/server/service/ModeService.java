@@ -1,6 +1,7 @@
 package com.innovarhealthcare.channelHistory.server.service;
 
 import com.innovarhealthcare.channelHistory.shared.model.CommitMetaData;
+import com.innovarhealthcare.channelHistory.shared.model.TransportType;
 import com.innovarhealthcare.channelHistory.shared.util.ResponseUtil;
 import com.mirth.connect.model.Channel;
 import com.mirth.connect.model.codetemplates.CodeTemplate;
@@ -31,6 +32,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 
+import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.SshSessionFactory;
 import org.eclipse.jgit.transport.SshTransport;
 import org.eclipse.jgit.transport.URIish;
@@ -91,6 +93,8 @@ public abstract class ModeService {
         String remoteRepoUrl = this.gitService.getRemoteRepoUrl();
         String branch = this.gitService.getRemoteRepoBranch();
         SshSessionFactory sshSessionFactory = this.gitService.getSshSessionFactory();
+        CredentialsProvider credentialsProvider = this.gitService.getCredentialsProvider();
+        TransportType transportType = this.gitService.getTransportType();
 
         JSONObject result = new JSONObject();
         StringBuilder response = new StringBuilder();
@@ -118,8 +122,14 @@ public abstract class ModeService {
             return responseResultFail(response, "Remote repository URL cannot be empty.");
         }
 
-        if (sshSessionFactory == null) {
-            return responseResultFail(response, "SSH session factory cannot be null.");
+        if (transportType == TransportType.HTTPS) {
+            if (credentialsProvider == null) {
+                return responseResultFail(response, "HTTPS credentials provider cannot be null.");
+            }
+        } else {
+            if (sshSessionFactory == null) {
+                return responseResultFail(response, "SSH session factory cannot be null.");
+            }
         }
 
         if (serializer == null) {
@@ -160,12 +170,15 @@ public abstract class ModeService {
                 FetchCommand fetchCommand = git.fetch();
                 fetchCommand.setRemote("origin");
                 fetchCommand.setRefSpecs(new RefSpec("refs/heads/" + branch + ":refs/remotes/origin/" + branch));
-                fetchCommand.setTransportConfigCallback(transport -> {
-                    if (transport instanceof SshTransport) {
-                        SshTransport sshTransport = (SshTransport) transport;
-                        sshTransport.setSshSessionFactory(sshSessionFactory);
-                    }
-                });
+                if (transportType == TransportType.HTTPS) {
+                    fetchCommand.setCredentialsProvider(credentialsProvider);
+                } else {
+                    fetchCommand.setTransportConfigCallback(transport -> {
+                        if (transport instanceof SshTransport) {
+                            ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
+                        }
+                    });
+                }
                 FetchResult fetchResult = fetchCommand.call();
                 response.append("  Fetch: ").append(fetchResult.getMessages()).append(System.lineSeparator());
 
@@ -229,12 +242,15 @@ public abstract class ModeService {
             pushCommand.setRemote("origin");
             pushCommand.setRefSpecs(new RefSpec("refs/heads/" + branch));
             pushCommand.setForce(allowForcePush);
-            pushCommand.setTransportConfigCallback(transport -> {
-                if (transport instanceof SshTransport) {
-                    SshTransport sshTransport = (SshTransport) transport;
-                    sshTransport.setSshSessionFactory(sshSessionFactory);
-                }
-            });
+            if (transportType == TransportType.HTTPS) {
+                pushCommand.setCredentialsProvider(credentialsProvider);
+            } else {
+                pushCommand.setTransportConfigCallback(transport -> {
+                    if (transport instanceof SshTransport) {
+                        ((SshTransport) transport).setSshSessionFactory(sshSessionFactory);
+                    }
+                });
+            }
 
             response.append("Push Result:").append(System.lineSeparator());
             Iterable<PushResult> pushResults = pushCommand.call();
